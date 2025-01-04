@@ -37,9 +37,9 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Accuracy tracking and model comparison
 
 - **Interactive Dashboard**
-  - Live price and volume charts
+  - ETH Live price and volume charts
   - Model performance visualization
-  - Gas price optimization tools
+  - Gas price in real time
 
 ## Quick Start
 
