@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Crypto Trading Bot Chef</title>
+    <link rel="icon" type="image/webp" href="static/favicon.webp">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #9d00ff;
+            --neon-pink: #ff0099;
+            --cyber-black: #0a0a0f;
+            --cyber-dark: #1a1a2e;
+            --cyber-text: #e2e8f0;
+        }
+        body {
+            background: var(--cyber-black);
+            color: var(--cyber-text);
+            font-family: 'Courier New', monospace;
+            background-image: 
+                linear-gradient(45deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(-45deg, rgba(157, 0, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: center;
+        }
+        .cyber-card {
+            background: rgba(26, 26, 46, 0.8);
+            border: 1px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
+            animation: scan-line 2s linear infinite;
+        }
+        @keyframes scan-line {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .cyber-title {
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.7);
+            position: relative;
+        }
+        .cyber-value {
+            color: var(--neon-purple);
+            text-shadow: 0 0 10px rgba(157, 0, 255, 0.7);
+            position: relative;
+        }
+        .cyber-btn {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.7);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200%;
+            height: 200%;
+            background: rgba(0, 243, 255, 0.2);
+            transform: translate(-50%, -50%) rotate(45deg);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+        .cyber-btn:hover::before {
+            opacity: 1;
+        }
+        .cyber-btn:hover {
+            background: rgba(0, 243, 255, 0.1);
+            color: var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        .chart-container {
+            border: 1px solid var(--neon-blue);
+            background: rgba(26, 26, 46, 0.8);
+            height: 400px;
+            box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.2);
+            backdrop-filter: blur(5px);
+        }
+        .header-logo {
+            max-width: 60px;
+            height: auto;
+            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7));
+            animation: pulse 2s ease-in-out infinite;
+            margin-right: 1rem;
+        }
+        @keyframes pulse {
+            0% { filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7)); }
+            50% { filter: drop-shadow(0 0 25px rgba(157, 0, 255, 0.7)); }
+            100% { filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7)); }
+        }
+        .cyber-header {
+            background: rgba(26, 26, 46, 0.8);
+            border-bottom: 1px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
+            animation: scan-line 2s linear infinite;
+        }
+        @media (max-width: 768px) {
+            .header-logo {
+                max-width: 60px;
+            }
+            .chart-container {
+                height: 300px;
+            }
+            .grid-cols-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <script>
+        let priceChart;
+        let performanceChart;
+        const priceHistory = [];
+        const timeLabels = [];
+        const volumeHistory = [];
+        const tradingActions = [];
+
+        // Add accuracy tracking variables
+        let aiAccuracy = {
+            gemini: { correct: 0, total: 0 },
+            groq: { correct: 0, total: 0 },
+            mistral: { correct: 0, total: 0 }
+        };
+
+        let lastDecisions = {
+            gemini: null,
+            groq: null,
+            mistral: null,
+            price: null
+        };
+
+        function calculateAccuracy(model) {
+            return aiAccuracy[model].total > 0 
+                ? ((aiAccuracy[model].correct / aiAccuracy[model].total) * 100).toFixed(1)
+                : '0.0';
+        }
+
+        function updateAccuracy(currentPrice) {
+            if (lastDecisions.price !== null) {
+                const priceChange = currentPrice - lastDecisions.price;
+                
+                // Update accuracy for each model
+                ['gemini', 'groq', 'mistral'].forEach(model => {
+                    if (lastDecisions[model]) {
+                        let isCorrect = false;
+                        if (lastDecisions[model] === 'BUY' && priceChange > 0) isCorrect = true;
+                        if (lastDecisions[model] === 'SELL' && priceChange < 0) isCorrect = true;
+                        if (lastDecisions[model] === 'HOLD' && Math.abs(priceChange) < (lastDecisions.price * 0.005)) isCorrect = true;
+                        
+                        if (lastDecisions[model] !== 'HOLD') {
+                            aiAccuracy[model].total++;
+                            if (isCorrect) aiAccuracy[model].correct++;
+                        }
+                    }
+                });
+            }
+
+            // Update accuracy display
+            ['gemini', 'groq', 'mistral'].forEach(model => {
+                const accuracyElement = document.getElementById(`${model}-accuracy`);
+                if (accuracyElement) {
+                    const accuracy = calculateAccuracy(model);
+                    accuracyElement.textContent = `${accuracy}%`;
+                    accuracyElement.className = `font-bold ${
+                        parseFloat(accuracy) >= 70 ? 'text-green-400' :
+                        parseFloat(accuracy) >= 50 ? 'text-yellow-400' :
+                        'text-red-400'
+                    }`;
+                }
+            });
+        }
+
+        function initCharts() {
+            Chart.defaults.color = '#e2e8f0';
+            Chart.defaults.borderColor = 'rgba(0, 243, 255, 0.1)';
+
+            // Price Chart
+            const priceCtx = document.getElementById('price-chart').getContext('2d');
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [
+                        {
+                            label: 'ETH Price (USD)',
+                            data: priceHistory,
+                            borderColor: '#00f3ff',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            yAxisID: 'y',
+                            order: 1
+                        },
+                        {
+                            label: 'Volume',
+                            data: volumeHistory,
+                            backgroundColor: 'rgba(157, 0, 255, 0.2)',
+                            borderColor: 'rgba(157, 0, 255, 0.2)',
+                            type: 'bar',
+                            yAxisID: 'volume',
+                            order: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e2e8f0'
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                            }
+                        },
+                        annotation: {
+                            annotations: {}
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: {
+                                color: 'rgba(0, 243, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Price (USD)',
+                                color: '#e2e8f0'
+                            }
+                        },
+                        volume: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                                color: 'rgba(157, 0, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Volume',
+                                color: '#e2e8f0'
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(price, sentiment, geminiAction, groqAction, mistralAction, volume) {
+            const now = new Date().toLocaleTimeString();
+            
+            // Update accuracy
+            updateAccuracy(price);
+            
+            // Store current decisions for next accuracy calculation
+            lastDecisions = {
+                gemini: geminiAction,
+                groq: groqAction,
+                mistral: mistralAction,
+                price: price
+            };
+            
+            // Keep last 100 data points
+            if (timeLabels.length > 100) {
+                timeLabels.shift();
+                priceHistory.shift();
+                volumeHistory.shift();
+            }
+            
+            timeLabels.push(now);
+            priceHistory.push(price);
+            volumeHistory.push(volume);
+
+            // Add AI recommendations as annotations
+            const annotationIndex = timeLabels.length - 1;
+            const yOffset = price * 0.002;  // Dynamic offset based on price
+
+            // Clear previous annotations
+            priceChart.options.plugins.annotation.annotations = {};
+
+            // Helper function for decision annotations
+            function addDecisionAnnotation(model, action, offset, index) {
+                if (!action) return;
+                
+                const colors = {
+                    'BUY': 'rgb(34, 197, 94)',
+                    'SELL': 'rgb(239, 68, 68)',
+                    'HOLD': 'rgb(156, 163, 175)'
+                };
+                
+                const color = colors[action];
+                
+                priceChart.options.plugins.annotation.annotations[`${model}${index}`] = {
+                    type: 'point',
+                    xValue: now,
+                    yValue: price + (yOffset * offset),
+                    backgroundColor: color,
+                    radius: 4,
+                    borderWidth: 2,
+                    borderColor: 'white',
+                    label: {
+                        content: `${model.charAt(0).toUpperCase() + model.slice(1)}: ${action}`,
+                        enabled: true,
+                        position: 'top',
+                        backgroundColor: color,
+                        color: 'white',
+                        padding: 4,
+                        font: { size: 10 }
+                    }
+                };
+            }
+
+            // Add annotations for each model
+            addDecisionAnnotation('gemini', geminiAction, 1, annotationIndex);
+            addDecisionAnnotation('groq', groqAction, 2, annotationIndex);
+            addDecisionAnnotation('mistral', mistralAction, 3, annotationIndex);
+
+            priceChart.update();
+        }
+
+        // Add performance chart
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Gemini Profit/Loss',
+                            data: [],
+                            borderColor: '#00f3ff',
+                            borderWidth: 2,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Groq Profit/Loss',
+                            data: [],
+                            borderColor: '#9d00ff',
+                            borderWidth: 2,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Mistral Profit/Loss',
+                            data: [],
+                            borderColor: '#ff0099',
+                            borderWidth: 2,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e2e8f0'
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: {
+                                color: 'rgba(0, 243, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#e2e8f0'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Profit/Loss (%)',
+                                color: '#e2e8f0'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePerformanceChart(performance) {
+            const labels = [];
+            const geminiData = [];
+            const groqData = [];
+            const mistralData = [];
+
+            // Process data for each model
+            ['gemini', 'groq', 'mistral'].forEach(model => {
+                if (performance[model]) {
+                    performance[model].forEach(data => {
+                        if (!labels.includes(data.period)) {
+                            labels.push(data.period);
+                        }
+                        const index = labels.indexOf(data.period);
+                        if (model === 'gemini') geminiData[index] = data.total_profit;
+                        if (model === 'groq') groqData[index] = data.total_profit;
+                        if (model === 'mistral') mistralData[index] = data.total_profit;
+                    });
+                }
+            });
+
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = geminiData;
+            performanceChart.data.datasets[1].data = groqData;
+            performanceChart.data.datasets[2].data = mistralData;
+            performanceChart.update();
+        }
+
+        function updateModelStats(stats) {
+            // Update detailed stats for each model
+            ['gemini', 'groq', 'mistral'].forEach(model => {
+                if (stats.comparison[model]) {
+                    const data = stats.comparison[model];
+                    const statsContainer = document.getElementById(`${model}-stats`);
+                    if (statsContainer) {
+                        statsContainer.innerHTML = `
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <div class="text-gray-400">Total Profit:</div>
+                                    <div class="font-bold ${data.total_profit >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                        ${data.total_profit.toFixed(2)}%
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Avg Profit:</div>
+                                    <div class="font-bold ${data.avg_profit >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                        ${data.avg_profit.toFixed(2)}%
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Max Profit:</div>
+                                    <div class="font-bold text-green-400">${data.max_profit.toFixed(2)}%</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Max Loss:</div>
+                                    <div class="font-bold text-red-400">${data.max_loss.toFixed(2)}%</div>
+                                </div>
+                                <div class="col-span-2">
+                                    <div class="text-gray-400">Decision Distribution:</div>
+                                    <div class="flex justify-between mt-1">
+                                        <span class="text-green-400">Buy: ${data.decision_distribution.buy}</span>
+                                        <span class="text-red-400">Sell: ${data.decision_distribution.sell}</span>
+                                        <span class="text-blue-400">Hold: ${data.decision_distribution.hold}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            });
+        }
+
+        function updateData() {
+            console.log('Fetching new data...');  // Debug log
+            fetch('/api/trading-data')
+                .then(response => {
+                    if (!response.ok) {
+                        console.error('Network response was not ok:', response.status);  // Debug log
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);  // Debug log
+                    
+                    // Update metrics
+                    document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
+                    document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
+                    document.getElementById('eth-high').textContent = `$${data.eth_high_24h.toFixed(2)}`;
+                    document.getElementById('eth-low').textContent = `$${data.eth_low_24h.toFixed(2)}`;
+
+                    // Update gas price information
+                    if (data.gas_prices) {
+                        document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
+                        document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
+                        document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                    }
+
+                    // Update model decisions and stats
+                    ['gemini', 'groq', 'mistral'].forEach(model => {
+                        const action = data[`${model}_action`];
+                        const stats = data.model_stats?.accuracy?.[model] || { accuracy: 0 };
+                        
+                        // Update decision
+                        const decisionElement = document.getElementById(`${model}-decision`);
+                        if (decisionElement) {
+                            decisionElement.textContent = action || 'N/A';
+                            decisionElement.className = `font-bold text-xl cyber-value ${
+                                action === 'BUY' ? 'text-green-400' :
+                                action === 'SELL' ? 'text-red-400' :
+                                'text-blue-400'
+                            } animate-pulse`;
+                        }
+                        
+                        // Update accuracy
+                        const accuracyElement = document.getElementById(`${model}-accuracy`);
+                        if (accuracyElement) {
+                            accuracyElement.textContent = `${stats.accuracy || 0}%`;
+                            accuracyElement.className = `font-bold ${
+                                stats.accuracy >= 70 ? 'text-green-400' :
+                                stats.accuracy >= 50 ? 'text-yellow-400' :
+                                'text-red-400'
+                            }`;
+                        }
+                    });
+
+                    // Update market sentiment
+                    const sentimentText = document.getElementById('sentiment');
+                    if (sentimentText && data.market_sentiment) {
+                    sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
+                    const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800';
+                    
+                    sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                    }
+
+                    // Update charts
+                    updateCharts(
+                        data.eth_price,
+                        data.market_sentiment?.fear_greed_value,
+                        data.gemini_action,
+                        data.groq_action,
+                        data.mistral_action,
+                        data.eth_volume_24h
+                    );
+
+                    // Update performance data
+                    if (data.model_stats?.daily_performance) {
+                        updatePerformanceChart(data.model_stats.daily_performance);
+                    }
+
+                    // Update detailed model stats
+                    if (data.model_stats?.comparison) {
+                        updateModelStats(data.model_stats);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);  // Debug log
+                    document.querySelectorAll('.cyber-value').forEach(el => {
+                        el.textContent = 'Error';
+                        el.classList.add('text-red-500');
+                    });
+                });
+        }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Initializing dashboard...');  // Debug log
+            initCharts();
+            initPerformanceChart();
+            updateData();  // Initial data fetch
+            
+            // Set up auto-refresh
+            const refreshInterval = setInterval(() => {
+                console.log('Auto-refresh triggered');  // Debug log
+            updateData();
+            }, 30000);
+
+            // Clean up on page unload
+            window.addEventListener('beforeunload', () => {
+                clearInterval(refreshInterval);
+            });
+        });
+
+        // Add timeframe update function
+        function updateTimeframe(timeframe) {
+            // Update button styles
+            document.querySelectorAll('.cyber-btn').forEach(btn => {
+                btn.classList.remove('cyber-btn-active');
+            });
+            event.target.classList.add('cyber-btn-active');
+
+            // Fetch new data with selected timeframe
+            fetch(`/api/model-stats?timeframe=${timeframe}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.performance) {
+                        updatePerformanceChart(data.performance);
+                    }
+                    if (data.comparison) {
+                        updateModelStats(data.comparison);
+                    }
+                })
+                .catch(error => console.error('Error updating timeframe:', error));
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <!-- Header -->
+    <div class="cyber-header p-4">
+        <div class="container mx-auto">
+            <div class="flex items-center justify-center">
+                <img src="static/robot.webp" alt="Trading Bot Chef" class="header-logo">
+                <h1 class="text-2xl md:text-3xl font-bold cyber-title tracking-wider">Simple Crypto Trading Bot Chef</h1>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- ETH Price Info -->
+            <div class="cyber-card rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">ETH Price</h2>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Current Price:</span>
+                        <span id="eth-price" class="font-semibold cyber-value">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span id="eth-volume" class="font-semibold cyber-value">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">24h High:</span>
+                        <span id="eth-high" class="font-semibold cyber-value">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">24h Low:</span>
+                        <span id="eth-low" class="font-semibold cyber-value">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gas Prices -->
+            <div class="cyber-card rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">Gas Prices</h2>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Low:</span>
+                        <span id="gas-low" class="font-semibold cyber-value">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Standard:</span>
+                        <span id="gas-standard" class="font-semibold cyber-value">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Fast:</span>
+                        <span id="gas-fast" class="font-semibold cyber-value">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Trading Signals -->
+            <div class="cyber-card rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">Market Signals</h2>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Market Sentiment:</span>
+                        <span id="sentiment" class="font-semibold cyber-value">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gemini AI Recommendation -->
+            <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold cyber-title">Gemini AI</h2>
+                    <svg class="w-6 h-6 text-neon-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Decision:</span>
+                        <span id="gemini-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
+                    </div>
+                    <div class="text-xs text-gray-400 text-right">Powered by Gemini 1.5 Flash</div>
+                </div>
+            </div>
+
+            <!-- Groq AI Recommendation -->
+            <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold cyber-title">Groq AI</h2>
+                    <svg class="w-6 h-6 text-neon-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Decision:</span>
+                        <span id="groq-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
+                    </div>
+                    <div class="text-xs text-gray-400 text-right">Powered by LLaMA-3.1-70B-Versatile</div>
+                </div>
+            </div>
+
+            <!-- Mistral AI Recommendation -->
+            <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold cyber-title">Mistral AI</h2>
+                    <svg class="w-6 h-6 text-neon-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10l3.5 3.5m0-6.5L13 10m6 0l-3.5 3.5M7 10l-3.5 3.5m0-6.5L7 10m-6 0l3.5 3.5" />
+                    </svg>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Decision:</span>
+                        <span id="mistral-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
+                    </div>
+                    <div class="text-xs text-gray-400 text-right">Powered by Mistral Large</div>
+                </div>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="cyber-card rounded-lg shadow p-6 col-span-3">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance</h2>
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- Gemini Performance -->
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-blue">Gemini 1.5 Flash</h3>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-gray-400">Accuracy:</span>
+                                <span id="gemini-accuracy" class="font-bold">0.0%</span>
+                            </div>
+                        </div>
+                        <div id="gemini-stats" class="bg-cyber-dark rounded p-3"></div>
+                    </div>
+
+                    <!-- Groq Performance -->
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-purple">Groq LLaMA</h3>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-gray-400">Accuracy:</span>
+                                <span id="groq-accuracy" class="font-bold">0.0%</span>
+                            </div>
+                        </div>
+                        <div id="groq-stats" class="bg-cyber-dark rounded p-3"></div>
+                    </div>
+
+                    <!-- Mistral Performance -->
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-blue">Mistral Large</h3>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-gray-400">Accuracy:</span>
+                                <span id="mistral-accuracy" class="font-bold">0.0%</span>
+                            </div>
+                        </div>
+                        <div id="mistral-stats" class="bg-cyber-dark rounded p-3"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- Charts -->
+        <div class="grid grid-cols-1 gap-6 mt-6">
+            <!-- Price Trend -->
+            <div class="cyber-card rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">ETH Price Trend</h2>
+                <div class="chart-container">
+                    <canvas id="price-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Performance Trend -->
+            <div class="cyber-card rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance Trend</h2>
+                <div class="flex flex-wrap justify-end space-x-2 space-y-2 md:space-y-0 mb-4">
+                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('hour')">Hourly</button>
+                    <button class="cyber-btn px-3 py-1 text-sm cyber-btn-active" onclick="updateTimeframe('day')">Daily</button>
+                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('week')">Weekly</button>
+                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('month')">Monthly</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="performance-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

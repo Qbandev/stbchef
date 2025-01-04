@@ -1,0 +1,59 @@
+[tool.poetry]
+name = "crypto-ai-trader"
+version = "0.1.0"
+description = "AI-powered ETH trading system"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^3.0.2"
+flask-cors = "^4.0.0"
+requests = "^2.31.0"
+python-dotenv = "^1.0.1"
+huggingface-hub = "^0.21.4"
+google-generativeai = "^0.3.2"
+openai = "^1.59.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+black = "^23.7.0"
+flake8 = "^6.1.0"
+mypy = "^1.5.0"
+isort = "^5.13.2"
+types-requests = "^2.31.0"
+types-Flask-Cors = "^4.0.0"
+types-Flask = "^1.1.6"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+disallow_any_unimported = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[tool.poetry.scripts]
+server = "src.web.app:main" 
