@@ -111,7 +111,6 @@
         }
         .cyber-header {
             background: rgba(26, 26, 46, 0.8);
-            border-bottom: 1px solid var(--neon-blue);
             box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
             backdrop-filter: blur(10px);
             position: relative;
@@ -139,6 +138,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script>
         let priceChart;
         let performanceChart;
@@ -665,14 +665,18 @@
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
     <!-- Header -->
-    <div class="cyber-header p-4">
-        <div class="container mx-auto">
-            <div class="flex items-center justify-center">
-                <img src="static/robot.webp" alt="Trading Bot Chef" class="header-logo">
-                <h1 class="text-2xl md:text-3xl font-bold cyber-title tracking-wider">Simple Crypto Trading Bot Chef</h1>
+    <header class="cyber-header p-4">
+        <div class="container mx-auto flex justify-center items-center relative">
+            <div class="flex items-center">
+                <img src="static/robot.webp" alt="Trading Bot Chef Logo" class="header-logo">
+                <h1 class="cyber-title text-2xl">Simple Trading Bot Chef</h1>
             </div>
+            <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center absolute right-0">
+                <i class="fab fa-github mr-2"></i>
+                GitHub
+            </a>
         </div>
-    </div>
+    </header>
 
     <div class="container mx-auto px-4 py-4">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

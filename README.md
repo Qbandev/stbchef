@@ -9,6 +9,15 @@
 
 A proof-of-concept project that evaluates and compares the trading accuracy of different Large Language Models (LLMs) in cryptocurrency trading. The system provides real-time Ethereum (ETH) market data to multiple AI models and analyzes their performance through an interactive dashboard.
 
+## Live Demo
+
+Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onrender.com/)
+
+<div align="center">
+  <img src="src/web/static/website.jpg" alt="Trading Bot Chef Dashboard" width="800"/>
+  <p><em>Trading Bot Chef Dashboard - Real-time AI Trading Analysis</em></p>
+</div>
+
 ### AI Models in Action
 
 - **Gemini 1.5 Flash** - Google's latest LLM optimized for fast, accurate trading analysis
