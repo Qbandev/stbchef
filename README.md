@@ -34,20 +34,59 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 - **AI Analysis**
   - Comparative trading signals from multiple LLMs
   - Real-time performance metrics
-  - Accuracy tracking and model comparison
+  - Advanced accuracy tracking system:
+    - Tracks last 50 trades per model
+    - Calculates profitability based on 1% price movement threshold
+    - Measures average profit per correct trade
+    - Shows decision distribution (Buy/Sell/Hold)
 
 - **Interactive Dashboard**
   - ETH Live price and volume charts
   - Model performance visualization
   - Gas price in real time
+  - Performance metrics:
+    - Total trades
+    - Correct trades
+    - Incorrect trades
+    - Average profit
+    - Decision distribution
+
+- **MetaMask Integration**
+  - Connect wallet for personalized notifications
+  - Receive alerts on LLM consensus signals
+  - Track performance with wallet connection
+
+## Performance Tracking
+
+The system implements a sophisticated accuracy tracking system:
+
+1. **Trade Recording**
+   - Records all trading decisions (BUY/SELL/HOLD)
+   - Tracks price changes after each decision
+   - Maintains history of last 50 trades per model
+
+2. **Profitability Calculation**
+   - BUY: Profitable if price increases by >1%
+   - SELL: Profitable if price decreases by >1%
+   - HOLD: Profitable if price stays within ±1%
+
+3. **Performance Metrics**
+   - Accuracy: Percentage of profitable trades
+   - Average Profit: Mean price change for correct trades
+   - Decision Distribution: Ratio of BUY/SELL/HOLD decisions
+
+4. **Visual Indicators**
+   - Green: ≥65% accuracy
+   - Yellow: ≥45% accuracy
+   - Red: <45% accuracy
 
 ## Quick Start
 
 1. **Setup**
    ```bash
    # Clone the repository
-   git clone https://github.com/yourusername/crypto-ai-trader.git
-   cd crypto-ai-trader
+   git clone https://github.com/yourusername/stbchef.git
+   cd stbchef
 
    # Install dependencies
    poetry install
@@ -78,6 +117,7 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 - **Frontend**
   - TailwindCSS for modern styling
   - Chart.js for dynamic visualizations
+  - Web3.js for MetaMask integration
 
 - **APIs**
   - Etherscan for market data
@@ -106,12 +146,20 @@ graph LR
         J[SQLite DB]
     end
     
+    subgraph Performance
+        K[Trade History]
+        L[Accuracy Tracking]
+        M[Profit Calculation]
+    end
+    
     E --> A
     F --> A
     B --> G & H & I
     G & H & I --> C
     J --> C
     C --> J
+    C --> K & L & M
+    K & L & M --> D
 ```
 
 ## Important Disclaimer

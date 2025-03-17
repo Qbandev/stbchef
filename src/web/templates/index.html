@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
     <style>
         :root {
             --neon-blue: #00f3ff;
@@ -137,9 +138,42 @@
                 grid-template-columns: 1fr;
             }
         }
+        .wallet-btn {
+            background: linear-gradient(45deg, var(--neon-purple), var(--neon-pink));
+            border: 1px solid var(--neon-purple);
+            color: white;
+            text-shadow: 0 0 5px rgba(157, 0, 255, 0.7);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .wallet-btn:hover {
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
+            box-shadow: 0 0 20px rgba(157, 0, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid var(--neon-purple);
+            color: white;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 0 20px rgba(157, 0, 255, 0.3);
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script>
+        let web3;
+        let userAccount;
         let priceChart;
         let performanceChart;
         const priceHistory = [];
@@ -161,27 +195,123 @@
             price: null
         };
 
+        // Add trade tracking variables
+        let tradeHistory = {
+            gemini: [],
+            groq: [],
+            mistral: []
+        };
+
+        // MetaMask Integration
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    // Request account access
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    userAccount = accounts[0];
+                    web3 = new Web3(window.ethereum);
+
+                    // Update button text
+                    const walletBtn = document.getElementById('wallet-btn');
+                    walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)}`;
+                    walletBtn.classList.add('connected');
+
+                    // Show success notification
+                    showNotification('Wallet connected successfully!', 'success');
+
+                    // Listen for account changes
+                    window.ethereum.on('accountsChanged', function (accounts) {
+                        if (accounts.length === 0) {
+                            // User disconnected wallet
+                            userAccount = null;
+                            walletBtn.innerHTML = 'Connect Wallet';
+                            walletBtn.classList.remove('connected');
+                            showNotification('Wallet disconnected', 'warning');
+                        } else {
+                            userAccount = accounts[0];
+                            walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)}`;
+                            showNotification('Wallet account changed', 'info');
+                        }
+                    });
+                } catch (error) {
+                    console.error('User denied account access:', error);
+                    showNotification('Failed to connect wallet', 'error');
+                }
+            } else {
+                showNotification('Please install MetaMask!', 'error');
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <span class="mr-2">${type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        // Function to check if 2 out of 3 LLMs agree on a decision
+        function checkLLMConsensus(decisions) {
+            const buyVotes = Object.values(decisions).filter(d => d === 'BUY').length;
+            const sellVotes = Object.values(decisions).filter(d => d === 'SELL').length;
+
+            if (buyVotes >= 2) {
+                return 'BUY';
+            } else if (sellVotes >= 2) {
+                return 'SELL';
+            }
+            return null;
+        }
+
         function calculateAccuracy(model) {
-            return aiAccuracy[model].total > 0 
-                ? ((aiAccuracy[model].correct / aiAccuracy[model].total) * 100).toFixed(1)
-                : '0.0';
+            const trades = tradeHistory[model];
+            if (trades.length === 0) return 0;
+            
+            const correctTrades = trades.filter(trade => trade.profitable).length;
+            return ((correctTrades / trades.length) * 100).toFixed(1);
         }
 
         function updateAccuracy(currentPrice) {
             if (lastDecisions.price !== null) {
                 const priceChange = currentPrice - lastDecisions.price;
-                
+                const priceChangePercent = (priceChange / lastDecisions.price) * 100;
+
                 // Update accuracy for each model
                 ['gemini', 'groq', 'mistral'].forEach(model => {
                     if (lastDecisions[model]) {
-                        let isCorrect = false;
-                        if (lastDecisions[model] === 'BUY' && priceChange > 0) isCorrect = true;
-                        if (lastDecisions[model] === 'SELL' && priceChange < 0) isCorrect = true;
-                        if (lastDecisions[model] === 'HOLD' && Math.abs(priceChange) < (lastDecisions.price * 0.005)) isCorrect = true;
+                        let isProfitable = false;
+                        const decision = lastDecisions[model];
                         
-                        if (lastDecisions[model] !== 'HOLD') {
-                            aiAccuracy[model].total++;
-                            if (isCorrect) aiAccuracy[model].correct++;
+                        // Consider a trade profitable if:
+                        // - BUY decision and price increased by more than 1%
+                        // - SELL decision and price decreased by more than 1%
+                        // - HOLD decision and price stayed within ±1%
+                        if (decision === 'BUY' && priceChangePercent > 1.0) isProfitable = true;
+                        if (decision === 'SELL' && priceChangePercent < -1.0) isProfitable = true;
+                        if (decision === 'HOLD' && Math.abs(priceChangePercent) <= 1.0) isProfitable = true;
+
+                        // Record all decisions (including HOLD) for better tracking
+                        tradeHistory[model].push({
+                            timestamp: new Date(),
+                            decision: decision,
+                            priceChange: priceChangePercent,
+                            profitable: isProfitable,
+                            price: currentPrice
+                        });
+
+                        // Keep only last 50 trades for more recent performance focus
+                        if (tradeHistory[model].length > 50) {
+                            tradeHistory[model].shift();
                         }
                     }
                 });
@@ -194,8 +324,8 @@
                     const accuracy = calculateAccuracy(model);
                     accuracyElement.textContent = `${accuracy}%`;
                     accuracyElement.className = `font-bold ${
-                        parseFloat(accuracy) >= 70 ? 'text-green-400' :
-                        parseFloat(accuracy) >= 50 ? 'text-yellow-400' :
+                        parseFloat(accuracy) >= 65 ? 'text-green-400' :
+                        parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
                         'text-red-400'
                     }`;
                 }
@@ -305,10 +435,10 @@
 
         function updateCharts(price, sentiment, geminiAction, groqAction, mistralAction, volume) {
             const now = new Date().toLocaleTimeString();
-            
+
             // Update accuracy
             updateAccuracy(price);
-            
+
             // Store current decisions for next accuracy calculation
             lastDecisions = {
                 gemini: geminiAction,
@@ -316,62 +446,19 @@
                 mistral: mistralAction,
                 price: price
             };
-            
+
             // Keep last 100 data points
             if (timeLabels.length > 100) {
                 timeLabels.shift();
                 priceHistory.shift();
                 volumeHistory.shift();
             }
-            
+
             timeLabels.push(now);
             priceHistory.push(price);
             volumeHistory.push(volume);
 
-            // Add AI recommendations as annotations
-            const annotationIndex = timeLabels.length - 1;
-            const yOffset = price * 0.002;  // Dynamic offset based on price
-
-            // Clear previous annotations
-            priceChart.options.plugins.annotation.annotations = {};
-
-            // Helper function for decision annotations
-            function addDecisionAnnotation(model, action, offset, index) {
-                if (!action) return;
-                
-                const colors = {
-                    'BUY': 'rgb(34, 197, 94)',
-                    'SELL': 'rgb(239, 68, 68)',
-                    'HOLD': 'rgb(156, 163, 175)'
-                };
-                
-                const color = colors[action];
-                
-                priceChart.options.plugins.annotation.annotations[`${model}${index}`] = {
-                    type: 'point',
-                    xValue: now,
-                    yValue: price + (yOffset * offset),
-                    backgroundColor: color,
-                    radius: 4,
-                    borderWidth: 2,
-                    borderColor: 'white',
-                    label: {
-                        content: `${model.charAt(0).toUpperCase() + model.slice(1)}: ${action}`,
-                        enabled: true,
-                        position: 'top',
-                        backgroundColor: color,
-                        color: 'white',
-                        padding: 4,
-                        font: { size: 10 }
-                    }
-                };
-            }
-
-            // Add annotations for each model
-            addDecisionAnnotation('gemini', geminiAction, 1, annotationIndex);
-            addDecisionAnnotation('groq', groqAction, 2, annotationIndex);
-            addDecisionAnnotation('mistral', mistralAction, 3, annotationIndex);
-
+            // Update price chart without model annotations
             priceChart.update();
         }
 
@@ -384,25 +471,28 @@
                     labels: [],
                     datasets: [
                         {
-                            label: 'Gemini Profit/Loss',
+                            label: 'Gemini Accuracy',
                             data: [],
                             borderColor: '#00f3ff',
                             borderWidth: 2,
-                            tension: 0.1
+                            tension: 0.1,
+                            fill: false
                         },
                         {
-                            label: 'Groq Profit/Loss',
+                            label: 'Groq Accuracy',
                             data: [],
                             borderColor: '#9d00ff',
                             borderWidth: 2,
-                            tension: 0.1
+                            tension: 0.1,
+                            fill: false
                         },
                         {
-                            label: 'Mistral Profit/Loss',
+                            label: 'Mistral Accuracy',
                             data: [],
                             borderColor: '#ff0099',
                             borderWidth: 2,
-                            tension: 0.1
+                            tension: 0.1,
+                            fill: false
                         }
                     ]
                 },
@@ -431,6 +521,13 @@
                                 enabled: true,
                                 mode: 'x',
                             }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -438,15 +535,20 @@
                             type: 'linear',
                             display: true,
                             position: 'left',
+                            min: 0,
+                            max: 100,
                             grid: {
                                 color: 'rgba(0, 243, 255, 0.1)'
                             },
                             ticks: {
-                                color: '#e2e8f0'
+                                color: '#e2e8f0',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
                             },
                             title: {
                                 display: true,
-                                text: 'Profit/Loss (%)',
+                                text: 'Prediction Accuracy (%)',
                                 color: '#e2e8f0'
                             }
                         }
@@ -469,9 +571,9 @@
                             labels.push(data.period);
                         }
                         const index = labels.indexOf(data.period);
-                        if (model === 'gemini') geminiData[index] = data.total_profit;
-                        if (model === 'groq') groqData[index] = data.total_profit;
-                        if (model === 'mistral') mistralData[index] = data.total_profit;
+                        if (model === 'gemini') geminiData[index] = data.accuracy;
+                        if (model === 'groq') groqData[index] = data.accuracy;
+                        if (model === 'mistral') mistralData[index] = data.accuracy;
                     });
                 }
             });
@@ -486,60 +588,86 @@
         function updateModelStats(stats) {
             // Update detailed stats for each model
             ['gemini', 'groq', 'mistral'].forEach(model => {
-                if (stats.comparison[model]) {
-                    const data = stats.comparison[model];
-                    const statsContainer = document.getElementById(`${model}-stats`);
-                    if (statsContainer) {
-                        statsContainer.innerHTML = `
-                            <div class="grid grid-cols-2 gap-2 text-sm">
-                                <div>
-                                    <div class="text-gray-400">Total Profit:</div>
-                                    <div class="font-bold ${data.total_profit >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                        ${data.total_profit.toFixed(2)}%
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-400">Avg Profit:</div>
-                                    <div class="font-bold ${data.avg_profit >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                        ${data.avg_profit.toFixed(2)}%
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-400">Max Profit:</div>
-                                    <div class="font-bold text-green-400">${data.max_profit.toFixed(2)}%</div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-400">Max Loss:</div>
-                                    <div class="font-bold text-red-400">${data.max_loss.toFixed(2)}%</div>
-                                </div>
-                                <div class="col-span-2">
-                                    <div class="text-gray-400">Decision Distribution:</div>
-                                    <div class="flex justify-between mt-1">
-                                        <span class="text-green-400">Buy: ${data.decision_distribution.buy}</span>
-                                        <span class="text-red-400">Sell: ${data.decision_distribution.sell}</span>
-                                        <span class="text-blue-400">Hold: ${data.decision_distribution.hold}</span>
-                                    </div>
+                const trades = tradeHistory[model];
+                const statsContainer = document.getElementById(`${model}-stats`);
+                if (statsContainer) {
+                    const totalTrades = trades.length;
+                    const correctTrades = trades.filter(t => t.profitable).length;
+                    const incorrectTrades = totalTrades - correctTrades;
+                    
+                    // Calculate decision distribution
+                    const decisions = {
+                        buy: trades.filter(t => t.decision === 'BUY').length,
+                        sell: trades.filter(t => t.decision === 'SELL').length,
+                        hold: trades.filter(t => t.decision === 'HOLD').length
+                    };
+
+                    // Calculate average price change for correct trades
+                    const correctTradesAvgChange = correctTrades > 0 
+                        ? (trades.filter(t => t.profitable)
+                            .reduce((sum, t) => sum + t.priceChange, 0) / correctTrades).toFixed(2)
+                        : 0;
+
+                    statsContainer.innerHTML = `
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <div class="text-gray-400">Total Trades:</div>
+                                <div class="font-bold text-cyber-text">${totalTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Correct Trades:</div>
+                                <div class="font-bold text-green-400">${correctTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Incorrect Trades:</div>
+                                <div class="font-bold text-red-400">${incorrectTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Avg Profit:</div>
+                                <div class="font-bold ${parseFloat(correctTradesAvgChange) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                    ${correctTradesAvgChange}%
                                 </div>
                             </div>
-                        `;
-                    }
+                            <div class="col-span-2">
+                                <div class="text-gray-400">Decision Distribution:</div>
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-green-400">Buy: ${decisions.buy}</span>
+                                    <span class="text-red-400">Sell: ${decisions.sell}</span>
+                                    <span class="text-blue-400">Hold: ${decisions.hold}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 }
             });
         }
 
         function updateData() {
-            console.log('Fetching new data...');  // Debug log
+            console.log('Fetching new data...');
             fetch('/api/trading-data')
                 .then(response => {
                     if (!response.ok) {
-                        console.error('Network response was not ok:', response.status);  // Debug log
                         throw new Error('Network response was not ok');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Received data:', data);  // Debug log
-                    
+                    console.log('Received data:', data);
+
+                    // Check for LLM consensus and notify if connected
+                    if (userAccount) {
+                        const decisions = {
+                            gemini: data.gemini_action,
+                            groq: data.groq_action,
+                            mistral: data.mistral_action
+                        };
+
+                        const consensus = checkLLMConsensus(decisions);
+                        if (consensus) {
+                            showNotification(`LLM Consensus: ${consensus} signal detected!`, 'info');
+                        }
+                    }
+
                     // Update metrics
                     document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
                     document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
@@ -556,7 +684,7 @@
                     // Update model decisions and stats
                     ['gemini', 'groq', 'mistral'].forEach(model => {
                         const action = data[`${model}_action`];
-                        const stats = data.model_stats?.accuracy?.[model] || { accuracy: 0 };
+                        const stats = data.model_stats?.comparison?.[model] || { accuracy: 0 };
                         
                         // Update decision
                         const decisionElement = document.getElementById(`${model}-decision`);
@@ -568,14 +696,15 @@
                                 'text-blue-400'
                             } animate-pulse`;
                         }
-                        
+
                         // Update accuracy
                         const accuracyElement = document.getElementById(`${model}-accuracy`);
                         if (accuracyElement) {
-                            accuracyElement.textContent = `${stats.accuracy || 0}%`;
+                            const accuracy = stats.accuracy || 0;
+                            accuracyElement.textContent = `${accuracy.toFixed(1)}%`;
                             accuracyElement.className = `font-bold ${
-                                stats.accuracy >= 70 ? 'text-green-400' :
-                                stats.accuracy >= 50 ? 'text-yellow-400' :
+                                accuracy >= 70 ? 'text-green-400' :
+                                accuracy >= 50 ? 'text-yellow-400' :
                                 'text-red-400'
                             }`;
                         }
@@ -584,12 +713,12 @@
                     // Update market sentiment
                     const sentimentText = document.getElementById('sentiment');
                     if (sentimentText && data.market_sentiment) {
-                    sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
-                    const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800';
-                    
-                    sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                        sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
+                        const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800';
+
+                        sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
                     }
 
                     // Update charts
@@ -613,7 +742,7 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error fetching data:', error);  // Debug log
+                    console.error('Error fetching data:', error);
                     document.querySelectorAll('.cyber-value').forEach(el => {
                         el.textContent = 'Error';
                         el.classList.add('text-red-500');
@@ -623,14 +752,14 @@
 
         // Initial setup
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Initializing dashboard...');  // Debug log
+            console.log('Initializing dashboard...');
             initCharts();
             initPerformanceChart();
             updateData();  // Initial data fetch
-            
+
             // Set up auto-refresh
             const refreshInterval = setInterval(() => {
-                console.log('Auto-refresh triggered');  // Debug log
+                console.log('Auto-refresh triggered');
             updateData();
             }, 30000);
 
@@ -666,15 +795,20 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen">
     <!-- Header -->
     <header class="cyber-header p-4">
-        <div class="container mx-auto flex justify-center items-center relative">
+        <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center">
                 <img src="static/robot.webp" alt="Trading Bot Chef Logo" class="header-logo">
                 <h1 class="cyber-title text-2xl">Simple Crypto Trading Bot Chef</h1>
             </div>
-            <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center absolute right-0">
-                <i class="fab fa-github mr-2"></i>
-                GitHub
-            </a>
+            <div class="flex items-center space-x-4">
+                <button id="wallet-btn" onclick="connectWallet()" class="wallet-btn px-4 py-2 rounded">
+                    Connect Wallet
+                </button>
+                <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center">
+                    <i class="fab fa-github mr-2"></i>
+                    GitHub
+                </a>
+            </div>
         </div>
     </header>
 
@@ -721,7 +855,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Trading Signals -->
             <div class="cyber-card rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Market Signals</h2>
@@ -827,7 +961,7 @@
             </div>
 
         </div>
-        
+
         <!-- Charts -->
         <div class="grid grid-cols-1 gap-6 mt-6">
             <!-- Price Trend -->
@@ -837,7 +971,7 @@
                     <canvas id="price-chart"></canvas>
                 </div>
             </div>
-            
+
             <!-- Performance Trend -->
             <div class="cyber-card rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance Trend</h2>

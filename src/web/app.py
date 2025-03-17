@@ -31,6 +31,18 @@ mistral_client = MistralClient()
 db = TradingDatabase()
 
 
+def check_llm_consensus(decisions: dict) -> Union[str, None]:
+    """Check if there's a consensus among LLMs."""
+    buy_votes = sum(1 for d in decisions.values() if d == 'BUY')
+    sell_votes = sum(1 for d in decisions.values() if d == 'SELL')
+
+    if buy_votes >= 2:
+        return 'BUY'
+    elif sell_votes >= 2:
+        return 'SELL'
+    return None
+
+
 @app.route("/")
 def index() -> str:
     """Serve the main trading dashboard."""
@@ -38,13 +50,59 @@ def index() -> str:
 
 
 @app.route("/api/trading-data")
-def get_trading_data() -> Union[dict, tuple[dict, int]]:
-    """Get current trading data including ETH price and trading decisions."""
+def get_trading_data():
+    """Get current trading data and AI model decisions."""
     try:
         # Get market data
         market_data = market_agent.get_market_data()
 
-        # Store market data in database
+        # Get model decisions
+        gemini_action = gemini_client.get_trading_decision(
+            eth_price=market_data.eth_price,
+            eth_volume=market_data.eth_volume_24h,
+            eth_high=market_data.eth_high_24h,
+            eth_low=market_data.eth_low_24h,
+            gas_prices=market_data.gas_prices,
+            fear_greed_value=market_data.market_sentiment.get(
+                'fear_greed_value', ''),
+            fear_greed_sentiment=market_data.market_sentiment.get(
+                'fear_greed_sentiment', '')
+        )
+
+        groq_action = groq_client.get_trading_decision(
+            eth_price=market_data.eth_price,
+            eth_volume=market_data.eth_volume_24h,
+            eth_high=market_data.eth_high_24h,
+            eth_low=market_data.eth_low_24h,
+            gas_prices=market_data.gas_prices,
+            fear_greed_value=market_data.market_sentiment.get(
+                'fear_greed_value', ''),
+            fear_greed_sentiment=market_data.market_sentiment.get(
+                'fear_greed_sentiment', '')
+        )
+
+        mistral_action = mistral_client.get_trading_decision(
+            eth_price=market_data.eth_price,
+            eth_volume=market_data.eth_volume_24h,
+            eth_high=market_data.eth_high_24h,
+            eth_low=market_data.eth_low_24h,
+            gas_prices=market_data.gas_prices,
+            fear_greed_value=market_data.market_sentiment.get(
+                'fear_greed_value', ''),
+            fear_greed_sentiment=market_data.market_sentiment.get(
+                'fear_greed_sentiment', '')
+        )
+
+        # Check for consensus
+        decisions = {
+            'gemini': gemini_action,
+            'groq': groq_action,
+            'mistral': mistral_action
+        }
+        consensus = check_llm_consensus(decisions)
+
+        # Store market data and decisions in database
+        timestamp = datetime.now()
         db.store_market_data(
             eth_price=market_data.eth_price,
             eth_volume=market_data.eth_volume_24h,
@@ -54,72 +112,42 @@ def get_trading_data() -> Union[dict, tuple[dict, int]]:
             market_sentiment=market_data.market_sentiment
         )
 
-        # Get trading decisions from AI models
-        gemini_action = gemini_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment["fear_greed_value"],
-            fear_greed_sentiment=market_data.market_sentiment["fear_greed_sentiment"],
-        )
-
-        groq_action = groq_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment["fear_greed_value"],
-            fear_greed_sentiment=market_data.market_sentiment["fear_greed_sentiment"],
-        )
-
-        mistral_action = mistral_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment["fear_greed_value"],
-            fear_greed_sentiment=market_data.market_sentiment["fear_greed_sentiment"],
-        )
-
-        # Store AI decisions in database
-        db.store_ai_decision("gemini", gemini_action, market_data.eth_price)
-        db.store_ai_decision("groq", groq_action, market_data.eth_price)
-        db.store_ai_decision("mistral", mistral_action, market_data.eth_price)
+        # Store individual AI decisions
+        db.store_ai_decision('gemini', gemini_action, market_data.eth_price)
+        db.store_ai_decision('groq', groq_action, market_data.eth_price)
+        db.store_ai_decision('mistral', mistral_action, market_data.eth_price)
 
         # Update accuracy of previous decisions
         db.update_decision_accuracy(market_data.eth_price)
 
-        # Get performance statistics
+        # Get model stats
         accuracy_stats = db.get_accuracy_stats()
         model_comparison = db.get_model_comparison(days=7)
         performance_by_day = db.get_performance_by_timeframe('day')
 
-        # Format response
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "eth_price": market_data.eth_price,
-            "eth_volume_24h": market_data.eth_volume_24h,
-            "eth_high_24h": market_data.eth_high_24h,
-            "eth_low_24h": market_data.eth_low_24h,
-            "gas_prices": market_data.gas_prices,
-            "gemini_action": gemini_action,
-            "groq_action": groq_action,
-            "mistral_action": mistral_action,
-            "market_sentiment": market_data.market_sentiment,
-            "model_stats": {
-                "accuracy": accuracy_stats,
-                "comparison": model_comparison,
-                "daily_performance": performance_by_day
-            }
+        model_stats = {
+            'accuracy': accuracy_stats,
+            'comparison': model_comparison,
+            'daily_performance': performance_by_day
         }
 
-        return jsonify(response)
-    except (ValueError, requests.RequestException) as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'eth_price': market_data.eth_price,
+            'eth_volume_24h': market_data.eth_volume_24h,
+            'eth_high_24h': market_data.eth_high_24h,
+            'eth_low_24h': market_data.eth_low_24h,
+            'gas_prices': market_data.gas_prices,
+            'market_sentiment': market_data.market_sentiment,
+            'gemini_action': gemini_action,
+            'groq_action': groq_action,
+            'mistral_action': mistral_action,
+            'consensus': consensus,
+            'model_stats': model_stats,
+            'timestamp': timestamp.isoformat()
+        })
+    except Exception as e:
+        print(f"Error in get_trading_data: {str(e)}")  # Add logging
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route("/api/historical-data")
