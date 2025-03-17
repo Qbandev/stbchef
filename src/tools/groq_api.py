@@ -66,7 +66,7 @@ class GroqClient:
             'momentum': momentum,
             'rsi': rsi,
             'price_trend': 'up' if momentum > 0 else 'down',
-            'volatility_level': 'high' if volatility > np.mean(price_changes) * 2 else 'low'
+            'volatility_level': 'high' if volatility > np.mean(np.abs(price_changes)) * 2 else 'low'
         }
 
     def get_trading_decision(
