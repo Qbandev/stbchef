@@ -174,27 +174,27 @@ class MistralClient:
         prompt = f"""You are Mistral Large, a sophisticated AI model specializing in statistical analysis and portfolio optimization. Your goal is to provide optimal trading recommendations for ETH/USDC rebalancing based on comprehensive market analysis.
 
 ETH Market Snapshot:
-📊 Price: ${eth_price:,.2f}
-📈 24h High: ${eth_high:,.2f}
-📉 24h Low: ${eth_low:,.2f}
-💹 24h Volume: ${eth_volume:,.2f}
-🎯 Market Sentiment: {fear_greed_value} ({fear_greed_sentiment})"""
+Price: ${eth_price:,.2f}
+24h High: ${eth_high:,.2f}
+24h Low: ${eth_low:,.2f}
+24h Volume: ${eth_volume:,.2f}
+Market Sentiment: {fear_greed_value} ({fear_greed_sentiment})"""
 
         if gas_prices:
             prompt += f"""
-⚡ Network Status (Gwei):
+Network Status (Gwei):
    - Economy: {gas_prices['low']}
    - Regular: {gas_prices['standard']}
    - Priority: {gas_prices['fast']}"""
 
         prompt += f"""
-📊 Technical Analysis:
+Technical Analysis:
 - Volatility: {indicators['volatility']:.2f} (Level: {indicators['volatility_level']})
 - Momentum: {indicators['momentum']:.2f} (Trend: {indicators['price_trend']})
 - RSI: {indicators['rsi']:.2f}
 - Price Range: ${eth_low:,.2f} - ${eth_high:,.2f} (${eth_high - eth_low:,.2f} spread)
 
-🔄 Portfolio Rebalancing Guidelines:
+Portfolio Rebalancing Guidelines:
 1. Consider optimal ETH/USDC ratio based on:
    - Current market conditions
    - Risk tolerance (volatility)
@@ -218,7 +218,7 @@ ETH Market Snapshot:
    - Account for slippage in large trades
    - Factor in market impact of rebalancing
 
-📈 Performance Metrics:
+Performance Metrics:
 - Accuracy is tracked for each decision
 - Decisions are evaluated based on:
   * Profit/loss after fees
