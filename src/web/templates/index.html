@@ -245,19 +245,23 @@
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
+
+            // Format message with line breaks
+            const formattedMessage = message.split('\n').map(line => `<div>${line}</div>`).join('');
+
             notification.innerHTML = `
-                <div class="flex items-center">
-                    <span class="mr-2">${type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-                    <span>${message}</span>
+                <div class="flex flex-col">
+                    ${formattedMessage}
                 </div>
             `;
+
             document.body.appendChild(notification);
 
-            // Remove notification after 5 seconds
+            // Remove notification after 8 seconds
             setTimeout(() => {
                 notification.style.opacity = '0';
                 setTimeout(() => notification.remove(), 300);
-            }, 5000);
+            }, 8000);
         }
 
         // Function to check if 2 out of 3 LLMs agree on a decision
@@ -273,10 +277,26 @@
             return null;
         }
 
+        function getModelDecisions(decisions) {
+            const modelDecisions = [];
+            if (decisions.gemini === 'BUY') modelDecisions.push('Gemini');
+            if (decisions.groq === 'BUY') modelDecisions.push('Groq');
+            if (decisions.mistral === 'BUY') modelDecisions.push('Mistral');
+            return modelDecisions;
+        }
+
+        function getModelSellDecisions(decisions) {
+            const modelDecisions = [];
+            if (decisions.gemini === 'SELL') modelDecisions.push('Gemini');
+            if (decisions.groq === 'SELL') modelDecisions.push('Groq');
+            if (decisions.mistral === 'SELL') modelDecisions.push('Mistral');
+            return modelDecisions;
+        }
+
         function calculateAccuracy(model) {
             const trades = tradeHistory[model];
             if (trades.length === 0) return 0;
-            
+
             const correctTrades = trades.filter(trade => trade.profitable).length;
             return ((correctTrades / trades.length) * 100).toFixed(1);
         }
@@ -291,7 +311,7 @@
                     if (lastDecisions[model]) {
                         let isProfitable = false;
                         const decision = lastDecisions[model];
-                        
+
                         // Consider a trade profitable if:
                         // - BUY decision and price increased by more than 1%
                         // - SELL decision and price decreased by more than 1%
@@ -462,129 +482,6 @@
             priceChart.update();
         }
 
-        // Add performance chart
-        function initPerformanceChart() {
-            const ctx = document.getElementById('performance-chart').getContext('2d');
-            performanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Gemini Accuracy',
-                            data: [],
-                            borderColor: '#00f3ff',
-                            borderWidth: 2,
-                            tension: 0.1,
-                            fill: false
-                        },
-                        {
-                            label: 'Groq Accuracy',
-                            data: [],
-                            borderColor: '#9d00ff',
-                            borderWidth: 2,
-                            tension: 0.1,
-                            fill: false
-                        },
-                        {
-                            label: 'Mistral Accuracy',
-                            data: [],
-                            borderColor: '#ff0099',
-                            borderWidth: 2,
-                            tension: 0.1,
-                            fill: false
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                color: '#e2e8f0'
-                            }
-                        },
-                        zoom: {
-                            zoom: {
-                                wheel: { enabled: true },
-                                pinch: { enabled: true },
-                                mode: 'x',
-                            },
-                            pan: {
-                                enabled: true,
-                                mode: 'x',
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            min: 0,
-                            max: 100,
-                            grid: {
-                                color: 'rgba(0, 243, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#e2e8f0',
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Prediction Accuracy (%)',
-                                color: '#e2e8f0'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function updatePerformanceChart(performance) {
-            const labels = [];
-            const geminiData = [];
-            const groqData = [];
-            const mistralData = [];
-
-            // Process data for each model
-            ['gemini', 'groq', 'mistral'].forEach(model => {
-                if (performance[model]) {
-                    performance[model].forEach(data => {
-                        if (!labels.includes(data.period)) {
-                            labels.push(data.period);
-                        }
-                        const index = labels.indexOf(data.period);
-                        if (model === 'gemini') geminiData[index] = data.accuracy;
-                        if (model === 'groq') groqData[index] = data.accuracy;
-                        if (model === 'mistral') mistralData[index] = data.accuracy;
-                    });
-                }
-            });
-
-            performanceChart.data.labels = labels;
-            performanceChart.data.datasets[0].data = geminiData;
-            performanceChart.data.datasets[1].data = groqData;
-            performanceChart.data.datasets[2].data = mistralData;
-            performanceChart.update();
-        }
-
         function updateModelStats(stats) {
             // Update detailed stats for each model
             ['gemini', 'groq', 'mistral'].forEach(model => {
@@ -594,7 +491,7 @@
                     const totalTrades = trades.length;
                     const correctTrades = trades.filter(t => t.profitable).length;
                     const incorrectTrades = totalTrades - correctTrades;
-                    
+
                     // Calculate decision distribution
                     const decisions = {
                         buy: trades.filter(t => t.decision === 'BUY').length,
@@ -664,7 +561,20 @@
 
                         const consensus = checkLLMConsensus(decisions);
                         if (consensus) {
-                            showNotification(`LLM Consensus: ${consensus} signal detected!`, 'info');
+                            const buyModels = getModelDecisions(decisions);
+                            const sellModels = getModelSellDecisions(decisions);
+                            const currentPrice = data.eth_price.toFixed(2);
+
+                            let message = '';
+                            if (consensus === 'BUY') {
+                                message = `🟢 BUY Signal at $${currentPrice}\n`;
+                                message += `Recommended by: ${buyModels.join(', ')}`;
+                            } else if (consensus === 'SELL') {
+                                message = `🔴 SELL Signal at $${currentPrice}\n`;
+                                message += `Recommended by: ${sellModels.join(', ')}`;
+                            }
+
+                            showNotification(message, 'info');
                         }
                     }
 
@@ -685,7 +595,7 @@
                     ['gemini', 'groq', 'mistral'].forEach(model => {
                         const action = data[`${model}_action`];
                         const stats = data.model_stats?.comparison?.[model] || { accuracy: 0 };
-                        
+
                         // Update decision
                         const decisionElement = document.getElementById(`${model}-decision`);
                         if (decisionElement) {
@@ -703,8 +613,8 @@
                             const accuracy = stats.accuracy || 0;
                             accuracyElement.textContent = `${accuracy.toFixed(1)}%`;
                             accuracyElement.className = `font-bold ${
-                                accuracy >= 70 ? 'text-green-400' :
-                                accuracy >= 50 ? 'text-yellow-400' :
+                                accuracy >= 65 ? 'text-green-400' :
+                                accuracy >= 45 ? 'text-yellow-400' :
                                 'text-red-400'
                             }`;
                         }
@@ -731,11 +641,6 @@
                         data.eth_volume_24h
                     );
 
-                    // Update performance data
-                    if (data.model_stats?.daily_performance) {
-                        updatePerformanceChart(data.model_stats.daily_performance);
-                    }
-
                     // Update detailed model stats
                     if (data.model_stats?.comparison) {
                         updateModelStats(data.model_stats);
@@ -754,7 +659,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initializing dashboard...');
             initCharts();
-            initPerformanceChart();
             updateData();  // Initial data fetch
 
             // Set up auto-refresh
@@ -782,7 +686,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.performance) {
-                        updatePerformanceChart(data.performance);
+                        updateModelStats(data.performance);
                     }
                     if (data.comparison) {
                         updateModelStats(data.comparison);
@@ -836,7 +740,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Gas Prices -->
             <div class="cyber-card rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Gas Prices</h2>
@@ -964,25 +868,11 @@
 
         <!-- Charts -->
         <div class="grid grid-cols-1 gap-6 mt-6">
-            <!-- Price Trend -->
+            <!-- Price Chart -->
             <div class="cyber-card rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">ETH Price Trend</h2>
                 <div class="chart-container">
                     <canvas id="price-chart"></canvas>
-                </div>
-            </div>
-
-            <!-- Performance Trend -->
-            <div class="cyber-card rounded-lg shadow p-6">
-                <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance Trend</h2>
-                <div class="flex flex-wrap justify-end space-x-2 space-y-2 md:space-y-0 mb-4">
-                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('hour')">Hourly</button>
-                    <button class="cyber-btn px-3 py-1 text-sm cyber-btn-active" onclick="updateTimeframe('day')">Daily</button>
-                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('week')">Weekly</button>
-                    <button class="cyber-btn px-3 py-1 text-sm" onclick="updateTimeframe('month')">Monthly</button>
-                </div>
-                <div class="chart-container">
-                    <canvas id="performance-chart"></canvas>
                 </div>
             </div>
         </div>
