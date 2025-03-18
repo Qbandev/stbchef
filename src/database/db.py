@@ -78,11 +78,13 @@ class TradingDatabase:
             # Use 2MB of memory for cache
             cursor.execute("PRAGMA cache_size=-2000")
 
-            # Check if VACUUM is needed
-            cursor.execute(
-                "SELECT page_count, page_size FROM dbstat WHERE name='main'")
-            page_count, page_size = cursor.fetchone()
-            db_size = page_count * page_size
+            # Create pragma_stats table if it doesn't exist
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pragma_stats (
+                    name TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
 
             # Get last vacuum time
             cursor.execute(
@@ -90,11 +92,9 @@ class TradingDatabase:
             last_vacuum = cursor.fetchone()
 
             # Run VACUUM if:
-            # 1. Database is larger than 100MB
-            # 2. Last vacuum was more than 24 hours ago
-            # 3. Or if last vacuum time is not recorded
+            # 1. Last vacuum was more than 24 hours ago
+            # 2. Or if last vacuum time is not recorded
             should_vacuum = (
-                db_size > 100 * 1024 * 1024 or  # 100MB
                 not last_vacuum or
                 (datetime.now() -
                  datetime.fromisoformat(last_vacuum[0])).total_seconds() > 24 * 3600
