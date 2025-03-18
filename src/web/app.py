@@ -1,8 +1,11 @@
 """Web application for the trading dashboard."""
 
 import os
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from typing import Union
+from functools import lru_cache
+from collections import deque
 
 import requests
 from dotenv import load_dotenv
@@ -22,13 +25,75 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Initialize components
+# Initialize components with memory-efficient settings
 state = TradingState()
 market_agent = MarketDataAgent(state)
 gemini_client = GeminiClient()
 groq_client = GroqClient()
 mistral_client = MistralClient()
 db = TradingDatabase()
+
+# Memory-efficient data structures
+recent_prices = deque(maxlen=100)
+recent_volumes = deque(maxlen=100)
+recent_decisions = {
+    'gemini': deque(maxlen=100),
+    'groq': deque(maxlen=100),
+    'mistral': deque(maxlen=100)
+}
+
+# Add thread-safe cache invalidation timestamp
+
+
+class CacheInvalidationTimestamp:
+    def __init__(self):
+        self._timestamp = datetime.now()
+        self._lock = threading.Lock()
+        self._is_invalidating = False
+
+    def get_timestamp(self) -> datetime:
+        """Get the current timestamp in a thread-safe manner."""
+        with self._lock:
+            return self._timestamp
+
+    def update_timestamp(self) -> None:
+        """Update the timestamp in a thread-safe manner."""
+        with self._lock:
+            self._timestamp = datetime.now()
+
+    def is_cache_stale(self, max_age: timedelta) -> bool:
+        """Check if the cache is stale based on the maximum age."""
+        with self._lock:
+            return datetime.now() - self._timestamp > max_age
+
+    def invalidate_cache(self, cache_func) -> None:
+        """Safely invalidate the cache and update the timestamp."""
+        with self._lock:
+            if not self._is_invalidating:
+                self._is_invalidating = True
+                try:
+                    cache_func.cache_clear()
+                    self._timestamp = datetime.now()
+                finally:
+                    self._is_invalidating = False
+
+
+model_stats_cache_timestamp = CacheInvalidationTimestamp()
+
+
+@lru_cache(maxsize=32)
+def calculate_model_stats(model_data_key: str) -> dict:
+    """Calculate model statistics with caching."""
+    # Check if cache is stale (older than 5 minutes)
+    if model_stats_cache_timestamp.is_cache_stale(timedelta(minutes=5)):
+        model_stats_cache_timestamp.invalidate_cache(calculate_model_stats)
+
+    return db.get_model_comparison(days=7)
+
+
+def invalidate_model_stats_cache() -> None:
+    """Invalidate the model stats cache."""
+    model_stats_cache_timestamp.invalidate_cache(calculate_model_stats)
 
 
 def check_llm_consensus(decisions: dict) -> Union[str, None]:
@@ -46,6 +111,8 @@ def check_llm_consensus(decisions: dict) -> Union[str, None]:
 @app.route("/")
 def index() -> str:
     """Serve the main trading dashboard."""
+    # Clean up old data periodically
+    db.cleanup_old_data()
     return render_template("index.html")
 
 
@@ -119,6 +186,9 @@ def get_trading_data():
 
         # Update accuracy of previous decisions
         db.update_decision_accuracy(market_data.eth_price)
+
+        # Invalidate cache after storing new data
+        invalidate_model_stats_cache()
 
         # Get model stats
         accuracy_stats = db.get_accuracy_stats()

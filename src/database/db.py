@@ -12,6 +12,7 @@ class TradingDatabase:
         """Initialize database connection."""
         self.db_path = db_path
         self._init_db()
+        self._optimize_db()  # Add optimization on init
 
     def _init_db(self) -> None:
         """Initialize database tables."""
@@ -62,6 +63,50 @@ class TradingDatabase:
                 CREATE INDEX IF NOT EXISTS idx_ai_decisions_model 
                 ON ai_decisions(model)
             """)
+
+            conn.commit()
+
+    def _optimize_db(self) -> None:
+        """Optimize database settings for better performance."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Faster writes with reasonable safety
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            # Store temp tables in memory
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            # Use 2MB of memory for cache
+            cursor.execute("PRAGMA cache_size=-2000")
+
+            # Create pragma_stats table if it doesn't exist
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pragma_stats (
+                    name TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+
+            # Get last vacuum time
+            cursor.execute(
+                "SELECT value FROM pragma_stats WHERE name='last_vacuum'")
+            last_vacuum = cursor.fetchone()
+
+            # Run VACUUM if:
+            # 1. Last vacuum was more than 24 hours ago
+            # 2. Or if last vacuum time is not recorded
+            should_vacuum = (
+                not last_vacuum or
+                (datetime.now() -
+                 datetime.fromisoformat(last_vacuum[0])).total_seconds() > 24 * 3600
+            )
+
+            if should_vacuum:
+                cursor.execute("VACUUM")  # Compact the database file
+                # Record vacuum time
+                cursor.execute("""
+                    INSERT OR REPLACE INTO pragma_stats (name, value)
+                    VALUES ('last_vacuum', ?)
+                """, (datetime.now().isoformat(),))
 
             conn.commit()
 
@@ -323,3 +368,18 @@ class TradingDatabase:
                 }
 
             return results
+
+    def cleanup_old_data(self) -> None:
+        """Clean up old data to prevent database bloat."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Keep only last 7 days of data
+            cursor.execute("""
+                DELETE FROM market_data 
+                WHERE timestamp < datetime('now', '-7 days')
+            """)
+            cursor.execute("""
+                DELETE FROM ai_decisions 
+                WHERE timestamp < datetime('now', '-7 days')
+            """)
+            conn.commit()

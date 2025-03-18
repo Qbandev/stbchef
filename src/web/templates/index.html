@@ -35,7 +35,6 @@
             box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
             backdrop-filter: blur(10px);
             position: relative;
-            overflow: hidden;
         }
         .cyber-card::before {
             content: '';
@@ -169,24 +168,135 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        /* Custom Tooltip Styles */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip {
+            visibility: hidden;
+            position: fixed;
+            z-index: 9999;
+            padding: 8px 12px;
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 4px;
+            color: var(--cyber-text);
+            font-size: 0.875rem;
+            white-space: pre-line;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+            min-width: 200px;
+            backdrop-filter: blur(5px);
+            transform: translateX(-50%) translateY(-100%);
+            margin-top: -10px;
+        }
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: transparent transparent var(--neon-blue) transparent;
+        }
+        .tooltip-container:hover .tooltip,
+        .tooltip-container:focus-within .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip-trigger {
+            cursor: help;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script>
+        // Storage keys for persistence
+        const STORAGE_KEYS = {
+            WALLET: 'stbchef_wallet',
+            HISTORY: 'stbchef_history',
+            LAST_UPDATE: 'stbchef_last_update',
+            PRICE_DATA: 'stbchef_price_data',
+            VOLUME_DATA: 'stbchef_volume_data',
+            TIME_LABELS: 'stbchef_time_labels',
+            TRADE_HISTORY: 'stbchef_trade_history',
+            MODEL_PERFORMANCE: 'stbchef_model_performance'
+        };
+
+        // Initialize variables
         let web3;
         let userAccount;
         let priceChart;
         let performanceChart;
-        const priceHistory = [];
-        const timeLabels = [];
-        const volumeHistory = [];
+        let priceHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRICE_DATA) || '[]');
+        let timeLabels = JSON.parse(localStorage.getItem(STORAGE_KEYS.TIME_LABELS) || '[]');
+        let volumeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.VOLUME_DATA) || '[]');
         const tradingActions = [];
 
+        // Initialize trade history for each model
+        let tradeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY) || JSON.stringify({
+            gemini: [],
+            groq: [],
+            mistral: []
+        }));
+
         // Add accuracy tracking variables
-        let aiAccuracy = {
+        let aiAccuracy = JSON.parse(localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE) || JSON.stringify({
             gemini: { correct: 0, total: 0 },
             groq: { correct: 0, total: 0 },
             mistral: { correct: 0, total: 0 }
+        }));
+
+        // Add market volatility tracking
+        let marketVolatility = {
+            window: 24, // 24-hour window
+            data: [],
+            current: 0
         };
+
+        function calculateVolatility(price) {
+            marketVolatility.data.push(price);
+            if (marketVolatility.data.length > marketVolatility.window * 60) { // 60 data points per hour
+                marketVolatility.data.shift();
+            }
+            
+            if (marketVolatility.data.length > 1) {
+                const returns = marketVolatility.data.slice(1).map((p, i) => 
+                    (p - marketVolatility.data[i]) / marketVolatility.data[i]
+                );
+                marketVolatility.current = Math.sqrt(returns.reduce((sum, r) => sum + r * r, 0) / returns.length) * 100;
+            }
+        }
+
+        function calculateDynamicThreshold() {
+            // Base threshold of 1%, adjusted by volatility
+            const baseThreshold = 1.0;
+            const volatilityFactor = Math.max(0.5, Math.min(2.0, marketVolatility.current));
+            return baseThreshold * volatilityFactor;
+        }
+
+        function calculateTradeScore(decision, priceChangePercent, threshold) {
+            let score = 0;
+            
+            // Base score for correct direction
+            if (decision === 'BUY' && priceChangePercent > threshold) {
+                score = 1;
+            } else if (decision === 'SELL' && priceChangePercent < -threshold) {
+                score = 1;
+            } else if (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold) {
+                score = 1;
+            }
+
+            // Bonus points for magnitude
+            if (score > 0) {
+                const magnitude = Math.abs(priceChangePercent) - threshold;
+                score += Math.min(1, magnitude / threshold); // Up to 1 additional point
+            }
+
+            return score;
+        }
 
         let lastDecisions = {
             gemini: null,
@@ -195,43 +305,115 @@
             price: null
         };
 
-        // Add trade tracking variables
-        let tradeHistory = {
-            gemini: [],
-            groq: [],
-            mistral: []
-        };
+        // Load persisted wallet connection on page load
+        window.addEventListener('load', async () => {
+            const persistedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
+            if (persistedWallet && typeof window.ethereum !== 'undefined') {
+                try {
+                    web3 = new Web3(window.ethereum);
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts[0] && accounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
+                        userAccount = accounts[0];
+                        updateWalletUI();
+                    }
+                } catch (error) {
+                    console.error('Error restoring wallet connection:', error);
+                }
+            }
+            clearExpiredData();
+        });
 
-        // MetaMask Integration
+        // Persist wallet connection
+        function persistWalletConnection(account) {
+            if (account) {
+                localStorage.setItem(STORAGE_KEYS.WALLET, account);
+            } else {
+                localStorage.removeItem(STORAGE_KEYS.WALLET);
+            }
+        }
+
+        // Update wallet UI
+        function updateWalletUI() {
+            const walletBtn = document.getElementById('wallet-btn');
+            if (userAccount) {
+                walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)}`;
+                walletBtn.classList.add('connected');
+            } else {
+                walletBtn.innerHTML = 'Connect Wallet';
+                walletBtn.classList.remove('connected');
+            }
+        }
+
+        // Load persisted trading history
+        function loadPersistedHistory() {
+            try {
+                const history = localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY);
+                const performance = localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE);
+                
+                if (history) {
+                    tradeHistory = JSON.parse(history);
+                }
+                if (performance) {
+                    aiAccuracy = JSON.parse(performance);
+                }
+                
+                // Update UI with loaded data
+                updateModelStatsDisplay();
+            } catch (error) {
+                console.error('Error loading persisted history:', error);
+            }
+        }
+
+        // Persist trading history
+        function persistTradingHistory() {
+            try {
+                localStorage.setItem(STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
+                localStorage.setItem(STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
+                localStorage.setItem(STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
+            } catch (error) {
+                console.error('Error persisting history:', error);
+            }
+        }
+
+        // Clear expired data
+        function clearExpiredData() {
+            const lastUpdate = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_UPDATE) || '0');
+            if (Date.now() - lastUpdate > 24 * 60 * 60 * 1000) {
+                localStorage.removeItem(STORAGE_KEYS.TRADE_HISTORY);
+                localStorage.removeItem(STORAGE_KEYS.MODEL_PERFORMANCE);
+                localStorage.removeItem(STORAGE_KEYS.LAST_UPDATE);
+                localStorage.removeItem(STORAGE_KEYS.PRICE_DATA);
+                localStorage.removeItem(STORAGE_KEYS.VOLUME_DATA);
+                localStorage.removeItem(STORAGE_KEYS.TIME_LABELS);
+            }
+        }
+
+        // Modified wallet connection function
         async function connectWallet() {
             if (typeof window.ethereum !== 'undefined') {
                 try {
-                    // Request account access
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                     userAccount = accounts[0];
                     web3 = new Web3(window.ethereum);
-
-                    // Update button text
-                    const walletBtn = document.getElementById('wallet-btn');
-                    walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)}`;
-                    walletBtn.classList.add('connected');
-
-                    // Show success notification
+                    
+                    persistWalletConnection(userAccount);
+                    updateWalletUI();
                     showNotification('Wallet connected successfully!', 'success');
 
-                    // Listen for account changes
+                    // Request notification permission after wallet connection
+                    await requestNotificationPermission();
+
                     window.ethereum.on('accountsChanged', function (accounts) {
                         if (accounts.length === 0) {
-                            // User disconnected wallet
                             userAccount = null;
-                            walletBtn.innerHTML = 'Connect Wallet';
-                            walletBtn.classList.remove('connected');
-                            showNotification('Wallet disconnected', 'warning');
+                            persistWalletConnection(null);
                         } else {
                             userAccount = accounts[0];
-                            walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)}`;
-                            showNotification('Wallet account changed', 'info');
+                            persistWalletConnection(userAccount);
+                            requestNotificationPermission(); // Request permission for new account
                         }
+                        updateWalletUI();
+                        showNotification(accounts.length === 0 ? 'Wallet disconnected' : 'Wallet account changed', accounts.length === 0 ? 'warning' : 'info');
                     });
                 } catch (error) {
                     console.error('User denied account access:', error);
@@ -305,49 +487,64 @@
             if (lastDecisions.price !== null) {
                 const priceChange = currentPrice - lastDecisions.price;
                 const priceChangePercent = (priceChange / lastDecisions.price) * 100;
+                
+                // Update market volatility
+                calculateVolatility(currentPrice);
+                
+                // Get dynamic threshold based on market conditions
+                const threshold = calculateDynamicThreshold();
 
                 // Update accuracy for each model
                 ['gemini', 'groq', 'mistral'].forEach(model => {
                     if (lastDecisions[model]) {
-                        let isProfitable = false;
                         const decision = lastDecisions[model];
+                        const score = calculateTradeScore(decision, priceChangePercent, threshold);
 
-                        // Consider a trade profitable if:
-                        // - BUY decision and price increased by more than 1%
-                        // - SELL decision and price decreased by more than 1%
-                        // - HOLD decision and price stayed within ±1%
-                        if (decision === 'BUY' && priceChangePercent > 1.0) isProfitable = true;
-                        if (decision === 'SELL' && priceChangePercent < -1.0) isProfitable = true;
-                        if (decision === 'HOLD' && Math.abs(priceChangePercent) <= 1.0) isProfitable = true;
-
-                        // Record all decisions (including HOLD) for better tracking
+                        // Record trade with enhanced metrics
                         tradeHistory[model].push({
                             timestamp: new Date(),
                             decision: decision,
                             priceChange: priceChangePercent,
-                            profitable: isProfitable,
+                            score: score,
+                            threshold: threshold,
+                            volatility: marketVolatility.current,
                             price: currentPrice
                         });
 
-                        // Keep only last 50 trades for more recent performance focus
-                        if (tradeHistory[model].length > 50) {
+                        // Keep only last 100 trades for more recent performance focus
+                        if (tradeHistory[model].length > 100) {
                             tradeHistory[model].shift();
                         }
                     }
                 });
             }
 
-            // Update accuracy display
+            // Update accuracy display with weighted metrics
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
                 if (accuracyElement) {
-                    const accuracy = calculateAccuracy(model);
-                    accuracyElement.textContent = `${accuracy}%`;
-                    accuracyElement.className = `font-bold ${
-                        parseFloat(accuracy) >= 65 ? 'text-green-400' :
-                        parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
-                        'text-red-400'
-                    }`;
+                    const trades = tradeHistory[model];
+                    if (trades.length > 0) {
+                        // Calculate weighted average score
+                        const recentTrades = trades.slice(-20); // Last 20 trades
+                        const weights = recentTrades.map((_, i) => 1 + (i / recentTrades.length));
+                        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+                        
+                        const weightedScore = recentTrades.reduce((sum, trade, i) => 
+                            sum + (trade.score * weights[i]), 0) / totalWeight;
+                        
+                        const accuracy = (weightedScore * 100).toFixed(1);
+                        accuracyElement.textContent = `${accuracy}%`;
+                        accuracyElement.className = `font-bold ${
+                            parseFloat(accuracy) >= 65 ? 'text-green-400' :
+                            parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
+                            'text-red-400'
+                        }`;
+                    } else {
+                        // No trades yet, show 0%
+                        accuracyElement.textContent = '0.0%';
+                        accuracyElement.className = 'font-bold text-gray-400';
+                    }
                 }
             });
         }
@@ -480,6 +677,15 @@
 
             // Update price chart without model annotations
             priceChart.update();
+
+            // Persist chart data
+            try {
+                localStorage.setItem(STORAGE_KEYS.PRICE_DATA, JSON.stringify(priceHistory));
+                localStorage.setItem(STORAGE_KEYS.VOLUME_DATA, JSON.stringify(volumeHistory));
+                localStorage.setItem(STORAGE_KEYS.TIME_LABELS, JSON.stringify(timeLabels));
+            } catch (error) {
+                console.error('Error persisting chart data:', error);
+            }
         }
 
         function updateModelStats(stats) {
@@ -520,7 +726,7 @@
                                 <div class="font-bold text-red-400">${incorrectTrades}</div>
                             </div>
                             <div>
-                                <div class="text-gray-400">Avg Profit:</div>
+                                <div class="text-gray-400">Avg Profit Trades:</div>
                                 <div class="font-bold ${parseFloat(correctTradesAvgChange) >= 0 ? 'text-green-400' : 'text-red-400'}">
                                     ${correctTradesAvgChange}%
                                 </div>
@@ -539,6 +745,89 @@
             });
         }
 
+        // Update model stats display
+        function updateModelStatsDisplay() {
+            ['gemini', 'groq', 'mistral'].forEach(model => {
+                const trades = tradeHistory[model];
+                const statsContainer = document.getElementById(`${model}-stats`);
+                const accuracyElement = document.getElementById(`${model}-accuracy`);
+                
+                if (statsContainer) {
+                    const totalTrades = trades.length;
+                    const correctTrades = trades.filter(t => t.score >= 1).length;
+                    const incorrectTrades = totalTrades - correctTrades;
+
+                    // Calculate decision distribution
+                    const decisions = {
+                        buy: trades.filter(t => t.decision === 'BUY').length,
+                        sell: trades.filter(t => t.decision === 'SELL').length,
+                        hold: trades.filter(t => t.decision === 'HOLD').length
+                    };
+
+                    // Calculate average score
+                    const avgScore = totalTrades > 0 
+                        ? (trades.reduce((sum, t) => sum + t.score, 0) / totalTrades).toFixed(2)
+                        : 0;
+
+                    statsContainer.innerHTML = `
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <div class="text-gray-400">Total Trades:</div>
+                                <div class="font-bold text-cyber-text">${totalTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Correct Trades:</div>
+                                <div class="font-bold text-green-400">${correctTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Incorrect Trades:</div>
+                                <div class="font-bold text-red-400">${incorrectTrades}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Avg Score:</div>
+                                <div class="font-bold ${parseFloat(avgScore) >= 1 ? 'text-green-400' : 'text-red-400'}">
+                                    ${avgScore}
+                                </div>
+                            </div>
+                            <div class="col-span-2">
+                                <div class="text-gray-400">Decision Distribution:</div>
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-green-400">Buy: ${decisions.buy}</span>
+                                    <span class="text-red-400">Sell: ${decisions.sell}</span>
+                                    <span class="text-blue-400">Hold: ${decisions.hold}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (accuracyElement) {
+                    const trades = tradeHistory[model];
+                    if (trades.length > 0) {
+                        // Calculate weighted average score
+                        const recentTrades = trades.slice(-20); // Last 20 trades
+                        const weights = recentTrades.map((_, i) => 1 + (i / recentTrades.length));
+                        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+                        
+                        const weightedScore = recentTrades.reduce((sum, trade, i) => 
+                            sum + (trade.score * weights[i]), 0) / totalWeight;
+                        
+                        const accuracy = (weightedScore * 100).toFixed(1);
+                        accuracyElement.textContent = `${accuracy}%`;
+                        accuracyElement.className = `font-bold ${
+                            parseFloat(accuracy) >= 65 ? 'text-green-400' :
+                            parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
+                            'text-red-400'
+                        }`;
+                    } else {
+                        accuracyElement.textContent = '0.0%';
+                        accuracyElement.className = 'font-bold text-gray-400';
+                    }
+                }
+            });
+        }
+
+        // Modified updateData function to send wallet notifications
         function updateData() {
             console.log('Fetching new data...');
             fetch('/api/trading-data')
@@ -574,7 +863,11 @@
                                 message += `Recommended by: ${sellModels.join(', ')}`;
                             }
 
+                            // Show browser notification
                             showNotification(message, 'info');
+
+                            // Send wallet notification
+                            sendWalletNotification(message, consensus);
                         }
                     }
 
@@ -645,6 +938,9 @@
                     if (data.model_stats?.comparison) {
                         updateModelStats(data.model_stats);
                     }
+
+                    // Persist trading history after updates
+                    persistTradingHistory();
                 })
                 .catch(error => {
                     console.error('Error fetching data:', error);
@@ -658,18 +954,20 @@
         // Initial setup
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initializing dashboard...');
+            loadPersistedHistory(); // Load persisted data first
             initCharts();
             updateData();  // Initial data fetch
 
-            // Set up auto-refresh
+            // Set up auto-refresh every 1 minute
             const refreshInterval = setInterval(() => {
                 console.log('Auto-refresh triggered');
-            updateData();
-            }, 30000);
+                updateData();
+            }, 60000);  // 1 minute
 
             // Clean up on page unload
             window.addEventListener('beforeunload', () => {
                 clearInterval(refreshInterval);
+                persistTradingHistory(); // Ensure data is saved before unload
             });
         });
 
@@ -693,6 +991,47 @@
                     }
                 })
                 .catch(error => console.error('Error updating timeframe:', error));
+        }
+
+        // Add wallet notification function
+        async function sendWalletNotification(message, signalType) {
+            if (!userAccount || !web3) return;
+
+            try {
+                // Create notification transaction
+                const notificationData = web3.eth.abi.encodeFunctionSignature('notify(string,string)') +
+                    web3.eth.abi.encodeParameters(
+                        ['string', 'string'],
+                        [signalType, message]
+                    ).slice(2);
+
+                // Send notification transaction
+                await web3.eth.sendTransaction({
+                    from: userAccount,
+                    to: userAccount, // Send to self for notification
+                    data: notificationData,
+                    gas: 200000,
+                    gasPrice: await web3.eth.getGasPrice()
+                });
+
+                console.log('Wallet notification sent successfully');
+            } catch (error) {
+                console.error('Error sending wallet notification:', error);
+            }
+        }
+
+        // Add notification permission request
+        async function requestNotificationPermission() {
+            if (!userAccount) return;
+
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    console.log('Notification permission granted');
+                }
+            } catch (error) {
+                console.error('Error requesting notification permission:', error);
+            }
         }
     </script>
 </head>
@@ -827,36 +1166,81 @@
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance</h2>
                 <div class="grid grid-cols-3 gap-6">
                     <!-- Gemini Performance -->
-                    <div class="space-y-4">
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-blue">Gemini 1.5 Flash</h3>
                             <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Accuracy:</span>
-                                <span id="gemini-accuracy" class="font-bold">0.0%</span>
+                                <span class="text-gray-400">Performance Score:</span>
+                                <div class="tooltip-container">
+                                    <span id="gemini-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                    <div class="tooltip">
+                                        Weighted average of recent trade scores (last 20 trades)
+                                    </div>
+                                </div>
+                                <div class="tooltip-container">
+                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                    <div class="tooltip">
+                                        Score Calculation:
+• Base score (1 point) for correct direction (BUY/SELL/HOLD)
+• Bonus points (up to 1) for magnitude of correct decision
+• Recent trades weighted more heavily
+• Based on last 20 trades
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="gemini-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
 
                     <!-- Groq Performance -->
-                    <div class="space-y-4">
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-purple">Groq LLaMA</h3>
                             <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Accuracy:</span>
-                                <span id="groq-accuracy" class="font-bold">0.0%</span>
+                                <span class="text-gray-400">Performance Score:</span>
+                                <div class="tooltip-container">
+                                    <span id="groq-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                    <div class="tooltip">
+                                        Weighted average of recent trade scores (last 20 trades)
+                                    </div>
+                                </div>
+                                <div class="tooltip-container">
+                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                    <div class="tooltip">
+                                        Score Calculation:
+• Base score (1 point) for correct direction (BUY/SELL/HOLD)
+• Bonus points (up to 1) for magnitude of correct decision
+• Recent trades weighted more heavily
+• Based on last 20 trades
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="groq-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
 
                     <!-- Mistral Performance -->
-                    <div class="space-y-4">
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-blue">Mistral Large</h3>
                             <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Accuracy:</span>
-                                <span id="mistral-accuracy" class="font-bold">0.0%</span>
+                                <span class="text-gray-400">Performance Score:</span>
+                                <div class="tooltip-container">
+                                    <span id="mistral-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                    <div class="tooltip">
+                                        Weighted average of recent trade scores (last 20 trades)
+                                    </div>
+                                </div>
+                                <div class="tooltip-container">
+                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                    <div class="tooltip">
+                                        Score Calculation:
+• Base score (1 point) for correct direction (BUY/SELL/HOLD)
+• Bonus points (up to 1) for magnitude of correct decision
+• Recent trades weighted more heavily
+• Based on last 20 trades
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="mistral-stats" class="bg-cyber-dark rounded p-3"></div>
