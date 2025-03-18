@@ -1,7 +1,7 @@
 """Web application for the trading dashboard."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
 from collections import deque
@@ -41,11 +41,30 @@ recent_decisions = {
     'mistral': deque(maxlen=100)
 }
 
+# Add cache invalidation timestamp
+model_stats_cache_timestamp = datetime.now()
+
 
 @lru_cache(maxsize=32)
 def calculate_model_stats(model_data_key: str) -> dict:
     """Calculate model statistics with caching."""
+    global model_stats_cache_timestamp
+
+    # Check if cache is stale (older than 5 minutes)
+    if datetime.now() - model_stats_cache_timestamp > timedelta(minutes=5):
+        calculate_model_stats.cache_clear()  # Clear the cache
+        model_stats_cache_timestamp = datetime.now()  # Update timestamp
+
     return db.get_model_comparison(days=7)
+
+# Add cache invalidation function
+
+
+def invalidate_model_stats_cache() -> None:
+    """Invalidate the model stats cache."""
+    calculate_model_stats.cache_clear()
+    global model_stats_cache_timestamp
+    model_stats_cache_timestamp = datetime.now()
 
 
 def check_llm_consensus(decisions: dict) -> Union[str, None]:
@@ -138,6 +157,9 @@ def get_trading_data():
 
         # Update accuracy of previous decisions
         db.update_decision_accuracy(market_data.eth_price)
+
+        # Invalidate cache after storing new data
+        invalidate_model_stats_cache()
 
         # Get model stats
         accuracy_stats = db.get_accuracy_stats()

@@ -67,18 +67,47 @@ class TradingDatabase:
             conn.commit()
 
     def _optimize_db(self) -> None:
-        """Optimize database performance and size."""
+        """Optimize database settings for better performance."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            # Write-Ahead Logging for better concurrency
-            cursor.execute("PRAGMA journal_mode=WAL")
+
             # Faster writes with reasonable safety
             cursor.execute("PRAGMA synchronous=NORMAL")
             # Store temp tables in memory
             cursor.execute("PRAGMA temp_store=MEMORY")
             # Use 2MB of memory for cache
             cursor.execute("PRAGMA cache_size=-2000")
-            cursor.execute("VACUUM")  # Compact the database file
+
+            # Check if VACUUM is needed
+            cursor.execute(
+                "SELECT page_count, page_size FROM dbstat WHERE name='main'")
+            page_count, page_size = cursor.fetchone()
+            db_size = page_count * page_size
+
+            # Get last vacuum time
+            cursor.execute(
+                "SELECT value FROM pragma_stats WHERE name='last_vacuum'")
+            last_vacuum = cursor.fetchone()
+
+            # Run VACUUM if:
+            # 1. Database is larger than 100MB
+            # 2. Last vacuum was more than 24 hours ago
+            # 3. Or if last vacuum time is not recorded
+            should_vacuum = (
+                db_size > 100 * 1024 * 1024 or  # 100MB
+                not last_vacuum or
+                (datetime.now() -
+                 datetime.fromisoformat(last_vacuum[0])).total_seconds() > 24 * 3600
+            )
+
+            if should_vacuum:
+                cursor.execute("VACUUM")  # Compact the database file
+                # Record vacuum time
+                cursor.execute("""
+                    INSERT OR REPLACE INTO pragma_stats (name, value)
+                    VALUES ('last_vacuum', ?)
+                """, (datetime.now().isoformat(),))
+
             conn.commit()
 
     def store_market_data(
