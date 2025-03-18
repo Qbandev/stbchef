@@ -12,6 +12,7 @@ class TradingDatabase:
         """Initialize database connection."""
         self.db_path = db_path
         self._init_db()
+        self._optimize_db()  # Add optimization on init
 
     def _init_db(self) -> None:
         """Initialize database tables."""
@@ -63,6 +64,21 @@ class TradingDatabase:
                 ON ai_decisions(model)
             """)
 
+            conn.commit()
+
+    def _optimize_db(self) -> None:
+        """Optimize database performance and size."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Write-Ahead Logging for better concurrency
+            cursor.execute("PRAGMA journal_mode=WAL")
+            # Faster writes with reasonable safety
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            # Store temp tables in memory
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            # Use 2MB of memory for cache
+            cursor.execute("PRAGMA cache_size=-2000")
+            cursor.execute("VACUUM")  # Compact the database file
             conn.commit()
 
     def store_market_data(
@@ -323,3 +339,18 @@ class TradingDatabase:
                 }
 
             return results
+
+    def cleanup_old_data(self) -> None:
+        """Clean up old data to prevent database bloat."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Keep only last 7 days of data
+            cursor.execute("""
+                DELETE FROM market_data 
+                WHERE timestamp < datetime('now', '-7 days')
+            """)
+            cursor.execute("""
+                DELETE FROM ai_decisions 
+                WHERE timestamp < datetime('now', '-7 days')
+            """)
+            conn.commit()

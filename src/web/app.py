@@ -3,6 +3,8 @@
 import os
 from datetime import datetime
 from typing import Union
+from functools import lru_cache
+from collections import deque
 
 import requests
 from dotenv import load_dotenv
@@ -22,13 +24,28 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Initialize components
+# Initialize components with memory-efficient settings
 state = TradingState()
 market_agent = MarketDataAgent(state)
 gemini_client = GeminiClient()
 groq_client = GroqClient()
 mistral_client = MistralClient()
 db = TradingDatabase()
+
+# Memory-efficient data structures
+recent_prices = deque(maxlen=100)
+recent_volumes = deque(maxlen=100)
+recent_decisions = {
+    'gemini': deque(maxlen=100),
+    'groq': deque(maxlen=100),
+    'mistral': deque(maxlen=100)
+}
+
+
+@lru_cache(maxsize=32)
+def calculate_model_stats(model_data_key: str) -> dict:
+    """Calculate model statistics with caching."""
+    return db.get_model_comparison(days=7)
 
 
 def check_llm_consensus(decisions: dict) -> Union[str, None]:
@@ -46,6 +63,8 @@ def check_llm_consensus(decisions: dict) -> Union[str, None]:
 @app.route("/")
 def index() -> str:
     """Serve the main trading dashboard."""
+    # Clean up old data periodically
+    db.cleanup_old_data()
     return render_template("index.html")
 
 

@@ -195,37 +195,61 @@ Technical Analysis:
 - RSI: {indicators['rsi']:.2f}
 - Price Range: ${eth_low:,.2f} - ${eth_high:,.2f} (${eth_high - eth_low:,.2f} spread)
 
-Portfolio Rebalancing Guidelines:
-1. Consider optimal ETH/USDC ratio based on:
-   - Current market conditions
-   - Risk tolerance (volatility)
-   - Expected returns (momentum)
-   - Market sentiment
-   - Gas costs for rebalancing
+Portfolio Rebalancing Strategy:
+1. Target Allocation:
+   - ETH: 60-80% in bullish conditions
+   - USDC: 40-20% in bullish conditions
+   - Adjust based on market conditions and risk tolerance
 
-2. Statistical Analysis:
-   - Use volatility to assess risk
+2. Rebalancing Triggers:
+   - Price movement beyond 5% threshold
+   - Significant change in market sentiment
+   - Volatility spikes
+   - Gas price optimization opportunities
+
+3. Risk Management:
+   - Maximum position size: 80% in single asset
+   - Minimum USDC reserve: 20% for opportunities
+   - Gas cost threshold: Only rebalance if potential profit > 2x gas cost
+   - Slippage tolerance: Max 0.5% for large trades
+
+4. Market Analysis:
+   - Use volatility to adjust position sizes
    - Use momentum to predict short-term direction
    - Use RSI to identify overbought/oversold conditions
    - Consider price range for support/resistance levels
+   - Factor in market sentiment for trend confirmation
 
-3. Decision Making:
-   - BUY if conditions suggest increasing ETH allocation
-   - SELL if conditions suggest increasing USDC allocation
-   - HOLD if current allocation is optimal
+5. Execution Strategy:
+   - Split large trades into smaller chunks
+   - Use limit orders for better prices
+   - Consider gas price trends for timing
+   - Account for market impact in large trades
 
-4. Risk Management:
-   - Consider gas costs in profit calculations
-   - Account for slippage in large trades
-   - Factor in market impact of rebalancing
+6. Performance Metrics:
+   - Track profit/loss after fees
+   - Monitor risk-adjusted returns
+   - Measure portfolio rebalancing efficiency
+   - Evaluate market impact minimization
 
-Your performance metrics:
-- Accuracy is tracked for each decision
-- Decisions are evaluated based on:
-  * Profit/loss after fees
-  * Risk-adjusted returns
-  * Portfolio rebalancing efficiency
-  * Market impact minimization
+7. Decision Making:
+   - BUY if:
+     * Price below support level
+     * RSI oversold
+     * Strong bullish momentum
+     * Low gas prices
+     * ETH allocation below target
+   - SELL if:
+     * Price above resistance
+     * RSI overbought
+     * Bearish momentum
+     * High gas prices
+     * ETH allocation above target
+   - HOLD if:
+     * Price within normal range
+     * Current allocation optimal
+     * Gas prices unfavorable
+     * No clear directional bias
 
 Provide your single-word trading decision (BUY, SELL, or HOLD) based on comprehensive market analysis."""
 
