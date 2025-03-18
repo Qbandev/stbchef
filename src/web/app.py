@@ -1,6 +1,7 @@
 """Web application for the trading dashboard."""
 
 import os
+import threading
 from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
@@ -42,41 +43,57 @@ recent_decisions = {
 }
 
 # Add thread-safe cache invalidation timestamp
+
+
 class CacheInvalidationTimestamp:
     def __init__(self):
-        self.timestamp = datetime.now()
-        self.lock = threading.Lock()
+        self._timestamp = datetime.now()
+        self._lock = threading.Lock()
+        self._is_invalidating = False
 
-    def get_timestamp(self):
-        with self.lock:
-            return self.timestamp
+    def get_timestamp(self) -> datetime:
+        """Get the current timestamp in a thread-safe manner."""
+        with self._lock:
+            return self._timestamp
 
-    def update_timestamp(self):
-        with self.lock:
-            self.timestamp = datetime.now()
+    def update_timestamp(self) -> None:
+        """Update the timestamp in a thread-safe manner."""
+        with self._lock:
+            self._timestamp = datetime.now()
+
+    def is_cache_stale(self, max_age: timedelta) -> bool:
+        """Check if the cache is stale based on the maximum age."""
+        with self._lock:
+            return datetime.now() - self._timestamp > max_age
+
+    def invalidate_cache(self, cache_func) -> None:
+        """Safely invalidate the cache and update the timestamp."""
+        with self._lock:
+            if not self._is_invalidating:
+                self._is_invalidating = True
+                try:
+                    cache_func.cache_clear()
+                    self._timestamp = datetime.now()
+                finally:
+                    self._is_invalidating = False
+
 
 model_stats_cache_timestamp = CacheInvalidationTimestamp()
+
 
 @lru_cache(maxsize=32)
 def calculate_model_stats(model_data_key: str) -> dict:
     """Calculate model statistics with caching."""
-    global model_stats_cache_timestamp
-
     # Check if cache is stale (older than 5 minutes)
-    if datetime.now() - model_stats_cache_timestamp > timedelta(minutes=5):
-        calculate_model_stats.cache_clear()  # Clear the cache
-        model_stats_cache_timestamp = datetime.now()  # Update timestamp
+    if model_stats_cache_timestamp.is_cache_stale(timedelta(minutes=5)):
+        model_stats_cache_timestamp.invalidate_cache(calculate_model_stats)
 
     return db.get_model_comparison(days=7)
-
-# Add cache invalidation function
 
 
 def invalidate_model_stats_cache() -> None:
     """Invalidate the model stats cache."""
-    calculate_model_stats.cache_clear()
-    global model_stats_cache_timestamp
-    model_stats_cache_timestamp = datetime.now()
+    model_stats_cache_timestamp.invalidate_cache(calculate_model_stats)
 
 
 def check_llm_consensus(decisions: dict) -> Union[str, None]:
