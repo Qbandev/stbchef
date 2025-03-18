@@ -41,9 +41,21 @@ recent_decisions = {
     'mistral': deque(maxlen=100)
 }
 
-# Add cache invalidation timestamp
-model_stats_cache_timestamp = datetime.now()
+# Add thread-safe cache invalidation timestamp
+class CacheInvalidationTimestamp:
+    def __init__(self):
+        self.timestamp = datetime.now()
+        self.lock = threading.Lock()
 
+    def get_timestamp(self):
+        with self.lock:
+            return self.timestamp
+
+    def update_timestamp(self):
+        with self.lock:
+            self.timestamp = datetime.now()
+
+model_stats_cache_timestamp = CacheInvalidationTimestamp()
 
 @lru_cache(maxsize=32)
 def calculate_model_stats(model_data_key: str) -> dict:
