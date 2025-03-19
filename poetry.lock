@@ -324,6 +324,22 @@ protobuf = ">=3.20.2,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4
 grpc = ["grpcio (>=1.44.0,<2.0.0.dev0)"]
 
 [[package]]
+name = "groq"
+version = "0.20.0"
+description = "The official Python library for the groq API"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+anyio = ">=3.5.0,<5"
+distro = ">=1.7.0,<2"
+httpx = ">=0.23.0,<1"
+pydantic = ">=1.9.0,<3"
+sniffio = "*"
+typing-extensions = ">=4.10,<5"
+
+[[package]]
 name = "grpcio"
 version = "1.68.1"
 description = "HTTP/2-based RPC framework"
@@ -909,7 +925,7 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "4618e96fbba633d670cb78bf783c58d3eed88605af6b72918117919ac968a255"
+content-hash = "f37407cab7c22676278b9800c43f26483cd635cef52f8c3c4b9fd38a748b9afc"
 
 [metadata.files]
 annotated-types = [
@@ -1168,6 +1184,10 @@ google-generativeai = [
 googleapis-common-protos = [
     {file = "googleapis_common_protos-1.66.0-py2.py3-none-any.whl", hash = "sha256:d7abcd75fabb2e0ec9f74466401f6c119a0b498e27370e9be4c94cb7e382b8ed"},
     {file = "googleapis_common_protos-1.66.0.tar.gz", hash = "sha256:c3e7b33d15fdca5374cc0a7346dd92ffa847425cc4ea941d970f13680052ec8c"},
+]
+groq = [
+    {file = "groq-0.20.0-py3-none-any.whl", hash = "sha256:c27b89903eb2b77f94ed95837ff3cadfc8c9e670953b1c5e5e2e855fea54b6c5"},
+    {file = "groq-0.20.0.tar.gz", hash = "sha256:2a201d41cae768c53d411dabcfea2333e2e138df22d909ed555ece426f1e016f"},
 ]
 grpcio = [
     {file = "grpcio-1.68.1-cp310-cp310-linux_armv7l.whl", hash = "sha256:d35740e3f45f60f3c37b1e6f2f4702c23867b9ce21c6410254c9c682237da68d"},

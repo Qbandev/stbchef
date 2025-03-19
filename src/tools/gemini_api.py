@@ -31,7 +31,13 @@ class GeminiClient:
     def calculate_technical_indicators(self, prices: list) -> Dict[str, float]:
         """Calculate technical indicators for analysis."""
         if len(prices) < 2:
-            return {}
+            return {
+                'volatility': 0,
+                'momentum': 0,
+                'rsi': 50,
+                'price_trend': 'neutral',
+                'volatility_level': 'low'
+            }
 
         prices = np.array(prices)
 
@@ -39,29 +45,53 @@ class GeminiClient:
         price_changes = np.diff(prices)
 
         # Calculate volatility (standard deviation of price changes)
-        volatility = np.std(price_changes) if len(price_changes) > 0 else 0
+        try:
+            volatility = np.std(price_changes) if len(price_changes) > 0 else 0
+        except Exception as e:
+            print(f"Error calculating volatility: {str(e)}")
+            volatility = 0
 
         # Calculate momentum (rate of price change)
-        momentum = np.mean(
-            price_changes[-5:]) if len(price_changes) >= 5 else np.mean(price_changes)
+        try:
+            momentum = np.mean(
+                price_changes[-5:]) if len(price_changes) >= 5 else np.mean(price_changes)
+        except Exception as e:
+            print(f"Error calculating momentum: {str(e)}")
+            momentum = 0
 
         # Calculate RSI-like indicator (simplified)
-        if len(prices) >= 14:
-            gains = np.where(price_changes > 0, price_changes, 0)
-            losses = np.where(price_changes < 0, -price_changes, 0)
-            avg_gain = np.mean(gains[-14:])
-            avg_loss = np.mean(losses[-14:])
-            rs = avg_gain / avg_loss if avg_loss != 0 else 0
-            rsi = 100 - (100 / (1 + rs)) if rs != 0 else 100
-        else:
-            rsi = 50  # Neutral value if not enough data
+        rsi = 50  # Default neutral value
+        try:
+            if len(prices) >= 14:
+                gains = np.where(price_changes > 0, price_changes, 0)
+                losses = np.where(price_changes < 0, -price_changes, 0)
+                avg_gain = np.mean(gains[-14:])
+                avg_loss = np.mean(losses[-14:])
+                if avg_loss != 0:
+                    rs = avg_gain / avg_loss
+                    if rs != 0:
+                        rsi = 100 - (100 / (1 + rs))
+        except Exception as e:
+            print(f"Error calculating RSI: {str(e)}")
+
+        # Default values for derived metrics
+        price_trend = 'neutral'
+        volatility_level = 'low'
+
+        try:
+            price_trend = 'up' if momentum > 0 else 'down'
+            mean_abs_change = np.mean(np.abs(price_changes)) if len(
+                price_changes) > 0 else 0
+            volatility_level = 'high' if mean_abs_change > 0 and volatility > mean_abs_change * 2 else 'low'
+        except Exception as e:
+            print(f"Error calculating derived indicators: {str(e)}")
 
         return {
             'volatility': volatility,
             'momentum': momentum,
             'rsi': rsi,
-            'price_trend': 'up' if momentum > 0 else 'down',
-            'volatility_level': 'high' if volatility > np.mean(np.abs(price_changes)) * 2 else 'low'
+            'price_trend': price_trend,
+            'volatility_level': volatility_level
         }
 
     def get_trading_decision(
