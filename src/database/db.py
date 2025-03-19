@@ -483,6 +483,9 @@ class TradingDatabase:
             # Process the results if we have any
             for row in results:
                 model = row['model']
+                if model not in stats:
+                    stats[model] = []
+
                 stats[model].append({
                     'date': row['date'],
                     'total_trades': row['total_trades'],
