@@ -319,6 +319,17 @@ def get_model_stats() -> Union[dict, tuple[dict, int]]:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/daily-stats")
+def get_daily_stats() -> Union[dict, tuple[dict, int]]:
+    """Get the daily statistics for each model."""
+    try:
+        days = int(request.args.get('days', '7'))
+        stats = db.get_daily_stats(days=days)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)

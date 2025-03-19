@@ -261,7 +261,7 @@
             if (marketVolatility.data.length > marketVolatility.window * 60) { // 60 data points per hour
                 marketVolatility.data.shift();
             }
-            
+
             if (marketVolatility.data.length > 1) {
                 const returns = marketVolatility.data.slice(1).map((p, i) => 
                     (p - marketVolatility.data[i]) / marketVolatility.data[i]
@@ -279,7 +279,7 @@
 
         function calculateTradeScore(decision, priceChangePercent, threshold) {
             let score = 0;
-            
+
             // Base score for correct direction
             if (decision === 'BUY' && priceChangePercent > threshold) {
                 score = 1;
@@ -349,14 +349,14 @@
             try {
                 const history = localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY);
                 const performance = localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE);
-                
+
                 if (history) {
                     tradeHistory = JSON.parse(history);
                 }
                 if (performance) {
                     aiAccuracy = JSON.parse(performance);
                 }
-                
+
                 // Update UI with loaded data
                 updateModelStatsDisplay();
             } catch (error) {
@@ -395,7 +395,7 @@
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                     userAccount = accounts[0];
                     web3 = new Web3(window.ethereum);
-                    
+
                     persistWalletConnection(userAccount);
                     updateWalletUI();
                     showNotification('Wallet connected successfully!', 'success');
@@ -487,10 +487,10 @@
             if (lastDecisions.price !== null) {
                 const priceChange = currentPrice - lastDecisions.price;
                 const priceChangePercent = (priceChange / lastDecisions.price) * 100;
-                
+
                 // Update market volatility
                 calculateVolatility(currentPrice);
-                
+
                 // Get dynamic threshold based on market conditions
                 const threshold = calculateDynamicThreshold();
 
@@ -529,10 +529,10 @@
                         const recentTrades = trades.slice(-20); // Last 20 trades
                         const weights = recentTrades.map((_, i) => 1 + (i / recentTrades.length));
                         const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-                        
+
                         const weightedScore = recentTrades.reduce((sum, trade, i) => 
                             sum + (trade.score * weights[i]), 0) / totalWeight;
-                        
+
                         const accuracy = (weightedScore * 100).toFixed(1);
                         accuracyElement.textContent = `${accuracy}%`;
                         accuracyElement.className = `font-bold ${
@@ -749,12 +749,12 @@
         function updateModelStatsDisplay() {
             // Check if we need to reset daily stats
             checkDailyReset();
-            
+
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const trades = tradeHistory[model];
                 const statsContainer = document.getElementById(`${model}-stats`);
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
-                
+
                 if (statsContainer) {
                     const recentTrades = getRecentTrades(trades);
                     const totalRecentTrades = recentTrades.length;
@@ -817,10 +817,10 @@
                         // Calculate weighted average with more weight to recent trades
                         const weights = lastHundredTrades.map((_, i) => 1 + (i / lastHundredTrades.length));
                         const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-                        
+
                         const weightedScore = lastHundredTrades.reduce((sum, trade, i) => 
                             sum + (trade.score * weights[i]), 0) / totalWeight;
-                        
+
                         const accuracy = (weightedScore * 100).toFixed(1);
                         accuracyElement.textContent = `${accuracy}%`;
                         accuracyElement.className = `font-bold ${
@@ -960,6 +960,62 @@
                 });
         }
 
+        // Add function to fetch daily stats
+        function fetchDailyStats() {
+            fetch('/api/daily-stats')
+                .then(response => response.json())
+                .then(data => {
+                    // Log the data
+                    console.log('Daily stats:', data);
+                    
+                    // For each model, update the stats display
+                    ['gemini', 'groq', 'mistral'].forEach(model => {
+                        if (data[model] && data[model].length > 0) {
+                            // Get the most recent day's stats
+                            const todayStats = data[model][0];
+                            
+                            const statsContainer = document.getElementById(`${model}-stats`);
+                            if (statsContainer) {
+                                statsContainer.innerHTML = `
+                                    <div class="grid grid-cols-2 gap-2 text-sm">
+                                        <div class="col-span-2 mb-1">
+                                            <div class="text-xs font-bold text-neon-blue">Last 24 Hours</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Total Trades:</div>
+                                            <div class="font-bold text-cyber-text">${todayStats.total_trades}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Correct Trades:</div>
+                                            <div class="font-bold text-green-400">${todayStats.correct_trades}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Incorrect Trades:</div>
+                                            <div class="font-bold text-red-400">${todayStats.incorrect_trades}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Avg Profit Trades:</div>
+                                            <div class="font-bold ${parseFloat(todayStats.avg_profit) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                                ${todayStats.avg_profit.toFixed(2)}%
+                                            </div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <div class="text-gray-400">Decision Distribution:</div>
+                                            <div class="flex justify-between mt-1">
+                                                <span class="text-green-400">Buy: ${todayStats.buy_decisions}</span>
+                                                <span class="text-red-400">Sell: ${todayStats.sell_decisions}</span>
+                                                <span class="text-blue-400">Hold: ${todayStats.hold_decisions}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching daily stats:', error));
+        }
+
         // Initial setup
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initializing dashboard...');
@@ -967,11 +1023,13 @@
             checkDailyReset(); // Check if we need to reset daily stats
             initCharts();
             updateData();  // Initial data fetch
+            fetchDailyStats(); // Fetch daily stats
 
             // Set up auto-refresh every 10 minutes
             const refreshInterval = setInterval(() => {
                 console.log('Auto-refresh triggered');
                 updateData();
+                fetchDailyStats(); // Also refresh daily stats
             }, 600000);  // 10 minutes
 
             // Clean up on page unload
@@ -1015,14 +1073,14 @@
             const lastReset = localStorage.getItem('last_daily_reset');
             const now = new Date();
             const today = now.toDateString();
-            
+
             if (lastReset !== today) {
                 // Reset daily stats for each model
                 ['gemini', 'groq', 'mistral'].forEach(model => {
                     // We don't actually delete trades, just mark when we last reset
                     console.log(`Resetting daily stats for ${model}`);
                 });
-                
+
                 // Store today's date as the last reset day
                 localStorage.setItem('last_daily_reset', today);
                 return true;
@@ -1202,9 +1260,6 @@
             <div class="cyber-card rounded-lg shadow p-6 col-span-3">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance</h2>
                 <div class="grid grid-cols-3 gap-6">
-                    <!-- Performance Analysis Cards -->
-                    <h2 class="text-xl font-bold text-cyber-text mb-4">Model Performance</h2>
-                    
                     <!-- Gemini Performance -->
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
                         <div class="flex items-center justify-between">
@@ -1235,7 +1290,7 @@
                         </div>
                         <div id="gemini-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
-                    
+
                     <!-- Groq Performance -->
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark mb-4">
                         <div class="flex items-center justify-between">
@@ -1266,7 +1321,7 @@
                         </div>
                         <div id="groq-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
-                    
+
                     <!-- Mistral Performance -->
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
                         <div class="flex items-center justify-between">
