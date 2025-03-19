@@ -1202,16 +1202,19 @@
             <div class="cyber-card rounded-lg shadow p-6 col-span-3">
                 <h2 class="text-xl font-semibold mb-4 cyber-title">Model Performance</h2>
                 <div class="grid grid-cols-3 gap-6">
+                    <!-- Performance Analysis Cards -->
+                    <h2 class="text-xl font-bold text-cyber-text mb-4">Model Performance</h2>
+                    
                     <!-- Gemini Performance -->
-                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-neon-blue">Gemini 1.5 Flash</h3>
+                            <h3 class="text-lg font-semibold text-neon-blue">Gemini AI</h3>
                             <div class="flex items-center space-x-2">
                                 <span class="text-gray-400">Performance Score:</span>
                                 <div class="tooltip-container">
                                     <span id="gemini-accuracy" class="font-bold tooltip-trigger">0.0%</span>
                                     <div class="tooltip">
-                                        Weighted average of recent trade scores (last 20 trades)
+                                        Weighted average of recent trade scores (last 100 trades)
                                     </div>
                                 </div>
                                 <div class="tooltip-container">
@@ -1221,16 +1224,20 @@
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
 • Bonus points (up to 1) for magnitude of correct decision
 • Recent trades weighted more heavily
-• Based on last 20 trades
+• Based on last 100 trades
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-blue">24-Hour Activity</span>
+                            <span class="text-xs text-gray-400">Reset daily at midnight</span>
+                        </div>
                         <div id="gemini-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
-
+                    
                     <!-- Groq Performance -->
-                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark">
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark mb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-purple">Groq DeepSeek</h3>
                             <div class="flex items-center space-x-2">
@@ -1238,7 +1245,7 @@
                                 <div class="tooltip-container">
                                     <span id="groq-accuracy" class="font-bold tooltip-trigger">0.0%</span>
                                     <div class="tooltip">
-                                        Weighted average of recent trade scores (last 20 trades)
+                                        Weighted average of recent trade scores (last 100 trades)
                                     </div>
                                 </div>
                                 <div class="tooltip-container">
@@ -1248,24 +1255,28 @@
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
 • Bonus points (up to 1) for magnitude of correct decision
 • Recent trades weighted more heavily
-• Based on last 20 trades
+• Based on last 100 trades
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-purple">24-Hour Activity</span>
+                            <span class="text-xs text-gray-400">Reset daily at midnight</span>
+                        </div>
                         <div id="groq-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
-
+                    
                     <!-- Mistral Performance -->
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-neon-blue">Mistral Large</h3>
+                            <h3 class="text-lg font-semibold text-neon-green">Mistral AI</h3>
                             <div class="flex items-center space-x-2">
                                 <span class="text-gray-400">Performance Score:</span>
                                 <div class="tooltip-container">
                                     <span id="mistral-accuracy" class="font-bold tooltip-trigger">0.0%</span>
                                     <div class="tooltip">
-                                        Weighted average of recent trade scores (last 20 trades)
+                                        Weighted average of recent trade scores (last 100 trades)
                                     </div>
                                 </div>
                                 <div class="tooltip-container">
@@ -1275,10 +1286,14 @@
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
 • Bonus points (up to 1) for magnitude of correct decision
 • Recent trades weighted more heavily
-• Based on last 20 trades
+• Based on last 100 trades
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-green">24-Hour Activity</span>
+                            <span class="text-xs text-gray-400">Reset daily at midnight</span>
                         </div>
                         <div id="mistral-stats" class="bg-cyber-dark rounded p-3"></div>
                     </div>
