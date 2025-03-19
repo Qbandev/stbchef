@@ -227,6 +227,76 @@
             font-size: 1.5rem;
             animation: pulse 2s infinite;
         }
+        .network-btn {
+            background: rgba(10, 10, 20, 0.4);
+            border: 1px solid transparent;
+            color: var(--cyber-text);
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            min-width: 120px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+        .network-btn:not(.network-active) {
+            animation: subtle-pulse 3s infinite;
+        }
+        @keyframes subtle-pulse {
+            0% { box-shadow: 0 0 0px rgba(0, 243, 255, 0); }
+            50% { box-shadow: 0 0 8px rgba(0, 243, 255, 0.3); }
+            100% { box-shadow: 0 0 0px rgba(0, 243, 255, 0); }
+        }
+        .network-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+        .network-btn:hover::before {
+            left: 100%;
+        }
+        .network-btn:hover {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+            color: var(--neon-blue);
+            transform: translateY(-2px);
+        }
+        .network-active {
+            color: var(--neon-blue);
+            border-color: var(--neon-blue);
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+        .network-icon {
+            margin-right: 0.5rem;
+            width: 20px;
+            height: 20px;
+        }
+        .eth-icon {
+            color: #627eea;
+        }
+        .linea-icon {
+            color: #00ABFF;
+            background-color: #121212;
+            border-radius: 50%;
+        }
+        .active-indicator {
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+            animation: pulse 2s infinite;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -469,11 +539,9 @@
                     const isLinea = chainId === 59144;
                     const isEthereum = chainId === 1;
                     
-                    // Display network info to the user
+                    // Only show warning if on unsupported network, no need for confirmation on supported ones
                     if (!isLinea && !isEthereum) {
                         showNotification(`Connected to unsupported network (ID: ${chainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
-                    } else {
-                        showNotification(`Connected to ${isLinea ? 'Linea' : 'Ethereum'} network!`, 'success');
                     }
 
                     persistWalletConnection(userAccount);
@@ -525,9 +593,8 @@
                         const isLinea = newChainId === 59144;
                         const isEthereum = newChainId === 1;
                         
-                        if (isLinea || isEthereum) {
-                            showNotification(`Switched to ${isLinea ? 'Linea' : 'Ethereum'} network!`, 'success');
-                        } else {
+                        // Only show warning if on unsupported network, no need for confirmation on supported ones
+                        if (!isLinea && !isEthereum) {
                             showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
                         }
                         
@@ -681,51 +748,113 @@
         // Get token balance helper function
         async function getTokenBalance(tokenAddress) {
             try {
-                console.log(`Fetching token balance for ${tokenAddress}`);
+                console.log(`Attempting to fetch token balance for ${tokenAddress}`);
                 
-                // Create contract instance
-                const tokenContract = new web3.eth.Contract(ERC20_ABI, tokenAddress);
+                // Create contract instance with error checking
+                let tokenContract;
+                try {
+                    tokenContract = new web3.eth.Contract(ERC20_ABI, tokenAddress);
+                } catch (contractError) {
+                    throw new Error(`Failed to create contract instance: ${contractError.message}`);
+                }
                 
-                // Add timeout promise to each call
+                // Use shorter timeouts to avoid hanging
                 const timeout = ms => new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Contract call timed out')), ms));
+                    setTimeout(() => reject(new Error(`Contract call timed out after ${ms}ms`)), ms));
                 
-                // Call decimals with timeout
-                const decimalsPromise = Promise.race([
-                    tokenContract.methods.decimals().call(),
-                    timeout(5000) // 5 second timeout
-                ]);
-                
-                // Call balanceOf with timeout
-                const balancePromise = Promise.race([
-                    tokenContract.methods.balanceOf(userAccount).call(),
-                    timeout(5000) // 5 second timeout
-                ]);
-                
-                // Use Promise.all to execute both calls concurrently
-                const [decimals, balance] = await Promise.all([decimalsPromise, balancePromise]);
-                
-                // Validate returned values
-                if (decimals === undefined || balance === undefined) {
-                    throw new Error('Invalid contract response');
+                // First check if the contract responds at all with a simple call
+                try {
+                    // Brief timeout for simple call
+                    const contractCheck = await Promise.race([
+                        tokenContract.methods.symbol().call(),
+                        timeout(2000)
+                    ]);
+                    console.log(`Contract ${tokenAddress} responds with symbol: ${contractCheck}`);
+                } catch (checkError) {
+                    console.warn(`Contract not responding properly: ${checkError.message}`);
+                    // Continue anyway, might still work
                 }
                 
-                // Parse values
-                const decimalValue = parseInt(decimals);
-                const balanceValue = parseFloat(balance);
+                // Attempt the balance calls with shorter timeouts
+                console.log(`Fetching decimals and balance from ${tokenAddress}`);
+                let decimals, balance;
                 
-                if (isNaN(decimalValue) || isNaN(balanceValue)) {
-                    throw new Error('Invalid numeric values returned from contract');
+                try {
+                    // Try decimals first with short timeout
+                    decimals = await Promise.race([
+                        tokenContract.methods.decimals().call(),
+                        timeout(3000)
+                    ]);
+                    console.log(`Token decimals: ${decimals}`);
+                } catch (decimalsError) {
+                    console.warn(`Failed to get decimals: ${decimalsError.message}, using default value 6`);
+                    // Default to 6 decimals for USDC as fallback
+                    decimals = 6;
                 }
                 
+                try {
+                    // Try balance next with short timeout
+                    balance = await Promise.race([
+                        tokenContract.methods.balanceOf(userAccount).call(),
+                        timeout(3000)
+                    ]);
+                    console.log(`Token balance (raw): ${balance}`);
+                } catch (balanceError) {
+                    console.warn(`Failed to get balance: ${balanceError.message}, using 0`);
+                    // Default to 0 balance as fallback
+                    balance = "0";
+                }
+                
+                // Validate returned values with defensive programming
+                if (balance === undefined || balance === null) {
+                    console.warn("Received undefined/null balance, defaulting to 0");
+                    balance = "0";
+                }
+                
+                if (decimals === undefined || decimals === null) {
+                    console.warn("Received undefined/null decimals, defaulting to 6");
+                    decimals = 6;
+                }
+                
+                // Parse values with error checking
+                let decimalValue, balanceValue;
+                try {
+                    decimalValue = parseInt(decimals);
+                    if (isNaN(decimalValue)) {
+                        console.warn("Invalid decimals value, defaulting to 6");
+                        decimalValue = 6;
+                    }
+                } catch (parseError) {
+                    console.warn(`Error parsing decimals: ${parseError.message}, using default 6`);
+                    decimalValue = 6;
+                }
+                
+                try {
+                    balanceValue = parseFloat(balance);
+                    if (isNaN(balanceValue)) {
+                        console.warn("Invalid balance value, defaulting to 0");
+                        balanceValue = 0;
+                    }
+                } catch (parseError) {
+                    console.warn(`Error parsing balance: ${parseError.message}, using 0`);
+                    balanceValue = 0;
+                }
+                
+                // Calculate final balance
                 walletBalances.usdc = balanceValue / Math.pow(10, decimalValue);
-                console.log("USDC balance:", walletBalances.usdc);
+                console.log(`USDC balance (formatted): ${walletBalances.usdc}`);
                 return walletBalances.usdc;
             } catch (error) {
-                logToServer('error', "Token contract error", error);
+                // Log detailed error information, but don't fail catastrophically
+                logToServer('error', "Token contract error", {
+                    message: error.message,
+                    tokenAddress: tokenAddress,
+                    userAccount: userAccount,
+                    chainId: web3.eth.chainId || 'unknown'
+                });
+                
                 // Set USDC to 0 on error
                 walletBalances.usdc = 0;
-                // Don't show user notification for this error to avoid spam
                 return 0;
             }
         }
@@ -756,6 +885,8 @@
                 return;
             }
             
+            // Note: We will proceed even if balances are zero - we want to show network switching options
+            
             // Check if we're on Linea network
             web3.eth.getChainId().then(chainId => {
                 const isLinea = chainId === 59144;
@@ -765,32 +896,74 @@
                 
                 // Network switching buttons
                 const switchNetworkButtons = isLinea || isEthereum ? `
-                    <div class="col-span-2 mt-2 flex justify-center space-x-2">
-                        <button onclick="switchNetwork(1)" class="cyber-btn cyber-btn-small ${isEthereum ? 'opacity-50 cursor-not-allowed' : ''}">
-                            Ethereum
+                    <div class="col-span-2 mt-3 flex justify-center space-x-4">
+                        <button onclick="${isEthereum ? 'void(0)' : 'switchNetwork(1)'}" class="network-btn ${isEthereum ? 'network-active cursor-not-allowed opacity-80' : ''} flex items-center">
+                            <div class="network-icon eth-icon">
+                                <svg class="w-4 h-4" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 21.93L15.8917 22.0633V26.4117L16 26.6633L22.6667 17.94L16 21.93Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 26.6633V21.93L9.33333 17.94L16 26.6633Z" fill="#627EEA"/>
+                                </svg>
+                            </div>
+                            <span>Ethereum</span>
+                            ${isEthereum ? '<span class="active-indicator">●</span>' : ''}
                         </button>
-                        <button onclick="switchNetwork(59144)" class="cyber-btn cyber-btn-small ${isLinea ? 'opacity-50 cursor-not-allowed' : ''}">
-                            Linea
+                        <button onclick="${isLinea ? 'void(0)' : 'switchNetwork(59144)'}" class="network-btn ${isLinea ? 'network-active cursor-not-allowed opacity-80' : ''} flex items-center">
+                            <div class="network-icon linea-icon">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#121212"/>
+                                    <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="#00ABFF"/>
+                                    <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="#00ABFF"/>
+                                    <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="#00ABFF"/>
+                                </svg>
+                            </div>
+                            <span>Linea</span>
+                            ${isLinea ? '<span class="active-indicator">●</span>' : ''}
                         </button>
                     </div>
                 ` : `
-                    <div class="col-span-2 mt-2 flex justify-center">
-                        <div class="text-yellow-400 text-xs">Switch to a supported network</div>
-                    </div>
-                    <div class="col-span-2 mt-1 flex justify-center space-x-2">
-                        <button onclick="switchNetwork(1)" class="cyber-btn cyber-btn-small">
-                            Ethereum
-                        </button>
-                        <button onclick="switchNetwork(59144)" class="cyber-btn cyber-btn-small">
-                            Linea
-                        </button>
+                    <div class="col-span-2 mt-3">
+                        <div class="text-yellow-400 text-xs text-center mb-2">Switch to a supported network</div>
+                        <div class="flex justify-center space-x-4">
+                            <button onclick="switchNetwork(1)" class="network-btn flex items-center">
+                                <div class="network-icon eth-icon">
+                                    <svg class="w-4 h-4" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 21.93L15.8917 22.0633V26.4117L16 26.6633L22.6667 17.94L16 21.93Z" fill="#627EEA" fill-opacity="0.7"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 26.6633V21.93L9.33333 17.94L16 26.6633Z" fill="#627EEA"/>
+                                    </svg>
+                                </div>
+                                <span>Ethereum</span>
+                            </button>
+                            <button onclick="switchNetwork(59144)" class="network-btn flex items-center">
+                                <div class="network-icon linea-icon">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#121212"/>
+                                        <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="#00ABFF"/>
+                                        <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="#00ABFF"/>
+                                        <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="#00ABFF"/>
+                                    </svg>
+                                </div>
+                                <span>Linea</span>
+                            </button>
+                        </div>
                     </div>
                 `;
                 
                 // Calculate optimal action based on current portfolio allocation
                 const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
                 const totalValue = walletBalances.totalValueUSD || ethValueUSD;
-                const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
+                
+                // Handle zero balance case properly
+                const hasNonZeroBalance = walletBalances.eth > 0 || walletBalances.usdc > 0;
+                const currentEthAllocation = hasNonZeroBalance && totalValue > 0 
+                    ? (ethValueUSD / totalValue * 100) 
+                    : 0;
+                const currentUsdcAllocation = hasNonZeroBalance && totalValue > 0 
+                    ? 100 - currentEthAllocation 
+                    : 0;
                 
                 // Target allocation range: 60-80% ETH in bullish, 20-40% in bearish
                 const marketSentiment = document.getElementById('sentiment');
@@ -846,29 +1019,34 @@
                 
                 // Recommendation section based on whether we have balances and AI decisions
                 const recommendationSection = `
-                    <div class="col-span-2 mt-3 mb-1">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Recommended Action:</span>
+                    <div class="col-span-2 mt-3 mb-1 space-y-2">
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Recommended Action:</span>
                             <span class="font-bold ${
                                 recommendedAction === 'BUY' ? 'text-green-400' :
                                 recommendedAction === 'SELL' ? 'text-red-400' :
                                 'text-blue-400'
                             }">${recommendedAction}</span>
                         </div>
-                        ${modelText}
+                        ${recommendingModels.length > 0 ? `
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Recommended by:</span>
+                            <span class="text-gray-300">${recommendingModels.join(', ')}</span>
+                        </div>
+                        ` : ''}
                         ${swapAmount > 0 ? `
-                            <div class="text-xs mt-1 text-gray-300">
-                                Swap ~$${swapAmount.toFixed(2)} ${swapDirection}
-                            </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Suggested Swap:</span>
+                            <span class="text-gray-300">~$${swapAmount.toFixed(2)} ${swapDirection}</span>
+                        </div>
+                        ` : ''}
+                        ${totalValue > 0 ? `
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Target Allocation:</span>
+                            <span class="text-gray-300">${targetEthMin}%-${targetEthMax}% ETH in ${isBullish ? 'bullish' : 'bearish'} market</span>
+                        </div>
                         ` : ''}
                     </div>
-                    ${totalValue > 0 ? `
-                        <div class="col-span-2 mt-1">
-                            <div class="text-xs text-gray-400">
-                                Target: ${targetEthMin}%-${targetEthMax}% ETH allocation in ${isBullish ? 'bullish' : 'bearish'} market
-                            </div>
-                        </div>
-                    ` : ''}
                 `;
                 
                 walletCard.innerHTML = `
@@ -891,14 +1069,22 @@
                                 <div class="font-bold text-cyber-text">${walletBalances.usdc.toFixed(2)} USDC</div>
                                 <div class="text-xs text-gray-400">${!isLinea && !isEthereum ? '(Only available on Linea or Ethereum)' : ''}</div>
                             </div>
+                            
                             <div class="col-span-2 mt-2">
                                 <div class="text-gray-400">Portfolio Allocation:</div>
-                                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1">
-                                    <div class="bg-cyber-text h-2.5 rounded-full" style="width: ${currentEthAllocation}%"></div>
+                                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1 relative">
+                                    ${hasNonZeroBalance ? 
+                                    `<div class="${getPortfolioBarColor(currentEthAllocation, targetEthMin, targetEthMax)} h-2.5 rounded-full" style="width: ${currentEthAllocation}%"></div>` : 
+                                    `<div class="bg-gray-600 h-2.5 rounded-full" style="width: 0%"></div>`}
+                                    
+                                    <!-- Target range indicators -->
+                                    <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMin}%; height: 100%;"></div>
+                                    <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMax}%; height: 100%;"></div>
                                 </div>
                                 <div class="flex justify-between text-xs mt-1">
                                     <span>ETH: ${currentEthAllocation.toFixed(1)}%</span>
-                                    <span>USDC: ${(100 - currentEthAllocation).toFixed(1)}%</span>
+                                    <span>USDC: ${currentUsdcAllocation.toFixed(1)}%</span>
+                                    ${!hasNonZeroBalance ? '<span class="mx-auto text-gray-400 text-xs">(Empty Portfolio)</span>' : ''}
                                 </div>
                             </div>
                             
@@ -934,41 +1120,33 @@
             }
             
             try {
+                // Show loading state first before attempting switch
+                showLoadingWalletState("Switching networks...");
+                
                 // First, try to switch to the network
                 await window.ethereum.request({
                     method: 'wallet_switchEthereumChain',
                     params: [{ chainId: '0x' + chainId.toString(16) }],
                 });
                 
-                showNotification(`Switched to ${chainId === 59144 ? 'Linea' : 'Ethereum'} network`, 'success');
-                
-                // Show loading state on wallet card
-                const walletCard = document.getElementById('wallet-card');
-                if (walletCard) {
-                    walletCard.innerHTML = `
-                        <div class="flex flex-col">
-                            <div class="flex items-center justify-between mb-3">
-                                <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
-                            </div>
-                            <div class="flex flex-col items-center justify-center h-24">
-                                <p class="text-gray-400 mb-2">Switching networks...</p>
-                                <div class="spinner"><i class="fas fa-sync-alt fa-spin"></i></div>
-                            </div>
-                        </div>
-                    `;
-                }
+                // Success notification is unnecessary - users can see the network changed in the UI
                 
                 // Reset wallet balances to avoid stale data
                 resetWalletBalances();
                 
-                // Wait a moment for MetaMask to complete the network switch, then refresh wallet data
+                // Wait a bit longer for MetaMask to complete the network switch
                 setTimeout(async () => {
                     try {
                         await getWalletBalances();
+                        // Don't show notification for zero balances, just update the UI
+                        if (walletBalances.totalValueUSD <= 0) {
+                            updateWalletCard(); // Ensure card updates even with zero balances
+                        }
                     } catch (error) {
                         logToServer('error', 'Error refreshing wallet balances after network switch', error);
+                        showNotification("Error loading balances", "error");
                     }
-                }, 1500);
+                }, 2000); // Increased timeout to 2 seconds
                 
             } catch (switchError) {
                 // This error code indicates that the chain has not been added to MetaMask
@@ -1016,6 +1194,24 @@
                     logToServer('error', 'Error switching network', switchError);
                     showNotification('Error switching network. Check MetaMask.', 'error');
                 }
+            }
+        }
+        
+        // Helper function to show loading state in wallet card
+        function showLoadingWalletState(message) {
+            const walletCard = document.getElementById('wallet-card');
+            if (walletCard) {
+                walletCard.innerHTML = `
+                    <div class="flex flex-col">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                        </div>
+                        <div class="flex flex-col items-center justify-center h-24">
+                            <p class="text-gray-400 mb-2">${message}</p>
+                            <div class="spinner"><i class="fas fa-sync-alt fa-spin"></i></div>
+                        </div>
+                    </div>
+                `;
             }
         }
         
@@ -1572,11 +1768,23 @@
                             // Show browser notification
                             showNotification(message, 'info');
 
-                            // Send wallet notification
-                            sendWalletNotification(message, consensus);
+                            // Force wallet balance refresh with a slight delay
+                            // This ensures the wallet card recommendation is updated first
+                            setTimeout(() => {
+                                getWalletBalances().then(() => {
+                                    // Send wallet notification after balances are refreshed
+                                    sendWalletNotification(message, consensus);
+                                });
+                            }, 500);
                         } else if (consensus === 'HOLD') {
                             // For HOLD, just show a simple notification without wallet transaction
                             showNotification(`🔵 HOLD Signal - No action needed`, 'info');
+                            
+                            // Still refresh wallet balances to keep things in sync
+                            getWalletBalances();
+                        } else {
+                            // No consensus, but still refresh wallet balances
+                            getWalletBalances();
                         }
                     }
 
@@ -2002,15 +2210,22 @@
                 
                 // Get current wallet balances
                 const ethBalance = walletBalances.eth;
+                const usdcBalance = walletBalances.usdc;
                 const currentPrice = walletBalances.ethusd;
                 
-                // Minimum transaction amount (0.001 ETH or equivalent USDC)
-                const MIN_TRANSACTION = 0.001;
+                // Lower minimum transaction amount for micro-balances
+                // Set minimum to the lower of 0.001 ETH or 25% of available balance
+                const MIN_ETH_TRANSACTION = Math.min(0.001, ethBalance * 0.25);
+                const MIN_USDC_TRANSACTION = Math.min(0.5, usdcBalance * 0.25);
                 
-                // Only proceed with actual transaction amount if we have sufficient balance
-                if (signalType === 'BUY' && walletBalances.usdc > 0) {
-                    // For BUY, suggest using 5% of USDC balance (converted to ETH) or minimum, whichever is higher
-                    const usdcToUse = Math.max(walletBalances.usdc * 0.05, MIN_TRANSACTION * currentPrice);
+                console.log(`Processing ${signalType} signal with balances: ${ethBalance} ETH, ${usdcBalance} USDC`);
+                console.log(`Minimum transactions: ${MIN_ETH_TRANSACTION} ETH, ${MIN_USDC_TRANSACTION} USDC`);
+                
+                // Show suggestions based on available balances
+                if (signalType === 'BUY' && usdcBalance > 0) {
+                    // For BUY, suggest using available USDC
+                    // If balance is very small, suggest using most of it
+                    const usdcToUse = usdcBalance > 0.5 ? Math.max(usdcBalance * 0.05, MIN_USDC_TRANSACTION) : usdcBalance * 0.9;
                     const ethEquivalent = usdcToUse / currentPrice;
                     
                     // Show a notification about the suggested swap
@@ -2020,9 +2235,10 @@
                     console.log(`BUY signal generated - Would swap ${usdcToUse.toFixed(2)} USDC for ETH`);
                     return;
                     
-                } else if (signalType === 'SELL' && ethBalance > MIN_TRANSACTION) {
-                    // For SELL, suggest using 5% of ETH balance or minimum, whichever is higher
-                    const ethToSell = Math.max(ethBalance * 0.05, MIN_TRANSACTION);
+                } else if (signalType === 'SELL' && ethBalance > 0) {
+                    // For SELL, suggest using available ETH
+                    // If balance is very small, suggest using most of it
+                    const ethToSell = ethBalance > 0.01 ? Math.max(ethBalance * 0.05, MIN_ETH_TRANSACTION) : ethBalance * 0.9;
                     const usdcEquivalent = ethToSell * currentPrice;
                     
                     // Show a notification about the suggested swap
@@ -2034,14 +2250,12 @@
                 }
                 
                 // If we reached here, either not enough balance or just notification
-                console.log(`Signal received (${signalType}), but no transaction will be sent`);
+                console.log(`Signal received (${signalType}), but no transaction suggestion created`);
                 
-                // Just send a zero-value transaction with the notification data
-                // In a real app, this would be replaced with an actual swap operation
-                // For now we just send a notification to avoid confusion
-                showNotification(`${signalType} signal received - Check your balance for trading`, 'info');
+                // Just show a generic notification
+                showNotification(`${signalType} signal received - Check your portfolio allocation`, 'info');
             } catch (error) {
-                console.error('Error sending wallet notification:', error);
+                logToServer('error', 'Error processing wallet notification', error);
             }
         }
 
@@ -2170,6 +2384,22 @@
                     console.error('Error fetching data:', error);
                 });
         }
+
+        // Function to determine portfolio bar color based on target allocation
+        function getPortfolioBarColor(allocation, minTarget, maxTarget) {
+            // Below minimum target - needs more ETH
+            if (allocation < minTarget) {
+                return 'bg-gradient-to-r from-yellow-500 to-blue-500';
+            } 
+            // Above maximum target - too much ETH
+            else if (allocation > maxTarget) {
+                return 'bg-gradient-to-r from-red-500 to-orange-500';
+            } 
+            // Within target range - optimal
+            else {
+                return 'bg-gradient-to-r from-green-500 to-blue-400';
+            }
+        }
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -2237,19 +2467,22 @@
                     </div>
                     <!-- Gas Prices (Linea) -->
                     <div class="flex justify-between items-center">
-                        <h3 class="text-md font-semibold text-neon-blue">Gas Prices:</h3>
-                        <div class="flex space-x-4">
-                            <div class="text-center">
-                                <span class="text-green-400 text-sm mr-1">Low:</span>
-                                <span id="gas-low" class="text-sm font-bold cyber-value">-</span>
-                            </div>
-                            <div class="text-center">
-                                <span class="text-yellow-400 text-sm mr-1">Medium:</span>
-                                <span id="gas-standard" class="text-sm font-bold cyber-value">-</span>
-                            </div>
-                            <div class="text-center">
-                                <span class="text-red-400 text-sm mr-1">High:</span>
-                                <span id="gas-fast" class="text-sm font-bold cyber-value">-</span>
+                        <div></div> <!-- Empty div to push content to right -->
+                        <div class="flex items-center space-x-4">
+                            <span class="text-gray-400">Gas Prices:</span>
+                            <div class="flex space-x-4">
+                                <div class="text-center">
+                                    <span class="text-green-400 text-sm mr-1">Low:</span>
+                                    <span id="gas-low" class="text-sm font-bold cyber-value">-</span>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-yellow-400 text-sm mr-1">Medium:</span>
+                                    <span id="gas-standard" class="text-sm font-bold cyber-value">-</span>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-red-400 text-sm mr-1">High:</span>
+                                    <span id="gas-fast" class="text-sm font-bold cyber-value">-</span>
+                                </div>
                             </div>
                         </div>
                     </div>
