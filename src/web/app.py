@@ -2,6 +2,7 @@
 
 import os
 import threading
+import time
 from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
@@ -41,6 +42,10 @@ recent_decisions = {
     'groq': deque(maxlen=100),
     'mistral': deque(maxlen=100)
 }
+
+# Latest trading data cache
+latest_trading_data = {}
+trading_data_lock = threading.Lock()
 
 # Add thread-safe cache invalidation timestamp
 
@@ -108,17 +113,10 @@ def check_llm_consensus(decisions: dict) -> Union[str, None]:
     return None
 
 
-@app.route("/")
-def index() -> str:
-    """Serve the main trading dashboard."""
-    # Clean up old data periodically
-    db.cleanup_old_data()
-    return render_template("index.html")
+def update_trading_data():
+    """Update trading data and LLM decisions every 10 minutes."""
+    global latest_trading_data
 
-
-@app.route("/api/trading-data")
-def get_trading_data():
-    """Get current trading data and AI model decisions."""
     try:
         # Get market data
         market_data = market_agent.get_market_data()
@@ -201,7 +199,7 @@ def get_trading_data():
             'daily_performance': performance_by_day
         }
 
-        return jsonify({
+        data = {
             'eth_price': market_data.eth_price,
             'eth_volume_24h': market_data.eth_volume_24h,
             'eth_high_24h': market_data.eth_high_24h,
@@ -214,7 +212,63 @@ def get_trading_data():
             'consensus': consensus,
             'model_stats': model_stats,
             'timestamp': timestamp.isoformat()
-        })
+        }
+
+        # Update the global cache with a lock to ensure thread safety
+        with trading_data_lock:
+            latest_trading_data = data
+
+        print(
+            f"Trading data updated at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"Model decisions: Gemini: {gemini_action}, Groq: {groq_action}, Mistral: {mistral_action}")
+
+    except Exception as e:
+        print(f"Error in update_trading_data: {str(e)}")
+
+
+# Start the background scheduler
+def start_background_scheduler():
+    """Start a background thread that updates trading data every 10 minutes."""
+    def scheduler_thread():
+        # Initial update
+        update_trading_data()
+
+        while True:
+            # Wait for 10 minutes
+            time.sleep(600)
+            # Update the trading data
+            update_trading_data()
+
+    # Create and start the background thread
+    background_thread = threading.Thread(target=scheduler_thread, daemon=True)
+    background_thread.start()
+    print("Background scheduler started for trading data updates every 10 minutes")
+
+
+@app.route("/")
+def index() -> str:
+    """Serve the main trading dashboard."""
+    # Clean up old data periodically
+    db.cleanup_old_data()
+    return render_template("index.html")
+
+
+@app.route("/api/trading-data")
+def get_trading_data():
+    """Get current trading data and AI model decisions."""
+    try:
+        # Use the cached data instead of making API calls every time
+        with trading_data_lock:
+            if latest_trading_data:
+                return jsonify(latest_trading_data)
+
+        # If no cached data available yet, get it now
+        update_trading_data()
+
+        with trading_data_lock:
+            return jsonify(latest_trading_data)
+
     except Exception as e:
         print(f"Error in get_trading_data: {str(e)}")  # Add logging
         return jsonify({'error': str(e)}), 500
@@ -265,6 +319,17 @@ def get_model_stats() -> Union[dict, tuple[dict, int]]:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/daily-stats")
+def get_daily_stats() -> Union[dict, tuple[dict, int]]:
+    """Get the daily statistics for each model."""
+    try:
+        days = int(request.args.get('days', '7'))
+        stats = db.get_daily_stats(days=days)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
@@ -272,6 +337,9 @@ def send_static(path):
 
 def main() -> None:
     """Run the Flask application."""
+    # Start the background scheduler before running the app
+    start_background_scheduler()
+
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
 

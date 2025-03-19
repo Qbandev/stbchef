@@ -11,7 +11,7 @@ from typing import Dict, Optional
 import numpy as np
 from datetime import datetime, timedelta
 
-import requests
+from groq import Groq
 
 
 class GroqClient:
@@ -23,12 +23,7 @@ class GroqClient:
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable not set")
         self.api_key = api_key
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        })
-        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.client = Groq(api_key=api_key)
         self.price_history = []
         self.decision_history = []
         self.max_history = 100  # Keep last 100 data points
@@ -36,7 +31,13 @@ class GroqClient:
     def calculate_technical_indicators(self, prices: list) -> Dict[str, float]:
         """Calculate technical indicators for analysis."""
         if len(prices) < 2:
-            return {}
+            return {
+                'volatility': 0,
+                'momentum': 0,
+                'rsi': 50,
+                'price_trend': 'neutral',
+                'volatility_level': 'low'
+            }
 
         prices = np.array(prices)
 
@@ -44,29 +45,53 @@ class GroqClient:
         price_changes = np.diff(prices)
 
         # Calculate volatility (standard deviation of price changes)
-        volatility = np.std(price_changes) if len(price_changes) > 0 else 0
+        try:
+            volatility = np.std(price_changes) if len(price_changes) > 0 else 0
+        except Exception as e:
+            print(f"Error calculating volatility: {str(e)}")
+            volatility = 0
 
         # Calculate momentum (rate of price change)
-        momentum = np.mean(
-            price_changes[-5:]) if len(price_changes) >= 5 else np.mean(price_changes)
+        try:
+            momentum = np.mean(
+                price_changes[-5:]) if len(price_changes) >= 5 else np.mean(price_changes)
+        except Exception as e:
+            print(f"Error calculating momentum: {str(e)}")
+            momentum = 0
 
         # Calculate RSI-like indicator (simplified)
-        if len(prices) >= 14:
-            gains = np.where(price_changes > 0, price_changes, 0)
-            losses = np.where(price_changes < 0, -price_changes, 0)
-            avg_gain = np.mean(gains[-14:])
-            avg_loss = np.mean(losses[-14:])
-            rs = avg_gain / avg_loss if avg_loss != 0 else 0
-            rsi = 100 - (100 / (1 + rs)) if rs != 0 else 100
-        else:
-            rsi = 50  # Neutral value if not enough data
+        rsi = 50  # Default neutral value
+        try:
+            if len(prices) >= 14:
+                gains = np.where(price_changes > 0, price_changes, 0)
+                losses = np.where(price_changes < 0, -price_changes, 0)
+                avg_gain = np.mean(gains[-14:])
+                avg_loss = np.mean(losses[-14:])
+                if avg_loss != 0:
+                    rs = avg_gain / avg_loss
+                    if rs != 0:
+                        rsi = 100 - (100 / (1 + rs))
+        except Exception as e:
+            print(f"Error calculating RSI: {str(e)}")
+
+        # Default values for derived metrics
+        price_trend = 'neutral'
+        volatility_level = 'low'
+
+        try:
+            price_trend = 'up' if momentum > 0 else 'down'
+            mean_abs_change = np.mean(np.abs(price_changes)) if len(
+                price_changes) > 0 else 0
+            volatility_level = 'high' if mean_abs_change > 0 and volatility > mean_abs_change * 2 else 'low'
+        except Exception as e:
+            print(f"Error calculating derived indicators: {str(e)}")
 
         return {
             'volatility': volatility,
             'momentum': momentum,
             'rsi': rsi,
-            'price_trend': 'up' if momentum > 0 else 'down',
-            'volatility_level': 'high' if volatility > np.mean(np.abs(price_changes)) * 2 else 'low'
+            'price_trend': price_trend,
+            'volatility_level': volatility_level
         }
 
     def get_trading_decision(
@@ -115,9 +140,10 @@ class GroqClient:
                 indicators
             )
 
-            payload = {
-                "model": "llama-3.1-70b-versatile",
-                "messages": [
+            # Using the Groq SDK instead of direct HTTP requests
+            completion = self.client.chat.completions.create(
+                model="deepseek-r1-distill-llama-70b",
+                messages=[
                     {
                         "role": "system",
                         "content": "You are a trading assistant that analyzes Ethereum market data and provides trading recommendations."
@@ -127,23 +153,25 @@ class GroqClient:
                         "content": prompt
                     }
                 ],
-                "temperature": 0.7,
-                "max_tokens": 50,
-                "n": 1  # Explicitly set to 1 as per documentation
-            }
-
-            response = self.session.post(
-                self.base_url, json=payload, timeout=30)
-            response.raise_for_status()
-            data = response.json()
+                temperature=0.7,
+                max_tokens=50
+            )
 
             # Extract decision from response
-            text = data["choices"][0]["message"]["content"].upper()
             decision = "HOLD"  # Default to HOLD
-            if "BUY" in text:
-                decision = "BUY"
-            elif "SELL" in text:
-                decision = "SELL"
+
+            # Validate that choices array exists and is not empty
+            if hasattr(completion, 'choices') and completion.choices and len(completion.choices) > 0:
+                if hasattr(completion.choices[0], 'message') and hasattr(completion.choices[0].message, 'content'):
+                    text = completion.choices[0].message.content.upper()
+                    if "BUY" in text:
+                        decision = "BUY"
+                    elif "SELL" in text:
+                        decision = "SELL"
+                else:
+                    print("Warning: Invalid message format in Groq API response")
+            else:
+                print("Warning: Empty choices array in Groq API response")
 
             # Update decision history
             self.decision_history.append({

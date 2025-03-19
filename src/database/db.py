@@ -370,16 +370,126 @@ class TradingDatabase:
             return results
 
     def cleanup_old_data(self) -> None:
-        """Clean up old data to prevent database bloat."""
+        """Clean up old data to prevent database bloat, keeping last 24 hours of trading data."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            # Keep only last 7 days of data
+
+            # Get stats for the last 24 hours before flushing
+            daily_stats = {}
+            for model in ['gemini', 'groq', 'mistral']:
+                # Get total trades in last 24 hours
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total_trades,
+                        SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct_trades,
+                        SUM(CASE WHEN decision = 'BUY' THEN 1 ELSE 0 END) as buy_decisions,
+                        SUM(CASE WHEN decision = 'SELL' THEN 1 ELSE 0 END) as sell_decisions,
+                        SUM(CASE WHEN decision = 'HOLD' THEN 1 ELSE 0 END) as hold_decisions,
+                        AVG(CASE WHEN was_correct = 1 THEN profit_loss ELSE 0 END) as avg_profit
+                    FROM ai_decisions 
+                    WHERE model = ? AND timestamp >= datetime('now', '-24 hours')
+                """, (model,))
+                result = cursor.fetchone()
+
+                if result:
+                    daily_stats[model] = {
+                        'total_trades': result['total_trades'],
+                        'correct_trades': result['correct_trades'] or 0,
+                        'incorrect_trades': result['total_trades'] - (result['correct_trades'] or 0),
+                        'buy_decisions': result['buy_decisions'] or 0,
+                        'sell_decisions': result['sell_decisions'] or 0,
+                        'hold_decisions': result['hold_decisions'] or 0,
+                        'avg_profit': result['avg_profit'] or 0
+                    }
+
+            # Store the daily stats in a separate table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    total_trades INTEGER NOT NULL,
+                    correct_trades INTEGER NOT NULL,
+                    incorrect_trades INTEGER NOT NULL,
+                    buy_decisions INTEGER NOT NULL,
+                    sell_decisions INTEGER NOT NULL,
+                    hold_decisions INTEGER NOT NULL,
+                    avg_profit REAL NOT NULL
+                )
+            """)
+
+            today = datetime.now().strftime('%Y-%m-%d')
+
+            # Delete existing stats for today to avoid duplicates
+            cursor.execute("DELETE FROM daily_stats WHERE date = ?", (today,))
+
+            # Store new stats for each model
+            for model, stats in daily_stats.items():
+                cursor.execute("""
+                    INSERT INTO daily_stats (
+                        date, model, total_trades, correct_trades, incorrect_trades,
+                        buy_decisions, sell_decisions, hold_decisions, avg_profit
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    today,
+                    model,
+                    stats['total_trades'],
+                    stats['correct_trades'],
+                    stats['incorrect_trades'],
+                    stats['buy_decisions'],
+                    stats['sell_decisions'],
+                    stats['hold_decisions'],
+                    stats['avg_profit']
+                ))
+
+            # Keep only last 7 days of daily stats
+            cursor.execute("""
+                DELETE FROM daily_stats 
+                WHERE date < date('now', '-7 days')
+            """)
+
+            # Keep only last 24 hours of raw market data and decisions
             cursor.execute("""
                 DELETE FROM market_data 
-                WHERE timestamp < datetime('now', '-7 days')
+                WHERE timestamp < datetime('now', '-24 hours')
             """)
             cursor.execute("""
                 DELETE FROM ai_decisions 
-                WHERE timestamp < datetime('now', '-7 days')
+                WHERE timestamp < datetime('now', '-24 hours')
             """)
+
             conn.commit()
+
+    def get_daily_stats(self, days: int = 7) -> Dict[str, List[Dict]]:
+        """Get the stored daily stats for the specified number of days."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM daily_stats
+                WHERE date >= date('now', ? || ' days')
+                ORDER BY date DESC
+            """, (f'-{days}',))
+
+            results = cursor.fetchall()
+            stats = {}
+
+            for row in results:
+                model = row['model']
+                if model not in stats:
+                    stats[model] = []
+
+                stats[model].append({
+                    'date': row['date'],
+                    'total_trades': row['total_trades'],
+                    'correct_trades': row['correct_trades'],
+                    'incorrect_trades': row['incorrect_trades'],
+                    'buy_decisions': row['buy_decisions'],
+                    'sell_decisions': row['sell_decisions'],
+                    'hold_decisions': row['hold_decisions'],
+                    'avg_profit': row['avg_profit']
+                })
+
+            return stats
