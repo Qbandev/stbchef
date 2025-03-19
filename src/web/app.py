@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
@@ -23,6 +24,13 @@ from src.tools.mistral_api import MistralClient
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -386,27 +394,50 @@ def get_daily_stats() -> Union[dict, tuple[dict, int]]:
 
 
 @app.route("/api/set-wallet-action", methods=["POST"])
-def set_wallet_action() -> dict:
+def set_wallet_action() -> Union[dict, tuple[dict, int]]:
     """Set wallet action and store it in the database."""
     try:
+        # Validate required input data
         data = request.json
-        wallet_address = data.get('wallet_address')
-        wallet_action = data.get('wallet_action')
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Check required fields
+        required_fields = ["wallet_address", "wallet_action"]
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        # Validate wallet action value
+        valid_actions = ["BUY", "SELL", "HOLD"]
+        if data["wallet_action"] not in valid_actions:
+            return jsonify({"error": f"Invalid wallet_action. Must be one of: {', '.join(valid_actions)}"}), 400
+
+        # Get additional data with defaults
+        wallet_address = data["wallet_address"]
+        wallet_action = data["wallet_action"]
         eth_balance = data.get('eth_balance', 0)
         usdc_balance = data.get('usdc_balance', 0)
         eth_allocation = data.get('eth_allocation', 0)
+        network = data.get('network', 'unknown')
 
-        # Store the wallet action in the state
+        # Store the wallet action in the database
         db.store_wallet_action(
             wallet_address=wallet_address,
             action=wallet_action,
             eth_balance=eth_balance,
             usdc_balance=usdc_balance,
-            eth_allocation=eth_allocation
+            eth_allocation=eth_allocation,
+            network=network
         )
 
         return jsonify({"status": "success", "action": wallet_action})
+    except ValueError as ve:
+        # Handle specific ValueError from missing market data
+        # Service Unavailable
+        return jsonify({"status": "error", "message": str(ve)}), 503
     except Exception as e:
+        logging.error(f"Error recording wallet action: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

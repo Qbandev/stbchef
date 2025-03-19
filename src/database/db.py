@@ -3,6 +3,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+import logging
 
 
 class TradingDatabase:
@@ -60,7 +61,8 @@ class TradingDatabase:
                     eth_balance REAL NOT NULL,
                     usdc_balance REAL NOT NULL,
                     eth_allocation REAL NOT NULL,
-                    eth_price REAL NOT NULL
+                    eth_price REAL NOT NULL,
+                    network TEXT NOT NULL
                 )
             """)
 
@@ -542,7 +544,8 @@ class TradingDatabase:
         action: str,
         eth_balance: float,
         usdc_balance: float,
-        eth_allocation: float
+        eth_allocation: float,
+        network: str = "unknown"
     ) -> None:
         """Store wallet action in database."""
         # Get current ETH price
@@ -555,7 +558,11 @@ class TradingDatabase:
                 LIMIT 1
             """)
             result = cursor.fetchone()
-            eth_price = result[0] if result else 0
+            if not result:
+                logging.warning(
+                    "No market data available. Cannot store wallet action.")
+                raise ValueError("No market data available.")
+            eth_price = result[0]
 
             # Store wallet action
             cursor.execute("""
@@ -566,8 +573,9 @@ class TradingDatabase:
                     eth_balance,
                     usdc_balance,
                     eth_allocation,
-                    eth_price
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    eth_price,
+                    network
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 datetime.now(),
                 wallet_address,
@@ -575,7 +583,8 @@ class TradingDatabase:
                 eth_balance,
                 usdc_balance,
                 eth_allocation,
-                eth_price
+                eth_price,
+                network
             ))
             conn.commit()
 
