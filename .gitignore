@@ -171,4 +171,10 @@ cython_debug/
 .pypirc
 
 # Local database
-trading_data.db
+trading_data.db*
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env

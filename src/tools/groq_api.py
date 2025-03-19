@@ -116,7 +116,7 @@ class GroqClient:
             )
 
             payload = {
-                "model": "llama-3.1-70b-versatile",
+                "model": "deepseek-r1-distill-llama-70b-specdec",
                 "messages": [
                     {
                         "role": "system",

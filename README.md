@@ -20,8 +20,8 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ### AI Models in Action
 
-- **Gemini 1.5 Flash** - Google's latest LLM optimized for fast, accurate trading analysis
-- **Groq LLaMA-3.1-70B-Versatile** - High-performance model for comprehensive market insights
+- **Gemini 2.0 Flash** - Google's latest LLM optimized for fast, accurate trading analysis
+- **Groq deepseek-r1-distill-llama-70b-specdec** - High-performance model for comprehensive market insights
 - **Mistral Large** - Advanced model providing additional trading perspectives
 
 ## Key Features
@@ -223,8 +223,8 @@ The system implements a sophisticated accuracy tracking system:
   - Etherscan for market data and gas prices
   - Alternative.me for Fear & Greed Index
   - AI Model Integration:
-    - Google Gemini 1.5 Flash
-    - Groq LLaMA-3.1-70B-Versatile
+    - Google Gemini 2.0 Flash
+    - Groq deepseek-r1-distill-llama-70b-specdec
     - Mistral Large
   - Automatic API key rotation and error handling
 
@@ -247,8 +247,8 @@ graph TB
 
     subgraph AI Analysis
         D -->|Market Data| E[LLM Analysis Engine]
-        E -->|Trading Signals| F[Gemini 1.5 Flash]
-        E -->|Trading Signals| G[Groq LLaMA]
+        E -->|Trading Signals| F[Gemini 2.0 Flash]
+        E -->|Trading Signals| G[Groq deepseek-r1-distill-llama-70b-specdec]
         E -->|Trading Signals| H[Mistral Large]
     end
 
@@ -361,8 +361,8 @@ This is an **experimental project** for educational and research purposes only:
 
 - **API Keys**
   - Etherscan (for market data and gas prices)
-  - Google Gemini (for Gemini 1.5 Flash)
-  - Groq (for LLaMA-3.1-70B-Versatile)
+  - Google Gemini (for Gemini 2.0 Flash)
+  - Groq (for deepseek-r1-distill-llama-70b-specdec)
   - Mistral (for Mistral Large)
 
 - **Optional**

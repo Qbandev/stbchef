@@ -23,7 +23,7 @@ class GeminiClient:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
         self.price_history = []
         self.decision_history = []
         self.max_history = 100  # Keep last 100 data points
