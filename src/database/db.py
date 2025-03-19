@@ -476,6 +476,11 @@ class TradingDatabase:
             results = cursor.fetchall()
             stats = {}
 
+            # Make sure we have entries for all models
+            for model in ['gemini', 'groq', 'mistral']:
+                stats[model] = []
+
+            # Process the results if we have any
             for row in results:
                 model = row['model']
                 if model not in stats:
@@ -491,5 +496,20 @@ class TradingDatabase:
                     'hold_decisions': row['hold_decisions'],
                     'avg_profit': row['avg_profit']
                 })
+
+            # If we don't have any stats for today, add default empty entry
+            today = datetime.now().strftime('%Y-%m-%d')
+            for model in ['gemini', 'groq', 'mistral']:
+                if not stats[model] or stats[model][0]['date'] != today:
+                    stats[model].insert(0, {
+                        'date': today,
+                        'total_trades': 0,
+                        'correct_trades': 0,
+                        'incorrect_trades': 0,
+                        'buy_decisions': 0,
+                        'sell_decisions': 0,
+                        'hold_decisions': 0,
+                        'avg_profit': 0.0
+                    })
 
             return stats

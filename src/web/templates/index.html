@@ -974,6 +974,17 @@
                             // Get the most recent day's stats
                             const todayStats = data[model][0];
                             
+                            // Update performance score to 0 if no trades (for new deployments)
+                            const accuracyElement = document.getElementById(`${model}-accuracy`);
+                            if (accuracyElement && todayStats.total_trades === 0 && 
+                                (!tradeHistory[model] || tradeHistory[model].length === 0)) {
+                                accuracyElement.textContent = '0.0%';
+                                accuracyElement.className = 'font-bold text-gray-400';
+                                
+                                // Also clear any cached trade history data for new deployments
+                                tradeHistory[model] = [];
+                            }
+                            
                             const statsContainer = document.getElementById(`${model}-stats`);
                             if (statsContainer) {
                                 statsContainer.innerHTML = `
@@ -996,7 +1007,7 @@
                                         <div>
                                             <div class="text-gray-400">Avg Profit Trades:</div>
                                             <div class="font-bold ${parseFloat(todayStats.avg_profit) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                                ${todayStats.avg_profit.toFixed(2)}%
+                                                ${Number(todayStats.avg_profit).toFixed(2)}%
                                             </div>
                                         </div>
                                         <div class="col-span-2">
@@ -1010,15 +1021,114 @@
                                     </div>
                                 `;
                             }
+                        } else {
+                            // Handle case where there are no stats for the model
+                            const statsContainer = document.getElementById(`${model}-stats`);
+                            if (statsContainer) {
+                                statsContainer.innerHTML = `
+                                    <div class="grid grid-cols-2 gap-2 text-sm">
+                                        <div class="col-span-2 mb-1">
+                                            <div class="text-xs font-bold text-neon-blue">Last 24 Hours</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Total Trades:</div>
+                                            <div class="font-bold text-cyber-text">0</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Correct Trades:</div>
+                                            <div class="font-bold text-green-400">0</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Incorrect Trades:</div>
+                                            <div class="font-bold text-red-400">0</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Avg Profit Trades:</div>
+                                            <div class="font-bold text-green-400">0.00%</div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <div class="text-gray-400">Decision Distribution:</div>
+                                            <div class="flex justify-between mt-1">
+                                                <span class="text-green-400">Buy: 0</span>
+                                                <span class="text-red-400">Sell: 0</span>
+                                                <span class="text-blue-400">Hold: 0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Also reset performance score
+                                const accuracyElement = document.getElementById(`${model}-accuracy`);
+                                if (accuracyElement) {
+                                    accuracyElement.textContent = '0.0%';
+                                    accuracyElement.className = 'font-bold text-gray-400';
+                                    
+                                    // Clear any cached trade history for fresh deployments
+                                    tradeHistory[model] = [];
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Update localStorage with the reset tradeHistory
+                    persistTradingHistory();
+                })
+                .catch(error => console.error('Error fetching daily stats:', error));
+        }
+
+        // Function to check if this is a fresh session and clear storage if needed
+        function checkFreshSession() {
+            const lastVisit = localStorage.getItem('stbchef_last_visit');
+            const now = Date.now();
+            const oneDayInMs = 24 * 60 * 60 * 1000;
+            
+            // If this is first visit or last visit was more than a day ago
+            if (!lastVisit || (now - parseInt(lastVisit)) > oneDayInMs) {
+                console.log("Fresh session detected, clearing storage");
+                
+                // Call backend clear-storage endpoint
+                fetch('/clear-storage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Storage cleared response:", data);
+                    
+                    // Clear all local storage items related to the app
+                    Object.values(STORAGE_KEYS).forEach(key => {
+                        localStorage.removeItem(key);
+                    });
+                    
+                    // Reset trade history variables
+                    tradeHistory = {
+                        gemini: [],
+                        groq: [],
+                        mistral: []
+                    };
+                    
+                    // Set all accuracy elements to 0
+                    ['gemini', 'groq', 'mistral'].forEach(model => {
+                        const accuracyElement = document.getElementById(`${model}-accuracy`);
+                        if (accuracyElement) {
+                            accuracyElement.textContent = '0.0%';
+                            accuracyElement.className = 'font-bold text-gray-400';
                         }
                     });
                 })
-                .catch(error => console.error('Error fetching daily stats:', error));
+                .catch(error => console.error("Error clearing storage:", error));
+            }
+            
+            // Update last visit timestamp
+            localStorage.setItem('stbchef_last_visit', now.toString());
         }
 
         // Initial setup
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initializing dashboard...');
+            checkFreshSession(); // Check if storage needs clearing
             loadPersistedHistory(); // Load persisted data first
             checkDailyReset(); // Check if we need to reset daily stats
             initCharts();

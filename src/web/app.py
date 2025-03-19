@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
 from collections import deque
+import sqlite3
 
 import requests
 from dotenv import load_dotenv
@@ -252,6 +253,32 @@ def index() -> str:
     # Clean up old data periodically
     db.cleanup_old_data()
     return render_template("index.html")
+
+
+@app.route("/clear-storage", methods=["POST"])
+def clear_storage() -> dict:
+    """Clear localStorage data for fresh start on redeployment."""
+    try:
+        # Create empty stats records for today to ensure we start with zeros
+        today = datetime.now().strftime('%Y-%m-%d')
+        with sqlite3.connect(db.db_path) as conn:
+            cursor = conn.cursor()
+            # Delete any existing stats for today
+            cursor.execute("DELETE FROM daily_stats WHERE date = ?", (today,))
+
+            # Insert fresh zero stats for each model
+            for model in ['gemini', 'groq', 'mistral']:
+                cursor.execute("""
+                    INSERT INTO daily_stats (
+                        date, model, total_trades, correct_trades, incorrect_trades,
+                        buy_decisions, sell_decisions, hold_decisions, avg_profit
+                    ) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0.0)
+                """, (today, model))
+            conn.commit()
+
+        return jsonify({"status": "success", "message": "Storage cleared successfully"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/trading-data")
