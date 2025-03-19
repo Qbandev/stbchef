@@ -3,6 +3,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+import logging
 
 
 class TradingDatabase:
@@ -50,6 +51,21 @@ class TradingDatabase:
                 )
             """)
 
+            # Create wallet actions table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wallet_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME NOT NULL,
+                    wallet_address TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    eth_balance REAL NOT NULL,
+                    usdc_balance REAL NOT NULL,
+                    eth_allocation REAL NOT NULL,
+                    eth_price REAL NOT NULL,
+                    network TEXT NOT NULL
+                )
+            """)
+
             # Create indices for better query performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_market_data_timestamp 
@@ -62,6 +78,14 @@ class TradingDatabase:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ai_decisions_model 
                 ON ai_decisions(model)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wallet_actions_wallet_address 
+                ON wallet_actions(wallet_address)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wallet_actions_timestamp 
+                ON wallet_actions(timestamp)
             """)
 
             conn.commit()
@@ -513,3 +537,151 @@ class TradingDatabase:
                     })
 
             return stats
+
+    def store_wallet_action(
+        self,
+        wallet_address: str,
+        action: str,
+        eth_balance: float,
+        usdc_balance: float,
+        eth_allocation: float,
+        network: str = "unknown"
+    ) -> None:
+        """Store wallet action in database."""
+        # Get current ETH price
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT eth_price 
+                FROM market_data 
+                ORDER BY timestamp DESC 
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if not result:
+                logging.warning(
+                    "No market data available. Cannot store wallet action.")
+                raise ValueError("No market data available.")
+            eth_price = result[0]
+
+            # Store wallet action
+            cursor.execute("""
+                INSERT INTO wallet_actions (
+                    timestamp,
+                    wallet_address,
+                    action,
+                    eth_balance,
+                    usdc_balance,
+                    eth_allocation,
+                    eth_price,
+                    network
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now(),
+                wallet_address,
+                action,
+                eth_balance,
+                usdc_balance,
+                eth_allocation,
+                eth_price,
+                network
+            ))
+            conn.commit()
+
+    def get_wallet_stats(self, wallet_address: str) -> Dict[str, Dict[str, float]]:
+        """Get statistics for a specific wallet."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Get recent wallet actions
+            cursor.execute("""
+                SELECT 
+                    action,
+                    timestamp,
+                    eth_price,
+                    eth_balance,
+                    usdc_balance,
+                    eth_allocation
+                FROM wallet_actions
+                WHERE wallet_address = ?
+                ORDER BY timestamp DESC
+                LIMIT 100
+            """, (wallet_address,))
+
+            actions = []
+            for row in cursor.fetchall():
+                actions.append({
+                    'action': row['action'],
+                    'timestamp': row['timestamp'],
+                    'eth_price': row['eth_price'],
+                    'eth_balance': row['eth_balance'],
+                    'usdc_balance': row['usdc_balance'],
+                    'eth_allocation': row['eth_allocation']
+                })
+
+            # Calculate performance metrics
+            # For simplicity, just counting actions for now
+            action_counts = {
+                'BUY': 0,
+                'SELL': 0,
+                'HOLD': 0
+            }
+
+            total_value_change = 0
+            previous_price = 0
+            profitable_actions = 0
+
+            for i, action in enumerate(actions):
+                action_counts[action['action']] += 1
+
+                # Skip first action for value change calculation
+                if i > 0 and previous_price > 0:
+                    price_change = action['eth_price'] - previous_price
+
+                    # If action was BUY and price went up, or SELL and price went down, it was profitable
+                    was_profitable = (action['action'] == 'BUY' and price_change > 0) or \
+                                     (action['action'] ==
+                                      'SELL' and price_change < 0)
+
+                    if was_profitable:
+                        profitable_actions += 1
+
+                    # Calculate value change based on action and price movement
+                    if action['action'] == 'BUY':
+                        # Calculate how much ETH could have been bought with fixed USD
+                        eth_amount = 1000 / previous_price  # Assuming $1000 investment
+                        new_value = eth_amount * action['eth_price']
+                        value_change = new_value - 1000
+                    elif action['action'] == 'SELL':
+                        # Calculate how much USD would be from selling fixed ETH
+                        eth_amount = 1  # Assuming 1 ETH sale
+                        old_value = eth_amount * previous_price
+                        new_value = eth_amount * action['eth_price']
+                        value_change = old_value - new_value
+                    else:  # HOLD
+                        value_change = 0
+
+                    total_value_change += value_change
+
+                previous_price = action['eth_price']
+
+            # Calculate total actions and accuracy
+            total_actions = sum(action_counts.values())
+            accuracy = (profitable_actions / total_actions *
+                        100) if total_actions > 0 else 0
+
+            return {
+                'wallet_address': wallet_address,
+                'actions': actions,
+                'statistics': {
+                    'total_actions': total_actions,
+                    'action_distribution': action_counts,
+                    'profitable_actions': profitable_actions,
+                    'accuracy': round(accuracy, 1),
+                    'total_value_change': round(total_value_change, 2),
+                    'current_eth_balance': actions[0]['eth_balance'] if actions else 0,
+                    'current_usdc_balance': actions[0]['usdc_balance'] if actions else 0,
+                    'current_allocation': actions[0]['eth_allocation'] if actions else 0
+                }
+            }

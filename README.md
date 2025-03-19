@@ -59,6 +59,42 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Receive alerts on LLM consensus signals
   - Track performance with wallet connection
   - Persistent wallet connection across sessions
+  - Support for both Ethereum Mainnet and Linea networks
+  - Easy network switching with intuitive UI
+  - Network-specific USDC token balances
+  - Portfolio allocation visualization and recommendations
+  - Real-time wallet balance updates
+  - Visual feedback during network operations
+  - Intelligent error recovery for network changes
+
+## Wallet Features
+
+The wallet integration includes sophisticated features for a seamless user experience:
+
+- **Multi-Network Support**
+  - Primary support for Linea and Ethereum Mainnet
+  - Automatic network detection at connection
+  - Visual indicators for current network
+  - One-click network switching capability
+  - Network-specific token contract support
+
+- **Portfolio Management**
+  - Real-time ETH balance tracking
+  - Network-specific USDC balance fetching
+  - Portfolio allocation visualization
+  - Customized recommendations based on:
+    - Current ETH/USDC allocation
+    - Market sentiment (bullish/bearish)
+    - Target allocation ranges
+  - Swap amount suggestions for rebalancing
+
+- **Robust Error Handling**
+  - Timeouts for contract interactions
+  - Fallbacks for network switch failures
+  - Clear loading states during operations
+  - Graceful degradation for unsupported networks
+  - Detailed console logging for troubleshooting
+  - Non-blocking wallet operations
 
 ## Technical Implementation
 
@@ -70,6 +106,7 @@ The system uses a Flask web application with a background scheduler that:
 - Stores historical data in an SQLite database with automatic cleanup
 - Maintains daily statistics with reset at midnight
 - Uses thread-safe caching for performance optimization
+- Comprehensive error handling and logging for stability
 
 ### LLM Trading Strategy
 
@@ -200,12 +237,15 @@ The system implements a sophisticated accuracy tracking system:
   - Poetry for dependency management
   - SQLite database with efficient WAL mode
   - Background scheduler for regular updates
+  - Robust error logging and recovery mechanisms
 
 - **Frontend**
   - TailwindCSS for styling
   - Chart.js for visualizations
   - Web3.js for MetaMask integration
   - Dynamic stats and model comparisons
+  - Responsive wallet connection interface
+  - Network switching and detection
 
 - **APIs**
   - Etherscan for ETH prices and gas fees
@@ -224,6 +264,7 @@ sequenceDiagram
     participant BackgroundScheduler
     participant AIModels
     participant Database
+    participant Web3Provider
 
     User->>Dashboard: Access application
     Dashboard->>Database: Load historical data
@@ -243,7 +284,21 @@ sequenceDiagram
     end
 
     User->>Dashboard: Connect wallet
-    Dashboard->>User: Show personalized alerts
+    Dashboard->>Web3Provider: Request wallet connection
+    Web3Provider->>Dashboard: Return wallet address and network
+    Dashboard->>User: Show network-specific wallet UI
+    
+    alt Network Switch
+        User->>Dashboard: Request network switch
+        Dashboard->>Web3Provider: Switch network request
+        Web3Provider->>Dashboard: Return new network status
+        Dashboard->>User: Update wallet UI for new network
+    end
+    
+    alt Consensus Signal
+        AIModels->>Dashboard: 2+ models agree on action
+        Dashboard->>User: Show personalized notification
+    end
 ```
 
 ## Error Handling
@@ -254,6 +309,13 @@ The system implements comprehensive error handling and validation:
   - Validates all API responses before processing
   - Handles empty or malformed responses gracefully
   - Provides fallback values for missing data
+  - Graceful degradation during API outages
+
+- **Web3 Interaction Safety**
+  - Robust contract interaction with timeout handling
+  - Network detection and validation
+  - Fallbacks for connection issues
+  - Clear user feedback for blockchain operations
 
 - **Technical Calculation Safety**
   - Try/except blocks for all numerical calculations
