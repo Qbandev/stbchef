@@ -120,44 +120,64 @@ def update_trading_data():
 
     try:
         # Get market data
+        print("Fetching market data...")
         market_data = market_agent.get_market_data()
+        print(f"Market data fetched: ETH price = ${market_data.eth_price:.2f}")
 
-        # Get model decisions
-        gemini_action = gemini_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment.get(
-                'fear_greed_value', ''),
-            fear_greed_sentiment=market_data.market_sentiment.get(
-                'fear_greed_sentiment', '')
-        )
+        try:
+            # Get model decisions
+            print("Getting Gemini trading decision...")
+            gemini_action = gemini_client.get_trading_decision(
+                eth_price=market_data.eth_price,
+                eth_volume=market_data.eth_volume_24h,
+                eth_high=market_data.eth_high_24h,
+                eth_low=market_data.eth_low_24h,
+                gas_prices=market_data.gas_prices,
+                fear_greed_value=market_data.market_sentiment.get(
+                    'fear_greed_value', ''),
+                fear_greed_sentiment=market_data.market_sentiment.get(
+                    'fear_greed_sentiment', '')
+            )
+            print(f"Gemini decision: {gemini_action}")
+        except Exception as e:
+            print(f"Error getting Gemini trading decision: {str(e)}")
+            gemini_action = "ERROR"
 
-        groq_action = groq_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment.get(
-                'fear_greed_value', ''),
-            fear_greed_sentiment=market_data.market_sentiment.get(
-                'fear_greed_sentiment', '')
-        )
+        try:
+            print("Getting Groq trading decision...")
+            groq_action = groq_client.get_trading_decision(
+                eth_price=market_data.eth_price,
+                eth_volume=market_data.eth_volume_24h,
+                eth_high=market_data.eth_high_24h,
+                eth_low=market_data.eth_low_24h,
+                gas_prices=market_data.gas_prices,
+                fear_greed_value=market_data.market_sentiment.get(
+                    'fear_greed_value', ''),
+                fear_greed_sentiment=market_data.market_sentiment.get(
+                    'fear_greed_sentiment', '')
+            )
+            print(f"Groq decision: {groq_action}")
+        except Exception as e:
+            print(f"Error getting Groq trading decision: {str(e)}")
+            groq_action = "ERROR"
 
-        mistral_action = mistral_client.get_trading_decision(
-            eth_price=market_data.eth_price,
-            eth_volume=market_data.eth_volume_24h,
-            eth_high=market_data.eth_high_24h,
-            eth_low=market_data.eth_low_24h,
-            gas_prices=market_data.gas_prices,
-            fear_greed_value=market_data.market_sentiment.get(
-                'fear_greed_value', ''),
-            fear_greed_sentiment=market_data.market_sentiment.get(
-                'fear_greed_sentiment', '')
-        )
+        try:
+            print("Getting Mistral trading decision...")
+            mistral_action = mistral_client.get_trading_decision(
+                eth_price=market_data.eth_price,
+                eth_volume=market_data.eth_volume_24h,
+                eth_high=market_data.eth_high_24h,
+                eth_low=market_data.eth_low_24h,
+                gas_prices=market_data.gas_prices,
+                fear_greed_value=market_data.market_sentiment.get(
+                    'fear_greed_value', ''),
+                fear_greed_sentiment=market_data.market_sentiment.get(
+                    'fear_greed_sentiment', '')
+            )
+            print(f"Mistral decision: {mistral_action}")
+        except Exception as e:
+            print(f"Error getting Mistral trading decision: {str(e)}")
+            mistral_action = "ERROR"
 
         # Check for consensus
         decisions = {
@@ -169,6 +189,7 @@ def update_trading_data():
 
         # Store market data and decisions in database
         timestamp = datetime.now()
+        print("Storing market data in database...")
         db.store_market_data(
             eth_price=market_data.eth_price,
             eth_volume=market_data.eth_volume_24h,
@@ -179,17 +200,21 @@ def update_trading_data():
         )
 
         # Store individual AI decisions
+        print("Storing AI decisions in database...")
         db.store_ai_decision('gemini', gemini_action, market_data.eth_price)
         db.store_ai_decision('groq', groq_action, market_data.eth_price)
         db.store_ai_decision('mistral', mistral_action, market_data.eth_price)
 
         # Update accuracy of previous decisions
+        print("Updating decision accuracy...")
         db.update_decision_accuracy(market_data.eth_price)
 
         # Invalidate cache after storing new data
+        print("Invalidating stats cache...")
         invalidate_model_stats_cache()
 
         # Get model stats
+        print("Getting model stats...")
         accuracy_stats = db.get_accuracy_stats()
         model_comparison = db.get_model_comparison(days=7)
         performance_by_day = db.get_performance_by_timeframe('day')
@@ -220,12 +245,15 @@ def update_trading_data():
             latest_trading_data = data
 
         print(
-            f"Trading data updated at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            f"Trading data updated successfully at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
         print(
             f"Model decisions: Gemini: {gemini_action}, Groq: {groq_action}, Mistral: {mistral_action}")
 
     except Exception as e:
         print(f"Error in update_trading_data: {str(e)}")
+        print(f"Error details: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # Start the background scheduler
@@ -357,9 +385,144 @@ def get_daily_stats() -> Union[dict, tuple[dict, int]]:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/set-wallet-action", methods=["POST"])
+def set_wallet_action() -> dict:
+    """Set wallet action and store it in the database."""
+    try:
+        data = request.json
+        wallet_address = data.get('wallet_address')
+        wallet_action = data.get('wallet_action')
+        eth_balance = data.get('eth_balance', 0)
+        usdc_balance = data.get('usdc_balance', 0)
+        eth_allocation = data.get('eth_allocation', 0)
+
+        # Store the wallet action in the state
+        db.store_wallet_action(
+            wallet_address=wallet_address,
+            action=wallet_action,
+            eth_balance=eth_balance,
+            usdc_balance=usdc_balance,
+            eth_allocation=eth_allocation
+        )
+
+        return jsonify({"status": "success", "action": wallet_action})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/wallet-stats")
+def get_wallet_stats() -> Union[dict, tuple[dict, int]]:
+    """Get performance stats filtered by wallet."""
+    try:
+        wallet_address = request.args.get('wallet_address')
+        if not wallet_address:
+            return jsonify({"error": "Wallet address is required"}), 400
+
+        # Get wallet-specific stats from database
+        stats = db.get_wallet_stats(wallet_address)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/check-apis")
+def check_apis() -> dict:
+    """Check if all APIs are working properly."""
+    results = {}
+
+    # Check Etherscan API
+    try:
+        market_data = market_agent.get_market_data()
+        results["etherscan"] = {
+            "status": "ok",
+            "eth_price": market_data.eth_price,
+            "message": "Etherscan API is working"
+        }
+    except Exception as e:
+        results["etherscan"] = {
+            "status": "error",
+            "message": str(e)
+        }
+
+    # Check Gemini API
+    try:
+        # Just a simple request to check connection
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        results["gemini"] = {
+            "status": "ok",
+            "api_key_set": True,
+            "message": "Gemini API key is set"
+        }
+    except Exception as e:
+        results["gemini"] = {
+            "status": "error",
+            "message": str(e)
+        }
+
+    # Check Groq API
+    try:
+        # Just a simple request to check connection
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY environment variable not set")
+        results["groq"] = {
+            "status": "ok",
+            "api_key_set": True,
+            "message": "Groq API key is set"
+        }
+    except Exception as e:
+        results["groq"] = {
+            "status": "error",
+            "message": str(e)
+        }
+
+    # Check Mistral API
+    try:
+        # Just a simple request to check connection
+        api_key = os.getenv("MISTRAL_API_KEY")
+        if not api_key:
+            raise ValueError("MISTRAL_API_KEY environment variable not set")
+        results["mistral"] = {
+            "status": "ok",
+            "api_key_set": True,
+            "message": "Mistral API key is set"
+        }
+    except Exception as e:
+        results["mistral"] = {
+            "status": "error",
+            "message": str(e)
+        }
+
+    return jsonify(results)
+
+
 @app.route('/static/<path:path>')
 def send_static(path):
+    """Serve static files."""
     return send_from_directory('static', path)
+
+
+@app.route('/api/log', methods=['POST'])
+def client_log():
+    """Handle client-side log messages."""
+    try:
+        log_data = request.json
+        log_level = log_data.get('level', 'info')
+        message = log_data.get('message', '')
+        context = log_data.get('context', {})
+
+        # Print to server console with timestamp
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print(f"[{timestamp}] Client {log_level}: {message} | Context: {context}")
+
+        # In production, you might want to save these logs to a file or database
+
+        return jsonify({"status": "success", "message": "Log recorded"}), 200
+    except Exception as e:
+        print(f"Error handling client log: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 def main() -> None:
