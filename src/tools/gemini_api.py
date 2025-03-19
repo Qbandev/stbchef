@@ -142,12 +142,17 @@ class GeminiClient:
             response = self.model.generate_content(prompt)
 
             # Extract decision from response
-            text = response.text.upper()
             decision = "HOLD"  # Default to HOLD
-            if "BUY" in text:
-                decision = "BUY"
-            elif "SELL" in text:
-                decision = "SELL"
+
+            # Validate that response exists and has text attribute
+            if response and hasattr(response, 'text') and response.text:
+                text = response.text.upper()
+                if "BUY" in text:
+                    decision = "BUY"
+                elif "SELL" in text:
+                    decision = "SELL"
+            else:
+                print("Warning: Invalid or empty response from Gemini API")
 
             # Update decision history
             self.decision_history.append({

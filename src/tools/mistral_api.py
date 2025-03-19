@@ -166,12 +166,20 @@ class MistralClient:
             data = response.json()
 
             # Extract decision from response
-            text = data["choices"][0]["message"]["content"].upper()
             decision = "HOLD"  # Default to HOLD
-            if "BUY" in text:
-                decision = "BUY"
-            elif "SELL" in text:
-                decision = "SELL"
+
+            # Validate that choices array exists and is not empty
+            if 'choices' in data and data['choices'] and len(data['choices']) > 0:
+                if 'message' in data['choices'][0] and 'content' in data['choices'][0]['message']:
+                    text = data["choices"][0]["message"]["content"].upper()
+                    if "BUY" in text:
+                        decision = "BUY"
+                    elif "SELL" in text:
+                        decision = "SELL"
+                else:
+                    print("Warning: Invalid message format in Mistral API response")
+            else:
+                print("Warning: Empty choices array in Mistral API response")
 
             # Update decision history
             self.decision_history.append({

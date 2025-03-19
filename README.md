@@ -21,8 +21,8 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 ### AI Models in Action
 
 - **Gemini 2.0 Flash** - Google's latest LLM optimized for fast, accurate trading analysis
-- **Groq deepseek-r1-distill-llama-70b-specdec** - High-performance model for comprehensive market insights
-- **Mistral Large** - Advanced model providing additional trading perspectives
+- **Groq DeepSeek-R1-Distill-Llama-70B** - High-performance reasoning model for comprehensive market insights
+- **Mistral Medium** - Advanced model providing additional trading perspectives
 
 ## Key Features
 
@@ -30,7 +30,7 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Live ETH price tracking via Etherscan
   - Dynamic gas fee analysis
   - Market sentiment tracking with Fear & Greed Index
-  - 1-minute update intervals for all metrics
+  - 10-minute update intervals for all metrics
 
 - **AI Analysis**
   - Comparative trading signals from multiple LLMs
@@ -38,8 +38,8 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Advanced accuracy tracking system:
     - Dynamic thresholds based on market volatility
     - Weighted scoring system for recent trades
-    - Tracks last 100 trades per model
-    - Enhanced performance metrics with market context
+    - Performance score based on last 100 trades per model
+    - Daily stats that reset at midnight
     - Shows decision distribution (Buy/Sell/Hold)
 
 - **Interactive Dashboard**
@@ -47,11 +47,11 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Model performance visualization
   - Gas price in real time
   - Performance metrics:
-    - Total trades
-    - Correct trades
-    - Incorrect trades
-    - Average profit
-    - Decision distribution
+    - 24-hour trading stats
+    - Total trades within last day
+    - Correct/incorrect trades
+    - Average profit percentage
+    - Decision distribution breakdown
     - Market volatility indicators
 
 - **MetaMask Integration**
@@ -62,43 +62,23 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ## Technical Implementation
 
-#### LLM Trading Strategy
+### Backend Architecture
+
+The system uses a Flask web application with a background scheduler that:
+- Updates trading data every 10 minutes
+- Makes concurrent API calls to three different LLM providers
+- Stores historical data in an SQLite database with automatic cleanup
+- Maintains daily statistics with reset at midnight
+- Uses thread-safe caching for performance optimization
+
+### LLM Trading Strategy
+
+Each AI model evaluates the same market data using these parameters:
+
 - **Target Allocations**:
   * ETH: 60-80% in bullish conditions
   * USDC: 40-20% in bullish conditions
   * Dynamic adjustment based on market conditions
-
-- **Rebalancing Triggers**:
-  * Price movement beyond 5% threshold
-  * Significant market sentiment changes
-  * Volatility spikes
-  * Gas price optimization opportunities
-
-- **Risk Management**:
-  * Maximum position size: 80% in single asset
-  * Minimum USDC reserve: 20% for opportunities
-  * Gas cost threshold: Only rebalance if potential profit > 2x gas cost
-  * Slippage tolerance: Max 0.5% for large trades
-
-- **Technical Indicators**:
-  * Volatility analysis
-  * Momentum tracking
-  * RSI (Relative Strength Index)
-  * Support/resistance levels
-  * Market sentiment integration
-
-- **Execution Strategy**:
-  * Split large trades into smaller chunks
-  * Limit order utilization
-  * Gas price optimization
-  * Market impact consideration
-
-#### Performance Tracking
-- **Accuracy Metrics**:
-  * Profit/loss after fees
-  * Risk-adjusted returns
-  * Portfolio rebalancing efficiency
-  * Market impact minimization
 
 - **Decision Criteria**:
   * BUY conditions:
@@ -119,86 +99,97 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
     - Gas prices unfavorable
     - No clear directional bias
 
-## Performance Tracking
+### Performance Tracking System
+
+```mermaid
+graph LR
+    subgraph Data Collection
+        A[API Data] --> B[ETH Prices]
+        A --> C[Gas Fees]
+        A --> D[Market Sentiment]
+    end
+
+    subgraph Technical Analysis
+        B --> E[Calculate Volatility]
+        B --> F[Calculate Momentum]
+        B --> G[Calculate RSI]
+    end
+
+    subgraph AI Decision Making
+        E --> H[LLM Prompts]
+        F --> H
+        G --> H
+        C --> H
+        D --> H
+        H --> I[Gemini 2.0 Flash]
+        H --> J[DeepSeek-R1-Distill]
+        H --> K[Mistral Medium]
+    end
+
+    subgraph Performance Metrics
+        I --> L[Trade History]
+        J --> L
+        K --> L
+        L --> M[Last 100 Trades Score]
+        L --> N[24-Hour Stats]
+        N --> O[Daily Reset]
+        M --> P[Performance Dashboard]
+        N --> P
+    end
+```
 
 The system implements a sophisticated accuracy tracking system:
 
-1. **Trade Recording**
-   - Records all trading decisions (BUY/SELL/HOLD)
-   - Tracks price changes after each decision
-   - Maintains history of last 100 data points per model for enhanced analysis
-   - Stores historical market data in SQLite database for persistence
+1. **Performance Score Calculation**
+   - Based on weighted average of last 100 trades
+   - Recent trades receive higher weight
+   - Score displayed as percentage (0-100%)
 
-2. **Dynamic Threshold System**
-   - Base threshold of 1% adjusted by market volatility
-   - Volatility calculation over 24-hour window
-   - Adaptive thresholds based on market conditions
-   - Enhanced scoring for larger price movements
+2. **Daily Statistics**
+   - Reset automatically at midnight
+   - Track total trades in 24-hour period
+   - Track correct/incorrect decisions
+   - Monitor decision distribution (BUY/SELL/HOLD)
+   - Calculate average profit for correct trades
 
-3. **Performance Metrics**
-   - Weighted average scoring for recent trades
-   - Market volatility indicators
-   - Dynamic threshold adjustments
-   - Enhanced accuracy tracking with market context
-   - Historical performance analysis
-
-4. **Visual Indicators**
+3. **Visual Indicators**
    - Green: ≥65% accuracy (High Performance)
    - Yellow: ≥45% accuracy (Moderate Performance)
    - Red: <45% accuracy (Low Performance)
-   - Real-time updates for price movements and model decisions
-
-5. **Data Management**
-   - Intelligent caching system for API responses
-   - Market data cache duration: 10 seconds
-   - Gas price cache duration: 30 seconds
-   - Automatic data cleanup and optimization
-   - Local storage for persistent data
-
-6. **Technical Analysis**
-   - Real-time calculation of technical indicators
-   - Price trend analysis
-   - Volume analysis
-   - Gas price impact assessment
-   - Market sentiment correlation
-
-7. **Notification System**
-   - Real-time alerts on model consensus
-   - Customizable notifications for connected wallets
-   - Price movement alerts
-   - Gas price threshold notifications
-
-8. **Error Handling**
-   - Graceful degradation on API failures
-   - Fallback to cached data when needed
-   - Comprehensive error logging
-   - Automatic recovery mechanisms
 
 ## Quick Start
 
-1. **Setup**
+1. **Setup Environment**
    ```bash
    # Clone the repository
    git clone https://github.com/yourusername/stbchef.git
    cd stbchef
 
+   # Install Python 3.10+ if needed
+
+   # Install Poetry (dependency management)
+   curl -sSL https://install.python-poetry.org | python3 -
+
    # Install dependencies
    poetry install
    ```
 
-2. **Configuration**
+2. **Configure API Keys**
    - Copy `.env.example` to `.env`
    - Add your API keys:
      ```env
-     ETHERSCAN_API_KEY=your_key_here
-     GEMINI_API_KEY=your_key_here
-     GROQ_API_KEY=your_key_here
-     MISTRAL_API_KEY=your_key_here
+     ETHERSCAN_API_KEY=your_key_here   # Get from https://etherscan.io/myapikey
+     GEMINI_API_KEY=your_key_here      # Get from https://aistudio.google.com/
+     GROQ_API_KEY=your_key_here        # Get from https://console.groq.com/
+     MISTRAL_API_KEY=your_key_here     # Get from https://console.mistral.ai/
      ```
 
-3. **Launch**
+3. **Launch Application**
    ```bash
-   poetry run python src/web/app.py
+   # Run the Flask application
+   poetry run python -m src.web.app
+
+   # Access the dashboard at http://localhost:8080
    ```
 
 ## Technical Stack
@@ -207,76 +198,22 @@ The system implements a sophisticated accuracy tracking system:
   - Python 3.10+
   - Flask web server
   - Poetry for dependency management
-  - SQLite database for data persistence
-  - Comprehensive API error handling and rate limiting
+  - SQLite database with efficient WAL mode
+  - Background scheduler for regular updates
 
 - **Frontend**
-  - TailwindCSS for modern styling
-  - Chart.js for dynamic visualizations
+  - TailwindCSS for styling
+  - Chart.js for visualizations
   - Web3.js for MetaMask integration
-  - Real-time data updates
-  - Basic responsive design (desktop-first)
-  - Interactive charts with zoom capabilities
-  - Mobile support limited to basic layout adjustments
+  - Dynamic stats and model comparisons
 
 - **APIs**
-  - Etherscan for market data and gas prices
+  - Etherscan for ETH prices and gas fees
   - Alternative.me for Fear & Greed Index
-  - AI Model Integration:
+  - AI Model APIs:
     - Google Gemini 2.0 Flash
-    - Groq deepseek-r1-distill-llama-70b-specdec
-    - Mistral Large
-  - Automatic API key rotation and error handling
-
-- **Data Processing**
-  - Real-time market data analysis
-  - Technical indicator calculations
-  - Model consensus detection
-  - Performance metrics computation
-  - Historical data analysis
-
-## System Architecture
-
-```mermaid
-graph TB
-    subgraph Data Collection
-        A[Etherscan API] -->|Price & Gas Data| D[Data Aggregator]
-        B[Fear & Greed API] -->|Market Sentiment| D
-        C[Web3 Provider] -->|Wallet Connection| D
-    end
-
-    subgraph AI Analysis
-        D -->|Market Data| E[LLM Analysis Engine]
-        E -->|Trading Signals| F[Gemini 2.0 Flash]
-        E -->|Trading Signals| G[Groq deepseek-r1-distill-llama-70b-specdec]
-        E -->|Trading Signals| H[Mistral Large]
-    end
-
-    subgraph Performance Tracking
-        F -->|Decisions| I[Accuracy Calculator]
-        G -->|Decisions| I
-        H -->|Decisions| I
-        I -->|Performance Metrics| J[Performance Dashboard]
-    end
-
-    subgraph Data Persistence
-        K[Local Storage] -->|Chart Data| L[Price History]
-        K -->|Trade History| M[Model Performance]
-        K -->|Wallet State| N[User Preferences]
-    end
-
-    subgraph User Interface
-        O[Web Dashboard] -->|Display| P[Price Charts]
-        O -->|Display| Q[Model Stats]
-        O -->|Display| R[Performance Metrics]
-        O -->|Display| S[Wallet Status]
-    end
-
-    L -->|Update| P
-    M -->|Update| Q
-    I -->|Update| R
-    C -->|Update| S
-```
+    - Groq DeepSeek-R1-Distill-Llama-70B
+    - Mistral Medium
 
 ## Data Flow
 
@@ -284,57 +221,49 @@ graph TB
 sequenceDiagram
     participant User
     participant Dashboard
-    participant DataCollector
-    participant AIEngine
-    participant Storage
+    participant BackgroundScheduler
+    participant AIModels
+    participant Database
 
-    User->>Dashboard: Access Dashboard
-    Dashboard->>Storage: Load Historical Data
-    Dashboard->>DataCollector: Request Market Data
-    
-    loop Every 1 Minute
-        DataCollector->>DataCollector: Fetch ETH Price
-        DataCollector->>DataCollector: Fetch Gas Prices
-        DataCollector->>DataCollector: Fetch Market Sentiment
-        
-        DataCollector->>AIEngine: Send Market Data
-        AIEngine->>AIEngine: Calculate Volatility
-        AIEngine->>AIEngine: Determine Dynamic Threshold
-        
-        AIEngine->>AIEngine: Generate Trading Signals
-        AIEngine->>Dashboard: Update Model Decisions
-        Dashboard->>Storage: Persist Trade History
+    User->>Dashboard: Access application
+    Dashboard->>Database: Load historical data
+
+    loop Every 10 Minutes
+        BackgroundScheduler->>AIModels: Get market data
+        AIModels->>AIModels: Process data
+        AIModels->>Database: Store decisions
+
+        alt Daily Reset at Midnight
+            Database->>Database: Calculate 24h stats
+            Database->>Database: Reset daily counters
+        end
+
+        Dashboard->>Database: Fetch latest data
         Dashboard->>User: Update UI
     end
+
+    User->>Dashboard: Connect wallet
+    Dashboard->>User: Show personalized alerts
 ```
 
-## Performance Tracking System
+## Error Handling
 
-```mermaid
-graph LR
-    subgraph Market Analysis
-        A[Price Data] -->|Calculate| B[Volatility]
-        B -->|Adjust| C[Dynamic Threshold]
-        A -->|Compare| D[Price Changes]
-    end
+The system implements comprehensive error handling and validation:
 
-    subgraph Trade Scoring
-        C -->|Use| E[Score Calculator]
-        D -->|Use| E
-        E -->|Generate| F[Trade Score]
-    end
+- **API Response Validation**
+  - Validates all API responses before processing
+  - Handles empty or malformed responses gracefully
+  - Provides fallback values for missing data
 
-    subgraph Performance Metrics
-        F -->|Weight| G[Recent Trades]
-        G -->|Calculate| H[Weighted Average]
-        H -->|Display| I[Accuracy Percentage]
-    end
+- **Technical Calculation Safety**
+  - Try/except blocks for all numerical calculations
+  - Default values for edge cases
+  - Detailed logging for debugging
 
-    subgraph Data Management
-        J[Trade History] -->|Store| K[Local Storage]
-        K -->|Load| L[Historical Analysis]
-    end
-```
+- **Database Operations**
+  - Thread-safe operations
+  - Connection pooling
+  - Transaction management
 
 ## Important Disclaimer
 
@@ -343,48 +272,16 @@ This is an **experimental project** for educational and research purposes only:
 - NOT financial advice
 - NOT intended for real trading
 - NO guarantee of accuracy
-- Use at your own risk
 - For AI model comparison only
 - Does NOT execute actual trades
-- Historical performance does not guarantee future results
-- API rate limits and costs should be considered
-- Models may have varying response times and availability
 
 ## Requirements
 
-- **System**
-  - Python 3.10 or higher
-  - Poetry package manager
-  - SQLite database
-  - Minimum 512MB RAM (optimized)
-  - Stable internet connection
-
-- **API Keys**
-  - Etherscan (for market data and gas prices)
-  - Google Gemini (for Gemini 2.0 Flash)
-  - Groq (for deepseek-r1-distill-llama-70b-specdec)
-  - Mistral (for Mistral Large)
-
-- **Optional**
-  - MetaMask wallet for notifications
-  - Modern web browser with JavaScript enabled and localStorage support
-  - Screen resolution 1280x720 or higher recommended
-
-## Performance Optimizations
-
-- **Memory Management**
-  - Efficient SQLite database with Write-Ahead Logging
-  - Automatic cleanup of historical data older than 7 days
-  - Memory-efficient data structures using deque
-  - LRU caching for expensive calculations
-  - Optimized database queries with proper indexing
-
-- **Data Persistence**
-  - Local storage for wallet connection state
-  - Cached trading history with automatic expiration
-  - Automatic recovery of wallet connection
-  - Session data persistence across page reloads
-  - Graceful handling of storage limits
+- Python 3.10 or higher
+- Poetry package manager
+- API keys for all services
+- Stable internet connection
+- Modern web browser
 
 ## License
 

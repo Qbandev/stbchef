@@ -158,12 +158,20 @@ class GroqClient:
             )
 
             # Extract decision from response
-            text = completion.choices[0].message.content.upper()
             decision = "HOLD"  # Default to HOLD
-            if "BUY" in text:
-                decision = "BUY"
-            elif "SELL" in text:
-                decision = "SELL"
+
+            # Validate that choices array exists and is not empty
+            if hasattr(completion, 'choices') and completion.choices and len(completion.choices) > 0:
+                if hasattr(completion.choices[0], 'message') and hasattr(completion.choices[0].message, 'content'):
+                    text = completion.choices[0].message.content.upper()
+                    if "BUY" in text:
+                        decision = "BUY"
+                    elif "SELL" in text:
+                        decision = "SELL"
+                else:
+                    print("Warning: Invalid message format in Groq API response")
+            else:
+                print("Warning: Empty choices array in Groq API response")
 
             # Update decision history
             self.decision_history.append({
