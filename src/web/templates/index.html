@@ -1555,7 +1555,7 @@
                         };
 
                         const consensus = checkLLMConsensus(decisions);
-                        if (consensus) {
+                        if (consensus && (consensus === 'BUY' || consensus === 'SELL')) {
                             const buyModels = getModelDecisions(decisions);
                             const sellModels = getModelSellDecisions(decisions);
                             const currentPrice = data.eth_price.toFixed(2);
@@ -1574,6 +1574,9 @@
 
                             // Send wallet notification
                             sendWalletNotification(message, consensus);
+                        } else if (consensus === 'HOLD') {
+                            // For HOLD, just show a simple notification without wallet transaction
+                            showNotification(`🔵 HOLD Signal - No action needed`, 'info');
                         }
                     }
 
@@ -1985,25 +1988,58 @@
         // Add wallet notification function
         async function sendWalletNotification(message, signalType) {
             if (!userAccount || !web3) return;
-
+            
             try {
-                // Create notification transaction
-                const notificationData = web3.eth.abi.encodeFunctionSignature('notify(string,string)') +
-                    web3.eth.abi.encodeParameters(
-                        ['string', 'string'],
-                        [signalType, message]
-                    ).slice(2);
-
-                // Send notification transaction
-                await web3.eth.sendTransaction({
-                    from: userAccount,
-                    to: userAccount, // Send to self for notification
-                    data: notificationData,
-                    gas: 200000,
-                    gasPrice: await web3.eth.getGasPrice()
-                });
-
-                console.log('Wallet notification sent successfully');
+                // For HOLD signals, only show browser notification, don't send transaction
+                if (signalType === 'HOLD') {
+                    console.log('HOLD signal - No transaction needed');
+                    return;
+                }
+                
+                // For BUY/SELL signals, calculate appropriate transaction amount
+                let transactionValue = '0'; // Default to 0
+                let transactionDetails = null;
+                
+                // Get current wallet balances
+                const ethBalance = walletBalances.eth;
+                const currentPrice = walletBalances.ethusd;
+                
+                // Minimum transaction amount (0.001 ETH or equivalent USDC)
+                const MIN_TRANSACTION = 0.001;
+                
+                // Only proceed with actual transaction amount if we have sufficient balance
+                if (signalType === 'BUY' && walletBalances.usdc > 0) {
+                    // For BUY, suggest using 5% of USDC balance (converted to ETH) or minimum, whichever is higher
+                    const usdcToUse = Math.max(walletBalances.usdc * 0.05, MIN_TRANSACTION * currentPrice);
+                    const ethEquivalent = usdcToUse / currentPrice;
+                    
+                    // Show a notification about the suggested swap
+                    showNotification(`Suggested action: Convert ${usdcToUse.toFixed(2)} USDC to approximately ${ethEquivalent.toFixed(4)} ETH`, 'info');
+                    
+                    // Don't send an actual transaction, just log it
+                    console.log(`BUY signal generated - Would swap ${usdcToUse.toFixed(2)} USDC for ETH`);
+                    return;
+                    
+                } else if (signalType === 'SELL' && ethBalance > MIN_TRANSACTION) {
+                    // For SELL, suggest using 5% of ETH balance or minimum, whichever is higher
+                    const ethToSell = Math.max(ethBalance * 0.05, MIN_TRANSACTION);
+                    const usdcEquivalent = ethToSell * currentPrice;
+                    
+                    // Show a notification about the suggested swap
+                    showNotification(`Suggested action: Convert ${ethToSell.toFixed(4)} ETH to approximately ${usdcEquivalent.toFixed(2)} USDC`, 'info');
+                    
+                    // Don't send an actual transaction, just log it
+                    console.log(`SELL signal generated - Would swap ${ethToSell.toFixed(4)} ETH for USDC`);
+                    return;
+                }
+                
+                // If we reached here, either not enough balance or just notification
+                console.log(`Signal received (${signalType}), but no transaction will be sent`);
+                
+                // Just send a zero-value transaction with the notification data
+                // In a real app, this would be replaced with an actual swap operation
+                // For now we just send a notification to avoid confusion
+                showNotification(`${signalType} signal received - Check your balance for trading`, 'info');
             } catch (error) {
                 console.error('Error sending wallet notification:', error);
             }
@@ -2053,8 +2089,9 @@
                     
                     // If Etherscan is working, try to update data
                     if (data.etherscan && data.etherscan.status === 'ok') {
-                        updateData();
-                        fetchDailyStats();
+                        // Instead of calling updateData directly which might trigger wallet transactions,
+                        // just update the UI elements without triggering consensus checks
+                        updateUIWithoutWalletTransactions();
                     }
                 })
                 .catch(error => {
@@ -2062,6 +2099,75 @@
                     showNotification('Error checking API status: ' + error, 'error');
                     checkBtn.innerHTML = originalText;
                     checkBtn.disabled = false;
+                });
+        }
+
+        // Function to update UI without triggering wallet transactions
+        function updateUIWithoutWalletTransactions() {
+            console.log('Updating UI data (without wallet transactions)...');
+            fetch('/api/trading-data')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data - UI update only');
+
+                    // Update metrics (without wallet transactions)
+                    document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
+                    document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
+                    document.getElementById('eth-high').textContent = `$${data.eth_high_24h.toFixed(2)}`;
+                    document.getElementById('eth-low').textContent = `$${data.eth_low_24h.toFixed(2)}`;
+
+                    // Update gas price information
+                    if (data.gas_prices) {
+                        document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
+                        document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
+                        document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                    }
+
+                    // Update model decisions and stats
+                    ['gemini', 'groq', 'mistral'].forEach(model => {
+                        const action = data[`${model}_action`];
+                        const decisionElement = document.getElementById(`${model}-decision`);
+                        if (decisionElement) {
+                            decisionElement.textContent = action || 'N/A';
+                            decisionElement.className = `font-bold text-xl cyber-value ${
+                                action === 'BUY' ? 'text-green-400' :
+                                action === 'SELL' ? 'text-red-400' :
+                                'text-blue-400'
+                            } animate-pulse`;
+                        }
+                    });
+
+                    // Update market sentiment
+                    const sentimentText = document.getElementById('sentiment');
+                    if (sentimentText && data.market_sentiment) {
+                        sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
+                        const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800';
+
+                        sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                    }
+
+                    // Update charts
+                    updateCharts(
+                        data.eth_price,
+                        data.market_sentiment?.fear_greed_value,
+                        data.gemini_action,
+                        data.groq_action,
+                        data.mistral_action,
+                        data.eth_volume_24h
+                    );
+
+                    // Fetch daily stats (without wallet notifications)
+                    fetchDailyStats();
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
                 });
         }
     </script>
