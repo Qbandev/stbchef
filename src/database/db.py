@@ -262,18 +262,25 @@ class TradingDatabase:
                     continue
 
                 # Calculate profit/loss as percentage
-                price_change_pct = (
-                    (current_price - decision_price) / decision_price) * 100
+                if decision_price == 0:
+                    # Handle zero price case - cannot calculate meaningful percentage
+                    # Preserving was_correct logic based on direction
+                    was_correct = False
+                    if decision == 'HOLD':
+                        was_correct = True
+                else:
+                    price_change_pct = (
+                        (current_price - decision_price) / decision_price) * 100
 
-                # Determine if decision was correct
-                was_correct = False
-                if decision == 'BUY' and price_change_pct > 0:
-                    was_correct = True
-                elif decision == 'SELL' and price_change_pct < 0:
-                    was_correct = True
-                # Less than 2% change for HOLD
-                elif decision == 'HOLD' and abs(price_change_pct) < 2:
-                    was_correct = True
+                    # Determine if decision was correct
+                    was_correct = False
+                    if decision == 'BUY' and price_change_pct > 0:
+                        was_correct = True
+                    elif decision == 'SELL' and price_change_pct < 0:
+                        was_correct = True
+                    # Less than 2% change for HOLD
+                    elif decision == 'HOLD' and abs(price_change_pct) < 2:
+                        was_correct = True
 
                 # Update decision accuracy
                 cursor.execute("""
