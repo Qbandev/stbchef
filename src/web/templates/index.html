@@ -440,10 +440,57 @@
                     if (accounts[0] && accounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
                         userAccount = accounts[0];
                         updateWalletUI();
+                        
+                        // Fetch initial wallet data
+                        await getWalletBalances();
+                        
+                        // Ensure model decisions are updated with wallet connection status
+                        fetch('/api/trading-data')
+                            .then(response => response.json())
+                            .then(data => {
+                                updateModelDecisions(data, userAccount);
+                            })
+                            .catch(error => {
+                                console.error("Failed to fetch initial trading data:", error);
+                            });
+                            
+                        // Load wallet-specific stats
+                        fetchWalletStats();
+                    } else if (accounts.length > 0) {
+                        // If account is available but different from stored one, update it
+                        userAccount = accounts[0];
+                        persistWalletConnection(userAccount);
+                        updateWalletUI();
+                        
+                        // Fetch initial wallet data
+                        await getWalletBalances();
+                        
+                        // Ensure model decisions are updated with wallet connection status
+                        fetch('/api/trading-data')
+                            .then(response => response.json())
+                            .then(data => {
+                                updateModelDecisions(data, userAccount);
+                            })
+                            .catch(error => {
+                                console.error("Failed to fetch initial trading data:", error);
+                            });
+                            
+                        // Load wallet-specific stats
+                        fetchWalletStats();
                     }
                 } catch (error) {
                     console.error('Error restoring wallet connection:', error);
                 }
+            } else {
+                // Ensure model decisions show "Connect wallet first"
+                fetch('/api/trading-data')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateModelDecisions(data, null);
+                    })
+                    .catch(error => {
+                        console.error("Failed to fetch initial trading data:", error);
+                    });
             }
             clearExpiredData();
         });
@@ -474,6 +521,12 @@
         // Load persisted trading history
         function loadPersistedHistory() {
             try {
+                // Only load persisted history if wallet is connected
+                if (!userAccount) {
+                    displayEmptyStats();
+                    return;
+                }
+                
                 const history = localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY);
                 const performance = localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE);
 
@@ -524,6 +577,14 @@
                 resetWalletBalances();
                 persistWalletConnection(null);
                 updateWalletUI();
+                
+                // Clear model performance when disconnecting
+                displayEmptyStats();
+                
+                // Update LLM decision cards to show "Connect wallet first"
+                const tradingData = await fetch('/api/trading-data').then(res => res.json());
+                updateModelDecisions(tradingData, null);
+                
                 showNotification('Wallet disconnected', 'warning');
                 return;
             }
@@ -565,6 +626,13 @@
                     // Get wallet balances after connecting
                     await getWalletBalances();
                     
+                    // Update model performance cards with wallet-specific data
+                    fetchWalletStats();
+                    
+                    // Update LLM decision cards
+                    const tradingData = await fetch('/api/trading-data').then(res => res.json());
+                    updateModelDecisions(tradingData, userAccount);
+                    
                     updateWalletUI();
                     showNotification('Wallet connected successfully!', 'success');
 
@@ -577,11 +645,23 @@
                             userAccount = null;
                             resetWalletBalances();
                             persistWalletConnection(null);
+                            
+                            // Update model stats and LLM decisions on disconnect
+                            displayEmptyStats();
+                            fetch('/api/trading-data')
+                                .then(res => res.json())
+                                .then(data => updateModelDecisions(data, null));
                         } else {
                             userAccount = accounts[0];
                             getWalletBalances();
                             persistWalletConnection(userAccount);
                             requestNotificationPermission(); // Request permission for new account
+                            
+                            // Update model stats and LLM decisions on account change
+                            fetchWalletStats();
+                            fetch('/api/trading-data')
+                                .then(res => res.json())
+                                .then(data => updateModelDecisions(data, userAccount));
                         }
                         updateWalletUI();
                         showNotification(accounts.length === 0 ? 'Wallet disconnected' : 'Wallet account changed', accounts.length === 0 ? 'warning' : 'info');
@@ -600,6 +680,12 @@
                         
                         getWalletBalances();
                         updateWalletUI();
+                        
+                        // Update model stats and LLM decisions on chain change
+                        fetchWalletStats();
+                        fetch('/api/trading-data')
+                            .then(res => res.json())
+                            .then(data => updateModelDecisions(data, userAccount));
                     });
                 } catch (error) {
                     console.error('User denied account access:', error);
@@ -699,49 +785,55 @@
                     }
                 }
                 
-                // Get current ETH/USD price from the dashboard data
-                const ethPriceElement = document.getElementById('eth-price');
-                if (ethPriceElement) {
-                    const priceText = ethPriceElement.textContent;
-                    walletBalances.ethusd = parseFloat(priceText.replace('$', '').trim());
-                    console.log("ETH/USD price:", walletBalances.ethusd);
-                } else {
-                    console.warn("ETH price element not found");
-                    // Fallback price in case the element isn't found
-                    walletBalances.ethusd = 3000; 
+                // Get ETH price from the UI - NEVER use a default price
+                let validPriceFound = false;
+                try {
+                    const priceText = document.getElementById('eth-price').textContent;
+                    if (priceText && priceText !== 'Error' && priceText !== 'Waiting for data...') {
+                        const parsedPrice = parseFloat(priceText.replace('$', '').trim());
+                        if (!isNaN(parsedPrice) && parsedPrice > 0) {
+                            walletBalances.ethusd = parsedPrice;
+                            console.log("ETH/USD price from UI:", walletBalances.ethusd);
+                            validPriceFound = true;
+                        }
+                    }
+                    
+                    // If UI price failed, try the API directly
+                    if (!validPriceFound) {
+                        const response = await fetch('/api/trading-data');
+                        const data = await response.json();
+                        if (data && data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0) {
+                            walletBalances.ethusd = parseFloat(data.eth_price);
+                            console.log("ETH/USD price from API:", walletBalances.ethusd);
+                            validPriceFound = true;
+                        }
+                    }
+                } catch (priceError) {
+                    console.warn("Error getting ETH price:", priceError);
+                    validPriceFound = false;
                 }
                 
-                // Calculate total value in USD
+                if (!validPriceFound) {
+                    console.warn("No valid ETH price available - cannot calculate wallet value");
+                    walletBalances.ethusd = 0;
+                    walletBalances.totalValueUSD = 0;
+                    updateWalletCard();
+                    return;
+                }
+                
+                // Calculate total wallet value only if we have a valid price
                 walletBalances.totalValueUSD = (walletBalances.eth * walletBalances.ethusd) + walletBalances.usdc;
                 console.log("ETH value in USD:", walletBalances.eth * walletBalances.ethusd);
                 console.log("USDC value:", walletBalances.usdc);
                 console.log("Total wallet value:", walletBalances.totalValueUSD, "USD");
                 
-                // Make sure we have a valid total - if somehow it's still 0 or NaN, set a minimum value
-                if (!walletBalances.totalValueUSD || isNaN(walletBalances.totalValueUSD) || walletBalances.totalValueUSD <= 0) {
-                    if (walletBalances.eth > 0) {
-                        // If we have ETH but totalValue calculation failed, use the ETH value
-                        walletBalances.totalValueUSD = walletBalances.eth * walletBalances.ethusd;
-                        console.log("Using ETH-only value:", walletBalances.totalValueUSD, "USD");
-                    }
-                }
-                
-                // Update the wallet card
+                // Update UI
                 updateWalletCard();
-                
-                // Update model stats to reflect wallet-based operations
-                if (isSupportedNetwork) {
-                    updateModelStatsForWallet();
-                } else {
-                    console.log("Skipping model stats update for unsupported network");
-                }
-                
-                return walletBalances;
+                updateModelStatsForWallet();
             } catch (error) {
-                logToServer('error', "Error fetching wallet balances", error);
+                console.error("Error fetching wallet balances:", error);
                 showNotification("Error fetching wallet balances: " + error.message, "error");
-                resetWalletBalances();
-                return null;
+                // Don't reset wallet balances here, keep whatever was valid previously
             }
         }
         
@@ -885,7 +977,8 @@
                 return;
             }
             
-            // Note: We will proceed even if balances are zero - we want to show network switching options
+            // Check if we have valid price data
+            const hasValidPrice = walletBalances.ethusd && !isNaN(walletBalances.ethusd) && walletBalances.ethusd > 0;
             
             // Check if we're on Linea network
             web3.eth.getChainId().then(chainId => {
@@ -952,18 +1045,51 @@
                     </div>
                 `;
                 
-                // Calculate optimal action based on current portfolio allocation
-                const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
-                const totalValue = walletBalances.totalValueUSD || ethValueUSD;
+                // If we don't have a valid ETH price, show error and don't make calculations
+                if (!hasValidPrice) {
+                    walletCard.innerHTML = `
+                        <div class="p-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                                <div class="flex items-center">
+                                    <span class="text-xs ${networkClass} mr-2">Network: ${networkName}</span>
+                                    <span class="text-xs text-gray-400">${userAccount.substring(0, 6)}...${userAccount.substring(38)}</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <div class="text-gray-400">ETH Balance:</div>
+                                    <div class="font-bold text-cyber-text">${walletBalances.eth.toFixed(4)} ETH</div>
+                                    <div class="text-xs text-red-400">Market price unavailable</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">USDC Balance:</div>
+                                    <div class="font-bold text-cyber-text">${walletBalances.usdc.toFixed(2)} USDC</div>
+                                    <div class="text-xs text-gray-400">${!isLinea && !isEthereum ? '(Only available on Linea or Ethereum)' : ''}</div>
+                                </div>
+                                ${switchNetworkButtons}
+                                <div class="col-span-2 mt-3 text-center">
+                                    <p class="text-yellow-400">Waiting for market data to make recommendations</p>
+                                    <p class="text-xs text-gray-400 mt-1">All calculations and recommendations require live price data</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
                 
-                // Handle zero balance case properly
-                const hasNonZeroBalance = walletBalances.eth > 0 || walletBalances.usdc > 0;
-                const currentEthAllocation = hasNonZeroBalance && totalValue > 0 
-                    ? (ethValueUSD / totalValue * 100) 
-                    : 0;
-                const currentUsdcAllocation = hasNonZeroBalance && totalValue > 0 
-                    ? 100 - currentEthAllocation 
-                    : 0;
+                // Calculate optimal action based on current portfolio allocation
+                const ethValue = walletBalances.eth || 0;
+                const usdcValue = walletBalances.usdc || 0;
+                const ethPrice = walletBalances.ethusd || 0;
+                
+                const ethValueUSD = ethValue * ethPrice;
+                const totalValue = (ethValueUSD + usdcValue) || 0;
+                
+                // Handle zero balance case properly with additional validation
+                const hasNonZeroBalance = (ethValue > 0 || usdcValue > 0) && totalValue > 0;
+                const currentEthAllocation = hasNonZeroBalance ? Math.min(100, Math.max(0, (ethValueUSD / totalValue * 100))) : 0;
+                const currentUsdcAllocation = hasNonZeroBalance ? Math.min(100, Math.max(0, 100 - currentEthAllocation)) : 0;
                 
                 // Target allocation range: 60-80% ETH in bullish, 20-40% in bearish
                 const marketSentiment = document.getElementById('sentiment');
@@ -1017,6 +1143,30 @@
                     ? `<div class="text-xs mt-1 text-gray-300">Recommended by: ${recommendingModels.join(', ')}</div>` 
                     : '';
                 
+                // Modify the portfolio allocation bar display for zero balances
+                const portfolioAllocationBar = hasNonZeroBalance 
+                    ? `<div class="w-full bg-gray-700 rounded-full h-2.5 mt-1 relative">
+                        <div class="${getPortfolioBarColor(currentEthAllocation, targetEthMin, targetEthMax)} h-2.5 rounded-full" style="width: ${currentEthAllocation}%"></div>
+                        
+                        <!-- Target range indicators -->
+                        <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMin}%; height: 100%;"></div>
+                        <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMax}%; height: 100%;"></div>
+                      </div>
+                      <div class="flex justify-between text-xs mt-1">
+                        <span>ETH: ${currentEthAllocation.toFixed(1)}%</span>
+                        <span>USDC: ${currentUsdcAllocation.toFixed(1)}%</span>
+                      </div>`
+                    : `<div class="w-full bg-gray-700 rounded-full h-2.5 mt-1 relative">
+                        <div class="bg-gray-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        
+                        <!-- Target range indicators -->
+                        <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMin}%; height: 100%;"></div>
+                        <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMax}%; height: 100%;"></div>
+                      </div>
+                      <div class="flex justify-center text-xs mt-1">
+                        <span class="text-gray-400">(Empty Portfolio)</span>
+                      </div>`;
+                
                 // Recommendation section based on whether we have balances and AI decisions
                 const recommendationSection = `
                     <div class="col-span-2 mt-3 mb-1 space-y-2">
@@ -1061,31 +1211,18 @@
                         <div class="grid grid-cols-2 gap-2 text-sm">
                             <div>
                                 <div class="text-gray-400">ETH Balance:</div>
-                                <div class="font-bold text-cyber-text">${walletBalances.eth.toFixed(4)} ETH</div>
-                                <div class="text-xs text-gray-400">$${(walletBalances.eth * walletBalances.ethusd).toFixed(2)}</div>
+                                <div class="font-bold text-cyber-text">${ethValue.toFixed(4)} ETH</div>
+                                <div class="text-xs text-gray-400">$${(ethValue * ethPrice).toFixed(2)}</div>
                             </div>
                             <div>
                                 <div class="text-gray-400">USDC Balance:</div>
-                                <div class="font-bold text-cyber-text">${walletBalances.usdc.toFixed(2)} USDC</div>
+                                <div class="font-bold text-cyber-text">${usdcValue.toFixed(2)} USDC</div>
                                 <div class="text-xs text-gray-400">${!isLinea && !isEthereum ? '(Only available on Linea or Ethereum)' : ''}</div>
                             </div>
                             
                             <div class="col-span-2 mt-2">
                                 <div class="text-gray-400">Portfolio Allocation:</div>
-                                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1 relative">
-                                    ${hasNonZeroBalance ? 
-                                    `<div class="${getPortfolioBarColor(currentEthAllocation, targetEthMin, targetEthMax)} h-2.5 rounded-full" style="width: ${currentEthAllocation}%"></div>` : 
-                                    `<div class="bg-gray-600 h-2.5 rounded-full" style="width: 0%"></div>`}
-                                    
-                                    <!-- Target range indicators -->
-                                    <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMin}%; height: 100%;"></div>
-                                    <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: ${targetEthMax}%; height: 100%;"></div>
-                                </div>
-                                <div class="flex justify-between text-xs mt-1">
-                                    <span>ETH: ${currentEthAllocation.toFixed(1)}%</span>
-                                    <span>USDC: ${currentUsdcAllocation.toFixed(1)}%</span>
-                                    ${!hasNonZeroBalance ? '<span class="mx-auto text-gray-400 text-xs">(Empty Portfolio)</span>' : ''}
-                                </div>
+                                ${portfolioAllocationBar}
                             </div>
                             
                             ${switchNetworkButtons}
@@ -1138,6 +1275,12 @@
                 setTimeout(async () => {
                     try {
                         await getWalletBalances();
+                        
+                        // Also update model performance and LLM decision cards
+                        fetchWalletStats();
+                        const tradingData = await fetch('/api/trading-data').then(res => res.json());
+                        updateModelDecisions(tradingData, userAccount);
+                        
                         // Don't show notification for zero balances, just update the UI
                         if (walletBalances.totalValueUSD <= 0) {
                             updateWalletCard(); // Ensure card updates even with zero balances
@@ -1186,6 +1329,13 @@
                             });
                         }
                         showNotification(`Added ${chainId === 59144 ? 'Linea' : 'Ethereum'} network to MetaMask`, 'success');
+                        
+                        // After adding the network, update model performance and LLM decision cards
+                        setTimeout(async () => {
+                            fetchWalletStats();
+                            const tradingData = await fetch('/api/trading-data').then(res => res.json());
+                            updateModelDecisions(tradingData, userAccount);
+                        }, 1000);
                     } catch (addError) {
                         logToServer('error', 'Error adding network to MetaMask', addError);
                         showNotification('Error adding network to MetaMask', 'error');
@@ -1223,10 +1373,17 @@
             }
             
             try {
+                // Strictly validate ETH price before attempting any calculations
+                if (!walletBalances.ethusd || isNaN(walletBalances.ethusd) || walletBalances.ethusd <= 0) {
+                    console.log("No valid ETH price available - skipping model stats update");
+                    return;
+                }
+                
                 // Get current ETH price and portfolio values
                 const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
                 const totalValue = walletBalances.totalValueUSD || ethValueUSD; // Fallback if totalValueUSD is 0
                 
+                // Skip wallet action update if we have no value
                 if (totalValue <= 0) {
                     console.log("Wallet has no value, skipping wallet action update");
                     return;
@@ -1255,15 +1412,19 @@
                     const targetEthMin = isBullish ? 60 : 20;
                     const targetEthMax = isBullish ? 80 : 40;
                     
-                    const currentEthAllocation = ethValueUSD / totalValue * 100;
+                    // Safely calculate ETH allocation with zero checking
+                    const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
                     
                     // Default to HOLD
                     walletAction = 'HOLD';
                     
-                    if (currentEthAllocation < targetEthMin) {
-                        walletAction = 'BUY';
-                    } else if (currentEthAllocation > targetEthMax) {
-                        walletAction = 'SELL';
+                    // Only make BUY/SELL recommendations if we have some value
+                    if (totalValue > 0) {
+                        if (currentEthAllocation < targetEthMin) {
+                            walletAction = 'BUY';
+                        } else if (currentEthAllocation > targetEthMax) {
+                            walletAction = 'SELL';
+                        }
                     }
                 }
                 
@@ -1274,6 +1435,11 @@
                         console.log(`Skipping wallet action on unsupported network ${chainId}`);
                         return;
                     }
+                    
+                    // Safely calculate ETH allocation again for the API call
+                    const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
+                    const totalValue = walletBalances.totalValueUSD || ethValueUSD;
+                    const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
                     
                     // Update the API to indicate the wallet action
                     fetch('/api/set-wallet-action', {
@@ -1582,6 +1748,12 @@
         }
 
         function updateModelStats(stats) {
+            // If no wallet is connected, don't update model stats
+            if (!userAccount) {
+                displayEmptyStats();
+                return;
+            }
+            
             // Update detailed stats for each model
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const trades = tradeHistory[model];
@@ -1643,88 +1815,138 @@
             // Check if we need to reset daily stats
             checkDailyReset();
 
+            // If wallet is connected, fetch wallet-specific stats
+            if (userAccount) {
+                fetchWalletStats();
+                return;
+            }
+
+            // If no wallet connected, display default state with connect wallet message
             ['gemini', 'groq', 'mistral'].forEach(model => {
-                const trades = tradeHistory[model];
                 const statsContainer = document.getElementById(`${model}-stats`);
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
 
                 if (statsContainer) {
-                    const recentTrades = getRecentTrades(trades);
-                    const totalRecentTrades = recentTrades.length;
-                    const correctRecentTrades = recentTrades.filter(t => t.score >= 1).length;
-                    const incorrectRecentTrades = totalRecentTrades - correctRecentTrades;
-
-                    // Calculate last 24h decision distribution
-                    const recentDecisions = {
-                        buy: recentTrades.filter(t => t.decision === 'BUY').length,
-                        sell: recentTrades.filter(t => t.decision === 'SELL').length,
-                        hold: recentTrades.filter(t => t.decision === 'HOLD').length
-                    };
-
-                    // Calculate 24h average price change for correct trades
-                    const correctTradesAvgChange = correctRecentTrades > 0 
-                        ? (recentTrades.filter(t => t.score >= 1)
-                            .reduce((sum, t) => sum + t.priceChange, 0) / correctRecentTrades).toFixed(2)
-                        : 0;
-
                     statsContainer.innerHTML = `
-                        <div class="grid grid-cols-2 gap-2 text-sm">
-                            <div class="col-span-2 mb-1">
-                                <div class="text-xs font-bold text-neon-blue">Last 24 Hours</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Total Trades:</div>
-                                <div class="font-bold text-cyber-text">${totalRecentTrades}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Correct Trades:</div>
-                                <div class="font-bold text-green-400">${correctRecentTrades}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Incorrect Trades:</div>
-                                <div class="font-bold text-red-400">${incorrectRecentTrades}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Avg Profit Trades:</div>
-                                <div class="font-bold ${parseFloat(correctTradesAvgChange) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                    ${correctTradesAvgChange}%
-                                </div>
-                            </div>
-                            <div class="col-span-2">
-                                <div class="text-gray-400">Decision Distribution:</div>
-                                <div class="flex justify-between mt-1">
-                                    <span class="text-green-400">Buy: ${recentDecisions.buy}</span>
-                                    <span class="text-red-400">Sell: ${recentDecisions.sell}</span>
-                                    <span class="text-blue-400">Hold: ${recentDecisions.hold}</span>
-                                </div>
-                            </div>
+                        <div class="text-center py-2">
+                            <p class="text-gray-400 mb-2">Connect your wallet to see model performance.</p>
+                            <button onclick="connectWallet()" class="cyber-btn text-xs px-3 py-1">Connect Wallet</button>
                         </div>
                     `;
                 }
 
                 if (accuracyElement) {
-                    // For performance score: calculate weighted average of scores from last 100 trades
-                    if (trades.length > 0) {
-                        // Use last 100 trades for performance score
-                        const lastHundredTrades = trades.slice(-100);
-                        // Calculate weighted average with more weight to recent trades
-                        const weights = lastHundredTrades.map((_, i) => 1 + (i / lastHundredTrades.length));
-                        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+                    accuracyElement.textContent = '0.0%';
+                    accuracyElement.className = 'font-bold text-gray-400';
+                }
+            });
+        }
 
-                        const weightedScore = lastHundredTrades.reduce((sum, trade, i) => 
-                            sum + (trade.score * weights[i]), 0) / totalWeight;
-
-                        const accuracy = (weightedScore * 100).toFixed(1);
-                        accuracyElement.textContent = `${accuracy}%`;
-                        accuracyElement.className = `font-bold ${
-                            parseFloat(accuracy) >= 65 ? 'text-green-400' :
-                            parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
-                            'text-red-400'
-                        }`;
-                    } else {
-                        accuracyElement.textContent = '0.0%';
-                        accuracyElement.className = 'font-bold text-gray-400';
+        // Fetch wallet-specific stats from API
+        function fetchWalletStats() {
+            if (!userAccount) return;
+            
+            fetch(`/api/wallet-stats?wallet_address=${userAccount}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch wallet stats');
                     }
+                    return response.json();
+                })
+                .then(data => {
+                    updateWalletModelStats(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching wallet stats:', error);
+                    // Show error in stats containers
+                    ['gemini', 'groq', 'mistral'].forEach(model => {
+                        const statsContainer = document.getElementById(`${model}-stats`);
+                        if (statsContainer) {
+                            statsContainer.innerHTML = `
+                                <div class="text-center py-2">
+                                    <p class="text-red-400">Error loading stats: ${error.message}</p>
+                                </div>
+                            `;
+                        }
+                    });
+                });
+        }
+
+        // Update model stats with wallet-specific data
+        function updateWalletModelStats(walletData) {
+            // Extract action distribution and statistics
+            const actionDistribution = walletData.statistics?.action_distribution || { BUY: 0, SELL: 0, HOLD: 0 };
+            const totalActions = walletData.statistics?.total_actions || 0;
+            const profitableActions = walletData.statistics?.profitable_actions || 0;
+            const accuracy = walletData.statistics?.accuracy || 0;
+            const valueChange = walletData.statistics?.total_value_change || 0;
+            
+            // Get model-specific stats
+            const modelStats = walletData.model_stats || {};
+            
+            // Update each model's stats container
+            ['gemini', 'groq', 'mistral'].forEach(model => {
+                const statsContainer = document.getElementById(`${model}-stats`);
+                const accuracyElement = document.getElementById(`${model}-accuracy`);
+                
+                const modelStat = modelStats[model] || {
+                    total_decisions: 0,
+                    correct_decisions: 0,
+                    accuracy: 0,
+                    decision_counts: { BUY: 0, SELL: 0, HOLD: 0 }
+                };
+                
+                if (statsContainer) {
+                    if (modelStat.total_decisions > 0) {
+                        statsContainer.innerHTML = `
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="col-span-2 mb-1">
+                                    <div class="text-xs font-bold text-neon-blue">Your Wallet Activity</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Total Decisions:</div>
+                                    <div class="font-bold text-cyber-text">${modelStat.total_decisions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Correct Decisions:</div>
+                                    <div class="font-bold text-green-400">${modelStat.correct_decisions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Incorrect Decisions:</div>
+                                    <div class="font-bold text-red-400">${modelStat.total_decisions - modelStat.correct_decisions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Accuracy:</div>
+                                    <div class="font-bold ${modelStat.accuracy >= 65 ? 'text-green-400' : modelStat.accuracy >= 45 ? 'text-yellow-400' : 'text-red-400'}">
+                                        ${modelStat.accuracy.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div class="col-span-2">
+                                    <div class="text-gray-400">Decision Distribution:</div>
+                                    <div class="flex justify-between mt-1">
+                                        <span class="text-green-400">Buy: ${modelStat.decision_counts.BUY}</span>
+                                        <span class="text-red-400">Sell: ${modelStat.decision_counts.SELL}</span>
+                                        <span class="text-blue-400">Hold: ${modelStat.decision_counts.HOLD}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        statsContainer.innerHTML = `
+                            <div class="text-center py-2">
+                                <p class="text-gray-400 mb-2">No trading activity yet for this wallet.</p>
+                            </div>
+                        `;
+                    }
+                }
+                
+                if (accuracyElement) {
+                    accuracyElement.textContent = `${modelStat.accuracy.toFixed(1)}%`;
+                    accuracyElement.className = `font-bold ${
+                        modelStat.accuracy >= 65 ? 'text-green-400' :
+                        modelStat.accuracy >= 45 ? 'text-yellow-400' :
+                        'text-red-400'
+                    }`;
                 }
             });
         }
@@ -1742,320 +1964,384 @@
                 .then(data => {
                     console.log('Received data:', data);
 
-                    // Check for LLM consensus and notify if connected
-                    if (userAccount) {
-                        const decisions = {
-                            gemini: data.gemini_action,
-                            groq: data.groq_action,
-                            mistral: data.mistral_action
-                        };
+                    // Validate ETH price first
+                    const hasValidPrice = data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0;
 
-                        const consensus = checkLLMConsensus(decisions);
-                        if (consensus && (consensus === 'BUY' || consensus === 'SELL')) {
-                            const buyModels = getModelDecisions(decisions);
-                            const sellModels = getModelSellDecisions(decisions);
-                            const currentPrice = data.eth_price.toFixed(2);
-
-                            let message = '';
-                            if (consensus === 'BUY') {
-                                message = `🟢 BUY Signal at $${currentPrice}\n`;
-                                message += `Recommended by: ${buyModels.join(', ')}`;
-                            } else if (consensus === 'SELL') {
-                                message = `🔴 SELL Signal at $${currentPrice}\n`;
-                                message += `Recommended by: ${sellModels.join(', ')}`;
-                            }
-
-                            // Show browser notification
-                            showNotification(message, 'info');
-
-                            // Force wallet balance refresh with a slight delay
-                            // This ensures the wallet card recommendation is updated first
-                            setTimeout(() => {
-                                getWalletBalances().then(() => {
-                                    // Send wallet notification after balances are refreshed
-                                    sendWalletNotification(message, consensus);
-                                });
-                            }, 500);
-                        } else if (consensus === 'HOLD') {
-                            // For HOLD, just show a simple notification without wallet transaction
-                            showNotification(`🔵 HOLD Signal - No action needed`, 'info');
-                            
-                            // Still refresh wallet balances to keep things in sync
-                            getWalletBalances();
+                    // Update metrics with proper error handling
+                    try {
+                        // Check if we have valid price data
+                        if (hasValidPrice) {
+                            document.getElementById('eth-price').textContent = `$${parseFloat(data.eth_price).toFixed(2)}`;
+                            document.getElementById('eth-volume').textContent = `$${(parseFloat(data.eth_volume_24h || 0)/1e6).toFixed(2)}M`;
+                            document.getElementById('eth-high').textContent = `$${parseFloat(data.eth_high_24h || 0).toFixed(2)}`;
+                            document.getElementById('eth-low').textContent = `$${parseFloat(data.eth_low_24h || 0).toFixed(2)}`;
                         } else {
-                            // No consensus, but still refresh wallet balances
-                            getWalletBalances();
+                            document.getElementById('eth-price').textContent = `Waiting for data...`;
+                            document.getElementById('eth-volume').textContent = `Waiting for data...`;
+                            document.getElementById('eth-high').textContent = `Waiting for data...`;
+                            document.getElementById('eth-low').textContent = `Waiting for data...`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating price metrics:', error);
+                        document.getElementById('eth-price').textContent = `Error`;
+                        document.getElementById('eth-volume').textContent = `Error`;
+                        document.getElementById('eth-high').textContent = `Error`;
+                        document.getElementById('eth-low').textContent = `Error`;
+                    }
+
+                    // Update model decisions with error handling
+                    try {
+                        updateModelDecisions(data, userAccount);
+                    } catch (error) {
+                        console.error('Error updating model decisions:', error);
+                    }
+
+                    // Update gas price information with error handling
+                    try {
+                        if (data.gas_prices && 
+                            data.gas_prices.low !== undefined && 
+                            data.gas_prices.standard !== undefined && 
+                            data.gas_prices.fast !== undefined) {
+                            document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
+                            document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
+                            document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                        } else {
+                            document.getElementById('gas-low').textContent = `Waiting for data...`;
+                            document.getElementById('gas-standard').textContent = `Waiting for data...`;
+                            document.getElementById('gas-fast').textContent = `Waiting for data...`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating gas prices:', error);
+                        document.getElementById('gas-low').textContent = `Error`;
+                        document.getElementById('gas-standard').textContent = `Error`;
+                        document.getElementById('gas-fast').textContent = `Error`;
+                    }
+                    
+                    // Update market sentiment with error handling
+                    try {
+                        const sentimentText = document.getElementById('sentiment');
+                        if (sentimentText && data.market_sentiment && 
+                            data.market_sentiment.fear_greed_value && 
+                            data.market_sentiment.fear_greed_sentiment) {
+                            sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
+                            const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800';
+
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                        } else if (sentimentText) {
+                            sentimentText.textContent = `-`;
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating market sentiment:', error);
+                        const sentimentText = document.getElementById('sentiment');
+                        if (sentimentText) {
+                            sentimentText.textContent = `Error`;
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800`;
                         }
                     }
 
-                    // Update metrics
-                    document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
-                    document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
-                    document.getElementById('eth-high').textContent = `$${data.eth_high_24h.toFixed(2)}`;
-                    document.getElementById('eth-low').textContent = `$${data.eth_low_24h.toFixed(2)}`;
-
-                    // Update gas price information
-                    if (data.gas_prices) {
-                        document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
-                        document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
-                        document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
-                    }
-
-                    // Update model decisions and stats
-                    ['gemini', 'groq', 'mistral'].forEach(model => {
-                        const action = data[`${model}_action`];
-                        const stats = data.model_stats?.comparison?.[model] || { accuracy: 0 };
-
-                        // Update decision
-                        const decisionElement = document.getElementById(`${model}-decision`);
-                        if (decisionElement) {
-                            decisionElement.textContent = action || 'N/A';
-                            decisionElement.className = `font-bold text-xl cyber-value ${
-                                action === 'BUY' ? 'text-green-400' :
-                                action === 'SELL' ? 'text-red-400' :
-                                'text-blue-400'
-                            } animate-pulse`;
+                    // Update charts with error handling
+                    try {
+                        if (hasValidPrice) {
+                            updateCharts(
+                                parseFloat(data.eth_price),
+                                data.market_sentiment?.fear_greed_value,
+                                data.gemini_action,
+                                data.groq_action,
+                                data.mistral_action,
+                                parseFloat(data.eth_volume_24h || 0)
+                            );
                         }
+                    } catch (error) {
+                        console.error('Error updating charts:', error);
+                    }
 
-                        // Update accuracy
-                        const accuracyElement = document.getElementById(`${model}-accuracy`);
-                        if (accuracyElement) {
-                            const accuracy = stats.accuracy || 0;
-                            accuracyElement.textContent = `${accuracy.toFixed(1)}%`;
-                            accuracyElement.className = `font-bold ${
-                                accuracy >= 65 ? 'text-green-400' :
-                                accuracy >= 45 ? 'text-yellow-400' :
-                                'text-red-400'
-                            }`;
+                    // Only update model stats if wallet is connected
+                    try {
+                        if (userAccount && hasValidPrice && data.model_stats?.comparison) {
+                            // Get wallet-specific stats instead of general stats
+                            fetchWalletStats();
+                        } else {
+                            // Make sure model cards show connect wallet message
+                            displayEmptyStats();
                         }
-                    });
-
-                    // Update market sentiment
-                    const sentimentText = document.getElementById('sentiment');
-                    if (sentimentText && data.market_sentiment) {
-                        sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
-                        const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800';
-
-                        sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                    } catch (error) {
+                        console.error('Error updating model stats:', error);
+                        displayEmptyStats();
                     }
 
-                    // Update charts
-                    updateCharts(
-                        data.eth_price,
-                        data.market_sentiment?.fear_greed_value,
-                        data.gemini_action,
-                        data.groq_action,
-                        data.mistral_action,
-                        data.eth_volume_24h
-                    );
-
-                    // Update detailed model stats
-                    if (data.model_stats?.comparison) {
-                        updateModelStats(data.model_stats);
+                    // Only persist trading history if wallet is connected
+                    try {
+                        if (userAccount && hasValidPrice) {
+                            persistTradingHistory();
+                        }
+                    } catch (error) {
+                        console.error('Error persisting trading history:', error);
                     }
-
-                    // Persist trading history after updates
-                    persistTradingHistory();
                 })
                 .catch(error => {
-                    console.error('Error fetching data:', error);
+                    console.error('Failed to fetch market data:', error);
                     document.querySelectorAll('.cyber-value').forEach(el => {
                         el.textContent = 'Error';
                         el.classList.add('text-red-500');
                     });
                 });
+
+            // If we have a wallet but no valid price, update wallet card
+            if (userAccount && !hasValidPrice) {
+                updateWalletCard();
+            }
+        }
+
+        // Update model decisions based on wallet connection status
+        function updateModelDecisions(data, walletAddress) {
+            const models = ['gemini', 'groq', 'mistral'];
+            const modelActions = {
+                gemini: data.gemini_action,
+                groq: data.groq_action,
+                mistral: data.mistral_action
+            };
+
+            // First, validate ETH price data
+            const hasValidPrice = data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0;
+            
+            // For each model decision card
+            models.forEach(model => {
+                const decisionElement = document.getElementById(`${model}-decision`);
+                if (!decisionElement) return;
+
+                // First remove all classes to start fresh
+                decisionElement.classList.remove('text-green-400', 'text-red-400', 'text-blue-400', 'text-gray-400', 'text-yellow-400');
+                
+                if (!walletAddress) {
+                    // No wallet connected - show connect wallet message
+                    decisionElement.innerHTML = `<span class="text-sm">Connect wallet first</span>`;
+                    decisionElement.classList.add('text-gray-400');
+                    return;
+                }
+                
+                // If ETH price is invalid, show error message
+                if (!hasValidPrice) {
+                    decisionElement.innerHTML = `<span class="text-sm">Waiting for price data</span>`;
+                    decisionElement.classList.add('text-yellow-400');
+                    return;
+                }
+
+                // Wallet connected - show action and appropriate color
+                const action = modelActions[model];
+                
+                // If no action yet (null, undefined, empty string), show "Decision in progress"
+                if (!action || action === '') {
+                    decisionElement.innerHTML = `<span>Decision in progress</span>`;
+                    decisionElement.classList.add('text-yellow-400');
+                    return;
+                }
+                
+                // Valid action received, show the action with appropriate styling
+                let actionClass = '';
+                
+                switch (action) {
+                    case 'BUY':
+                        actionClass = 'text-green-400';
+                        break;
+                    case 'SELL':
+                        actionClass = 'text-red-400';
+                        break;
+                    case 'HOLD':
+                        actionClass = 'text-blue-400';
+                        break;
+                    default:
+                        actionClass = 'text-gray-400';
+                }
+                
+                decisionElement.textContent = action;
+                decisionElement.classList.add(actionClass);
+                
+                // Only store decisions when wallet is connected
+                if (walletAddress) {
+                    // Store this decision linked to the current wallet
+                    storeAIDecisionForWallet(model, action, data.eth_price, walletAddress);
+                }
+            });
+
+            // Check for consensus and notify if wallet is connected
+            if (walletAddress && hasValidPrice) {
+                const decisions = {
+                    gemini: data.gemini_action,
+                    groq: data.groq_action,
+                    mistral: data.mistral_action
+                };
+
+                // Filter out undefined or empty decisions
+                const validDecisions = {};
+                for (const [model, decision] of Object.entries(decisions)) {
+                    if (decision && decision !== '') {
+                        validDecisions[model] = decision;
+                    }
+                }
+
+                // Only check consensus if we have at least 2 valid decisions
+                if (Object.keys(validDecisions).length >= 2) {
+                    const consensus = checkLLMConsensus(validDecisions);
+                    if (consensus && (consensus === 'BUY' || consensus === 'SELL')) {
+                        const buyModels = getModelDecisions(decisions);
+                        const sellModels = getModelSellDecisions(decisions);
+                        const currentPrice = data.eth_price.toFixed(2);
+
+                        let message = '';
+                        if (consensus === 'BUY') {
+                            message = `🟢 BUY Signal at $${currentPrice}\n`;
+                            message += `Recommended by: ${buyModels.join(', ')}`;
+                        } else if (consensus === 'SELL') {
+                            message = `🔴 SELL Signal at $${currentPrice}\n`;
+                            message += `Recommended by: ${sellModels.join(', ')}`;
+                        }
+
+                        // Show browser notification for BUY and SELL signals only
+                        showNotification(message, 'info');
+
+                        // Force wallet balance refresh with a slight delay
+                        // This ensures the wallet card recommendation is updated first
+                        setTimeout(() => {
+                            getWalletBalances().then(() => {
+                                // Send wallet notification after balances are refreshed - only for BUY and SELL
+                                sendWalletNotification(consensus, message);
+                            });
+                        }, 500);
+                    } else if (consensus === 'HOLD') {
+                        // For HOLD signals, don't show any notification, just refresh wallet balances
+                        console.log('HOLD signal - No notification needed');
+                        
+                        // Still refresh wallet balances to keep things in sync
+                        getWalletBalances();
+                    } else {
+                        // No consensus, but still refresh wallet balances
+                        getWalletBalances();
+                    }
+                } else {
+                    console.log("Not enough valid decisions to determine consensus");
+                }
+            }
+        }
+        
+        // Store AI decision for specific wallet
+        async function storeAIDecisionForWallet(model, decision, price, walletAddress) {
+            try {
+                await fetch('/api/store-ai-decision', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        decision: decision,
+                        eth_price: price,
+                        wallet_address: walletAddress
+                    })
+                });
+                console.log(`Stored ${decision} decision for ${model} model linked to wallet ${walletAddress}`);
+            } catch (error) {
+                console.error('Error storing AI decision for wallet:', error);
+            }
         }
 
         // Add function to fetch daily stats
         function fetchDailyStats() {
-            fetch('/api/daily-stats')
-                .then(response => response.json())
-                .then(data => {
-                    // Log the data
-                    console.log('Daily stats:', data);
-                    
-                    // If wallet is connected, filter stats to only show wallet-based operations
-                    if (userAccount) {
-                        fetch(`/api/wallet-stats?wallet_address=${userAccount}`)
-                            .then(response => response.json())
-                            .then(walletData => {
-                                // If we have wallet data, use it for stats display
-                                if (walletData && walletData.statistics) {
-                                    displayWalletStats(walletData);
-                                    return; // Skip standard stats display
-                                } else {
-                                    // Fall back to regular stats but with zeros
-                                    displayEmptyStats();
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error fetching wallet stats:', error);
-                                displayEmptyStats();
-                            });
-                    } else {
-                        // No wallet connected, display regular stats
-                        // For each model, update the stats display
-                        ['gemini', 'groq', 'mistral'].forEach(model => {
-                            if (data[model] && data[model].length > 0) {
-                                // Get the most recent day's stats
-                                const todayStats = data[model][0];
-                                
-                                // Update performance score to 0 if no trades (for new deployments)
-                                const accuracyElement = document.getElementById(`${model}-accuracy`);
-                                if (accuracyElement && todayStats.total_trades === 0 && 
-                                    (!tradeHistory[model] || tradeHistory[model].length === 0)) {
-                                    accuracyElement.textContent = '0.0%';
-                                    accuracyElement.className = 'font-bold text-gray-400';
-                                    
-                                    // Also clear any cached trade history data for new deployments
-                                    tradeHistory[model] = [];
-                                }
-                                
-                                const statsContainer = document.getElementById(`${model}-stats`);
-                                if (statsContainer) {
-                                    statsContainer.innerHTML = `
-                                        <div class="grid grid-cols-2 gap-2 text-sm">
-                                            <div class="col-span-2 mb-1">
-                                                <div class="text-xs font-bold text-neon-blue">Last 24 Hours</div>
-                                            </div>
-                                            <div>
-                                                <div class="text-gray-400">Total Trades:</div>
-                                                <div class="font-bold text-cyber-text">${todayStats.total_trades}</div>
-                                            </div>
-                                            <div>
-                                                <div class="text-gray-400">Correct Trades:</div>
-                                                <div class="font-bold text-green-400">${todayStats.correct_trades}</div>
-                                            </div>
-                                            <div>
-                                                <div class="text-gray-400">Incorrect Trades:</div>
-                                                <div class="font-bold text-red-400">${todayStats.incorrect_trades}</div>
-                                            </div>
-                                            <div>
-                                                <div class="text-gray-400">Avg Profit Trades:</div>
-                                                <div class="font-bold ${parseFloat(todayStats.avg_profit) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                                    ${Number(todayStats.avg_profit).toFixed(2)}%
-                                                </div>
-                                            </div>
-                                            <div class="col-span-2">
-                                                <div class="text-gray-400">Decision Distribution:</div>
-                                                <div class="flex justify-between mt-1">
-                                                    <span class="text-green-400">Buy: ${todayStats.buy_decisions}</span>
-                                                    <span class="text-red-400">Sell: ${todayStats.sell_decisions}</span>
-                                                    <span class="text-blue-400">Hold: ${todayStats.hold_decisions}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                            } else {
-                                // Handle case where there are no stats for the model
-                                displayEmptyStatsForModel(model);
-                            }
-                        });
-                    }
-                    
-                    // Update localStorage with the reset tradeHistory
-                    persistTradingHistory();
-                })
-                .catch(error => console.error('Error fetching daily stats:', error));
+            // If wallet is connected, only fetch wallet-specific stats
+            if (userAccount) {
+                fetch(`/api/wallet-stats?wallet_address=${userAccount}`)
+                    .then(response => response.json())
+                    .then(walletData => {
+                        if (walletData && walletData.statistics) {
+                            displayWalletStats(walletData);
+                        } else {
+                            displayEmptyStats();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching wallet stats:', error);
+                        displayEmptyStats();
+                    });
+                return; // Skip fetching global stats
+            }
+            
+            // No wallet connected - display empty stats with connect wallet message
+            displayEmptyStats();
         }
         
         // Display empty stats for all models
         function displayEmptyStats() {
             ['gemini', 'groq', 'mistral'].forEach(model => {
-                displayEmptyStatsForModel(model);
+                const statsContainer = document.getElementById(`${model}-stats`);
+                const accuracyElement = document.getElementById(`${model}-accuracy`);
+                
+                if (statsContainer) {
+                    statsContainer.innerHTML = `
+                        <div class="text-center py-2">
+                            <p class="text-gray-400 mb-2">Connect your wallet to see model performance.</p>
+                        </div>
+                    `;
+                }
+                
+                if (accuracyElement) {
+                    accuracyElement.textContent = '0.0%';
+                    accuracyElement.className = 'font-bold text-gray-400';
+                }
             });
-        }
-        
-        // Display empty stats for a specific model
-        function displayEmptyStatsForModel(model) {
-            const statsContainer = document.getElementById(`${model}-stats`);
-            if (statsContainer) {
-                statsContainer.innerHTML = `
-                    <div class="grid grid-cols-2 gap-2 text-sm">
-                        <div class="col-span-2 mb-1">
-                            <div class="text-xs font-bold text-neon-blue">Connected Wallet Only</div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Total Trades:</div>
-                            <div class="font-bold text-cyber-text">0</div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Correct Trades:</div>
-                            <div class="font-bold text-green-400">0</div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Incorrect Trades:</div>
-                            <div class="font-bold text-red-400">0</div>
-                        </div>
-                        <div>
-                            <div class="text-gray-400">Avg Profit Trades:</div>
-                            <div class="font-bold text-green-400">0.00%</div>
-                        </div>
-                        <div class="col-span-2">
-                            <div class="text-gray-400">Decision Distribution:</div>
-                            <div class="flex justify-between mt-1">
-                                <span class="text-green-400">Buy: 0</span>
-                                <span class="text-red-400">Sell: 0</span>
-                                <span class="text-blue-400">Hold: 0</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Also reset performance score
-            const accuracyElement = document.getElementById(`${model}-accuracy`);
-            if (accuracyElement) {
-                accuracyElement.textContent = '0.0%';
-                accuracyElement.className = 'font-bold text-gray-400';
-            }
         }
         
         // Display wallet-specific stats
         function displayWalletStats(walletData) {
             const stats = walletData.statistics;
-            const actionDistribution = stats.action_distribution;
+            const actionDistribution = stats.action_distribution || { BUY: 0, SELL: 0, HOLD: 0 };
             
             // Display the same stats for all models since we have one wallet action that applies to all
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const statsContainer = document.getElementById(`${model}-stats`);
                 if (statsContainer) {
-                    statsContainer.innerHTML = `
-                        <div class="grid grid-cols-2 gap-2 text-sm">
-                            <div class="col-span-2 mb-1">
-                                <div class="text-xs font-bold text-neon-blue">Wallet Performance</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Total Actions:</div>
-                                <div class="font-bold text-cyber-text">${stats.total_actions}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Profitable:</div>
-                                <div class="font-bold text-green-400">${stats.profitable_actions}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Unprofitable:</div>
-                                <div class="font-bold text-red-400">${stats.total_actions - stats.profitable_actions}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-400">Value Change:</div>
-                                <div class="font-bold ${parseFloat(stats.total_value_change) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                    $${stats.total_value_change.toFixed(2)}
+                    if (stats.total_actions > 0) {
+                        statsContainer.innerHTML = `
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="col-span-2 mb-1">
+                                    <div class="text-xs font-bold text-neon-blue">Wallet Performance</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Total Actions:</div>
+                                    <div class="font-bold text-cyber-text">${stats.total_actions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Profitable:</div>
+                                    <div class="font-bold text-green-400">${stats.profitable_actions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Unprofitable:</div>
+                                    <div class="font-bold text-red-400">${stats.total_actions - stats.profitable_actions}</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-400">Value Change:</div>
+                                    <div class="font-bold ${parseFloat(stats.total_value_change) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                        ${stats.total_value_change.toFixed(2)}%
+                                    </div>
+                                </div>
+                                <div class="col-span-2">
+                                    <div class="text-gray-400">Action Distribution:</div>
+                                    <div class="flex justify-between mt-1">
+                                        <span class="text-green-400">Buy: ${actionDistribution.BUY || 0}</span>
+                                        <span class="text-red-400">Sell: ${actionDistribution.SELL || 0}</span>
+                                        <span class="text-blue-400">Hold: ${actionDistribution.HOLD || 0}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-span-2">
-                                <div class="text-gray-400">Action Distribution:</div>
-                                <div class="flex justify-between mt-1">
-                                    <span class="text-green-400">Buy: ${actionDistribution.BUY || 0}</span>
-                                    <span class="text-red-400">Sell: ${actionDistribution.SELL || 0}</span>
-                                    <span class="text-blue-400">Hold: ${actionDistribution.HOLD || 0}</span>
-                                </div>
+                        `;
+                    } else {
+                        statsContainer.innerHTML = `
+                            <div class="text-center py-2">
+                                <p class="text-gray-400 mb-2">No trading activity yet for this wallet.</p>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    }
                 }
                 
                 // Update accuracy based on wallet performance
@@ -2124,23 +2410,32 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Initializing dashboard...');
             checkFreshSession(); // Check if storage needs clearing
-            loadPersistedHistory(); // Load persisted data first
-            checkDailyReset(); // Check if we need to reset daily stats
+            
+            // Initialize UI with empty state first for model stats
+            displayEmptyStats();
+            
+            // Initialize charts before any data loading
             initCharts();
-            updateData();  // Initial data fetch
-            fetchDailyStats(); // Fetch daily stats
-
+            
+            // Check for daily reset
+            checkDailyReset(); 
+            
+            // First, load global market data (this is not wallet-dependent)
+            updateData();
+            
             // Set up auto-refresh every 10 minutes
             const refreshInterval = setInterval(() => {
                 console.log('Auto-refresh triggered');
                 updateData();
-                fetchDailyStats(); // Also refresh daily stats
             }, 600000);  // 10 minutes
 
             // Clean up on page unload
             window.addEventListener('beforeunload', () => {
                 clearInterval(refreshInterval);
-                persistTradingHistory(); // Ensure data is saved before unload
+                // Only persist if wallet is connected
+                if (userAccount) {
+                    persistTradingHistory();
+                }
             });
         });
 
@@ -2194,68 +2489,328 @@
         }
 
         // Add wallet notification function
-        async function sendWalletNotification(message, signalType) {
-            if (!userAccount || !web3) return;
+        async function sendWalletNotification(signalType, message) {
+            if (!userAccount || !window.ethereum || !web3) {
+                console.log("Cannot send wallet notification: no wallet connected");
+                return;
+            }
             
             try {
-                // For HOLD signals, only show browser notification, don't send transaction
-                if (signalType === 'HOLD') {
-                    console.log('HOLD signal - No transaction needed');
+                // Only process BUY or SELL signals (skip HOLD)
+                if (signalType !== 'BUY' && signalType !== 'SELL') {
+                    console.log(`Skipping wallet notification for ${signalType} signal - only BUY and SELL signals get wallet notifications`);
                     return;
                 }
                 
-                // For BUY/SELL signals, calculate appropriate transaction amount
-                let transactionValue = '0'; // Default to 0
-                let transactionDetails = null;
+                // Log that we're sending a wallet notification
+                console.log(`Sending wallet notification for ${signalType} signal to ${userAccount}`);
                 
-                // Get current wallet balances
-                const ethBalance = walletBalances.eth;
-                const usdcBalance = walletBalances.usdc;
-                const currentPrice = walletBalances.ethusd;
+                // Get current wallet balances and validate
+                const ethBalance = walletBalances.eth || 0;
+                const usdcBalance = walletBalances.usdc || 0;
+                const currentPrice = walletBalances.ethusd || 0;
+                
+                // Strictly validate price data is available - NEVER use default values
+                if (currentPrice <= 0 || isNaN(currentPrice)) {
+                    console.log("No valid ETH price available - cannot send transaction suggestion");
+                    showNotification(`${signalType} signal received but ETH price data unavailable. No transaction suggested.`, 'warning');
+                    return;
+                }
+                
+                // Get current chain ID
+                const chainId = await web3.eth.getChainId();
+                const isLinea = chainId === 59144;
+                const isEthereum = chainId === 1;
+                
+                // Get gas price data for the transaction
+                let gasPrice;
+                let maxFeePerGas;
+                let maxPriorityFeePerGas;
+                let gasLimit = '0x5208'; // 21000 gas for standard transfer
+                
+                try {
+                    // Fetch current gas prices from backend
+                    const gasDataResponse = await fetch('/api/trading-data');
+                    const gasData = await gasDataResponse.json();
+                    
+                    if (gasData && gasData.gas_prices) {
+                        // Use the standard gas price (convert from Gwei to Wei)
+                        const standardGasPriceGwei = gasData.gas_prices.standard;
+                        gasPrice = web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
+                        
+                        // For EIP-1559 compatible networks
+                        if (gasData.gas_prices.base_fee) {
+                            const baseFeeGwei = gasData.gas_prices.base_fee;
+                            // maxFeePerGas = 2 * baseFee + priorityFee
+                            const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
+                            maxPriorityFeePerGas = web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
+                            maxFeePerGas = web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
+                        }
+                    }
+                } catch (gasError) {
+                    console.warn("Error fetching gas data:", gasError);
+                    // Fallback gas values based on network
+                    if (isEthereum) {
+                        gasPrice = web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
+                        maxPriorityFeePerGas = web3.utils.toWei('1.5', 'gwei');
+                        maxFeePerGas = web3.utils.toWei('100', 'gwei');
+                    } else if (isLinea) {
+                        gasPrice = web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
+                        maxPriorityFeePerGas = web3.utils.toWei('0.05', 'gwei');
+                        maxFeePerGas = web3.utils.toWei('0.2', 'gwei');
+                    } else {
+                        // Use a reasonable default for other networks
+                        gasPrice = web3.utils.toWei('30', 'gwei');
+                    }
+                }
+                
+                // Record this wallet action in the database
+                await recordWalletAction(signalType);
                 
                 // Lower minimum transaction amount for micro-balances
-                // Set minimum to the lower of 0.001 ETH or 25% of available balance
-                const MIN_ETH_TRANSACTION = Math.min(0.001, ethBalance * 0.25);
-                const MIN_USDC_TRANSACTION = Math.min(0.5, usdcBalance * 0.25);
+                // Set minimum to the lower of 0.001 ETH or 25% of available balance (with safety check)
+                const MIN_ETH_TRANSACTION = ethBalance > 0 ? Math.min(0.001, ethBalance * 0.25) : 0;
+                const MIN_USDC_TRANSACTION = usdcBalance > 0 ? Math.min(0.5, usdcBalance * 0.25) : 0;
                 
                 console.log(`Processing ${signalType} signal with balances: ${ethBalance} ETH, ${usdcBalance} USDC`);
                 console.log(`Minimum transactions: ${MIN_ETH_TRANSACTION} ETH, ${MIN_USDC_TRANSACTION} USDC`);
                 
-                // Show suggestions based on available balances
+                // Create a notification message to send to the wallet
                 if (signalType === 'BUY' && usdcBalance > 0) {
-                    // For BUY, suggest using available USDC
-                    // If balance is very small, suggest using most of it
+                    // For BUY signal, suggest using USDC to buy ETH
                     const usdcToUse = usdcBalance > 0.5 ? Math.max(usdcBalance * 0.05, MIN_USDC_TRANSACTION) : usdcBalance * 0.9;
+                    
+                    // Safety check: ensure values are valid
+                    if (usdcToUse <= 0 || currentPrice <= 0) {
+                        console.log("Invalid USDC or price values for BUY calculation");
+                        showNotification(`BUY signal received - Unable to calculate conversion amounts`, 'warning');
+                        return;
+                    }
+                    
                     const ethEquivalent = usdcToUse / currentPrice;
                     
                     // Show a notification about the suggested swap
                     showNotification(`Suggested action: Convert ${usdcToUse.toFixed(2)} USDC to approximately ${ethEquivalent.toFixed(4)} ETH`, 'info');
                     
-                    // Don't send an actual transaction, just log it
-                    console.log(`BUY signal generated - Would swap ${usdcToUse.toFixed(2)} USDC for ETH`);
-                    return;
+                    // Create and send a transaction to the wallet (this will just prompt the user, not execute automatically)
+                    try {
+                        // Prepare transaction parameters based on network support for EIP-1559
+                        let txParams = {
+                            from: userAccount,
+                            to: userAccount,
+                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: web3.utils.toHex(message),
+                            gas: gasLimit,
+                        };
+                        
+                        // Add appropriate gas parameters based on the network
+                        if (isEthereum) {
+                            // Ethereum mainnet uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else if (isLinea) {
+                            // Linea uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else {
+                            // Fallback for other networks
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                        
+                        await window.ethereum.request({
+                            method: 'eth_sendTransaction',
+                            params: [txParams],
+                        });
+                        
+                        console.log("Wallet notification sent successfully");
+                        
+                        // Update model stats after notification
+                        updateModelStatsForWallet();
+                        // Fetch updated wallet stats
+                        fetchWalletStats();
+                    } catch (txError) {
+                        // User may have rejected the transaction, which is fine
+                        console.log("User declined the wallet notification transaction", txError);
+                    }
                     
+                    return;
                 } else if (signalType === 'SELL' && ethBalance > 0) {
-                    // For SELL, suggest using available ETH
-                    // If balance is very small, suggest using most of it
+                    // For SELL signal, suggest selling ETH for USDC
                     const ethToSell = ethBalance > 0.01 ? Math.max(ethBalance * 0.05, MIN_ETH_TRANSACTION) : ethBalance * 0.9;
+                    
+                    // Safety check: ensure values are valid
+                    if (ethToSell <= 0 || currentPrice <= 0) {
+                        console.log("Invalid ETH or price values for SELL calculation");
+                        showNotification(`SELL signal received - Unable to calculate conversion amounts`, 'warning');
+                        return;
+                    }
+                    
                     const usdcEquivalent = ethToSell * currentPrice;
                     
                     // Show a notification about the suggested swap
                     showNotification(`Suggested action: Convert ${ethToSell.toFixed(4)} ETH to approximately ${usdcEquivalent.toFixed(2)} USDC`, 'info');
                     
-                    // Don't send an actual transaction, just log it
-                    console.log(`SELL signal generated - Would swap ${ethToSell.toFixed(4)} ETH for USDC`);
+                    // Create and send a transaction to the wallet
+                    try {
+                        // Prepare transaction parameters based on network support for EIP-1559
+                        let txParams = {
+                            from: userAccount,
+                            to: userAccount,
+                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: web3.utils.toHex(message),
+                            gas: gasLimit,
+                        };
+                        
+                        // Add appropriate gas parameters based on the network
+                        if (isEthereum) {
+                            // Ethereum mainnet uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else if (isLinea) {
+                            // Linea uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else {
+                            // Fallback for other networks
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                        
+                        await window.ethereum.request({
+                            method: 'eth_sendTransaction',
+                            params: [txParams],
+                        });
+                        
+                        console.log("Wallet notification sent successfully");
+                        
+                        // Update model stats after notification
+                        updateModelStatsForWallet();
+                        // Fetch updated wallet stats
+                        fetchWalletStats();
+                    } catch (txError) {
+                        console.log("User declined the wallet notification transaction", txError);
+                    }
+                    
                     return;
                 }
                 
                 // If we reached here, either not enough balance or just notification
                 console.log(`Signal received (${signalType}), but no transaction suggestion created`);
                 
-                // Just show a generic notification
-                showNotification(`${signalType} signal received - Check your portfolio allocation`, 'info');
+                // Still try to send a simple notification transaction
+                try {
+                    // Prepare transaction parameters based on network support for EIP-1559
+                    let txParams = {
+                        from: userAccount,
+                        to: userAccount,
+                        value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                        data: web3.utils.toHex(`${signalType} signal received - Check your portfolio allocation`),
+                        gas: gasLimit,
+                    };
+                    
+                    // Add appropriate gas parameters based on the network
+                    if (isEthereum) {
+                        // Ethereum mainnet uses EIP-1559
+                        if (maxFeePerGas && maxPriorityFeePerGas) {
+                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                        } else {
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                    } else if (isLinea) {
+                        // Linea uses EIP-1559
+                        if (maxFeePerGas && maxPriorityFeePerGas) {
+                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                        } else {
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                    } else {
+                        // Fallback for other networks
+                        txParams.gasPrice = web3.utils.toHex(gasPrice);
+                    }
+                    
+                    await window.ethereum.request({
+                        method: 'eth_sendTransaction',
+                        params: [txParams],
+                    });
+                    
+                    console.log("General wallet notification sent successfully");
+                    
+                    // Update model stats after notification
+                    updateModelStatsForWallet();
+                    // Fetch updated wallet stats
+                    fetchWalletStats();
+                } catch (txError) {
+                    console.log("User declined the wallet notification transaction", txError);
+                }
             } catch (error) {
                 logToServer('error', 'Error processing wallet notification', error);
+                showNotification(`Error processing ${signalType} signal: ${error.message}`, 'error');
+            }
+        }
+        
+        // Record wallet action to the database
+        async function recordWalletAction(action) {
+            if (!userAccount) return;
+            
+            try {
+                // Verify we have valid price data first
+                if (!walletBalances.ethusd || isNaN(walletBalances.ethusd) || walletBalances.ethusd <= 0) {
+                    console.warn("Cannot record wallet action: ETH price data unavailable");
+                    return null;
+                }
+                
+                // Calculate ETH allocation
+                const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
+                const totalValue = walletBalances.totalValueUSD || ethValueUSD;
+                const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
+                
+                // Get current chain ID
+                const chainId = await web3.eth.getChainId();
+                
+                // Send action to server to be recorded
+                const response = await fetch('/api/set-wallet-action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        wallet_address: userAccount,
+                        wallet_action: action,
+                        eth_balance: walletBalances.eth,
+                        usdc_balance: walletBalances.usdc,
+                        eth_allocation: currentEthAllocation,
+                        network: chainId === 59144 ? 'linea' : 'ethereum'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log("Wallet action recorded successfully:", data);
+                    return data;
+                } else {
+                    console.warn("Failed to record wallet action:", response.status);
+                    return null;
+                }
+            } catch (error) {
+                console.error("Error recording wallet action:", error);
+                return null;
             }
         }
 
