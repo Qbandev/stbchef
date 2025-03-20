@@ -253,7 +253,7 @@ Portfolio Rebalancing Strategy:
 4. Market Analysis:
    - Use volatility to adjust position sizes
    - Use momentum to predict short-term direction
-   - Use RSI to identify overbought/oversold conditions
+   - Use RSI to identify overbought/oversold conditions (RSI > 70 is overbought, RSI < 30 is oversold)
    - Consider price range for support/resistance levels
    - Factor in market sentiment for trend confirmation
 
@@ -269,25 +269,35 @@ Portfolio Rebalancing Strategy:
    - Measure portfolio rebalancing efficiency
    - Evaluate market impact minimization
 
-7. Decision Making:
-   - BUY if:
-     * Price below support level
-     * RSI oversold
-     * Strong bullish momentum
-     * Low gas prices
-     * ETH allocation below target
-   - SELL if:
-     * Price above resistance
-     * RSI overbought
-     * Bearish momentum
-     * High gas prices
-     * ETH allocation above target
-   - HOLD if:
-     * Price within normal range
-     * Current allocation optimal
-     * Gas prices unfavorable
+7. Critical Evaluation for HOLD Decision:
+   - Always consider HOLD as a valid option
+   - HOLD is recommended when:
+     * Price remains within a 1% range of previous price
      * No clear directional bias
+     * Gas prices are high relative to potential profit
+     * Current position is already optimal given market conditions
+     * Volatility is low and no significant market events expected
 
-Respond with exactly one word - BUY, SELL, or HOLD - based on your comprehensive analysis of market conditions and portfolio optimization strategy."""
+8. Decision Making:
+   - BUY if and only if:
+     * Price below support level
+     * RSI is below 30 (oversold condition)
+     * Strong bullish momentum with indicators confirming uptrend
+     * Low gas prices relative to potential gain
+     * ETH allocation is significantly below target (under 50%)
+   - SELL if and only if:
+     * Price above established resistance
+     * RSI above 70 (overbought condition)
+     * Clear bearish momentum with confirming indicators
+     * High gas prices do not negate potential savings
+     * ETH allocation exceeds target range (over 85%)
+   - HOLD if:
+     * Price within normal range (within 1-2% of recent average)
+     * Current allocation within optimal target range
+     * Gas prices unfavorable relative to potential gain/loss
+     * No clear directional bias in technical indicators
+     * Market sentiment is neutral or contradictory signals present
+
+Respond with exactly one word - BUY, SELL, or HOLD - based on your comprehensive analysis of market conditions and portfolio optimization strategy. Remember that HOLD is often the optimal choice when conditions don't strongly favor buying or selling."""
 
         return prompt
