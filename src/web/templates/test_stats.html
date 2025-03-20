@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Performance Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background-color: #0a0a1a;
+            border: 1px solid #00f3ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+        }
+        .model-card {
+            background-color: rgba(26, 26, 46, 0.8);
+            border: 1px solid #00f3ff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        h1, h2, h3 {
+            color: #00f3ff;
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.7);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px 16px;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            text-align: left;
+        }
+        th {
+            background-color: rgba(0, 243, 255, 0.1);
+        }
+        .good {
+            color: #4ade80;
+        }
+        .moderate {
+            color: #facc15;
+        }
+        .poor {
+            color: #f87171;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold mb-6">Model Performance Testing</h1>
+        
+        <div class="card">
+            <h2 class="text-xl mb-4">Performance Scoring Analysis</h2>
+            <p class="mb-4">This page demonstrates the comparison between raw accuracy and weighted performance scores.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                <div class="model-card">
+                    <h3 class="text-lg font-bold mb-2">Gemini AI</h3>
+                    <table>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                        <tr>
+                            <td>Total Decisions</td>
+                            <td id="gemini-total">-</td>
+                        </tr>
+                        <tr>
+                            <td>Correct Decisions</td>
+                            <td id="gemini-correct">-</td>
+                        </tr>
+                        <tr>
+                            <td>Raw Accuracy</td>
+                            <td id="gemini-raw">-</td>
+                        </tr>
+                        <tr>
+                            <td>Performance Score</td>
+                            <td id="gemini-score">-</td>
+                        </tr>
+                        <tr>
+                            <td>Decision Distribution</td>
+                            <td id="gemini-dist">-</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="model-card">
+                    <h3 class="text-lg font-bold mb-2">Groq AI</h3>
+                    <table>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                        <tr>
+                            <td>Total Decisions</td>
+                            <td id="groq-total">-</td>
+                        </tr>
+                        <tr>
+                            <td>Correct Decisions</td>
+                            <td id="groq-correct">-</td>
+                        </tr>
+                        <tr>
+                            <td>Raw Accuracy</td>
+                            <td id="groq-raw">-</td>
+                        </tr>
+                        <tr>
+                            <td>Performance Score</td>
+                            <td id="groq-score">-</td>
+                        </tr>
+                        <tr>
+                            <td>Decision Distribution</td>
+                            <td id="groq-dist">-</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="model-card">
+                    <h3 class="text-lg font-bold mb-2">Mistral AI</h3>
+                    <table>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                        <tr>
+                            <td>Total Decisions</td>
+                            <td id="mistral-total">-</td>
+                        </tr>
+                        <tr>
+                            <td>Correct Decisions</td>
+                            <td id="mistral-correct">-</td>
+                        </tr>
+                        <tr>
+                            <td>Raw Accuracy</td>
+                            <td id="mistral-raw">-</td>
+                        </tr>
+                        <tr>
+                            <td>Performance Score</td>
+                            <td id="mistral-score">-</td>
+                        </tr>
+                        <tr>
+                            <td>Decision Distribution</td>
+                            <td id="mistral-dist">-</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="text-xl mb-4">Portfolio Recommendation Logic</h2>
+            <div class="mb-4">
+                <h3 class="text-lg font-bold mb-2">Current Settings</h3>
+                <p>Severe imbalance threshold: <span id="threshold">10%</span></p>
+                <p>Current ETH Allocation: <span id="allocation">-</span></p>
+                <p>Target Range: <span id="target-range">-</span></p>
+                <p>Consensus: <span id="consensus">-</span></p>
+                <p>Recommendation: <span id="recommendation">-</span></p>
+            </div>
+            
+            <h3 class="text-lg font-bold mb-2">Test Scenarios</h3>
+            <table class="mb-4">
+                <tr>
+                    <th>Scenario</th>
+                    <th>ETH Allocation</th>
+                    <th>Target Range</th>
+                    <th>LLM Consensus</th>
+                    <th>Expected Recommendation</th>
+                    <th>Result</th>
+                </tr>
+                <tr>
+                    <td>Far Below Target</td>
+                    <td>5%</td>
+                    <td>20-40%</td>
+                    <td>HOLD</td>
+                    <td>BUY (Override)</td>
+                    <td id="scenario1">-</td>
+                </tr>
+                <tr>
+                    <td>Slightly Below Target</td>
+                    <td>15%</td>
+                    <td>20-40%</td>
+                    <td>HOLD</td>
+                    <td>HOLD (Use Consensus)</td>
+                    <td id="scenario2">-</td>
+                </tr>
+                <tr>
+                    <td>Within Target</td>
+                    <td>30%</td>
+                    <td>20-40%</td>
+                    <td>BUY</td>
+                    <td>BUY (Use Consensus)</td>
+                    <td id="scenario3">-</td>
+                </tr>
+                <tr>
+                    <td>Slightly Above Target</td>
+                    <td>45%</td>
+                    <td>20-40%</td>
+                    <td>SELL</td>
+                    <td>SELL (Use Consensus)</td>
+                    <td id="scenario4">-</td>
+                </tr>
+                <tr>
+                    <td>Far Above Target</td>
+                    <td>55%</td>
+                    <td>20-40%</td>
+                    <td>HOLD</td>
+                    <td>SELL (Override)</td>
+                    <td id="scenario5">-</td>
+                </tr>
+            </table>
+            
+            <button id="test-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Run Test Scenarios
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Fetch wallet stats when page loads
+            fetchWalletStats();
+            
+            // Add event listener for test button
+            document.getElementById('test-btn').addEventListener('click', testScenarios);
+        });
+        
+        async function fetchWalletStats() {
+            try {
+                // Get connected wallet from local storage (same key as main app)
+                const wallet = localStorage.getItem('stbchef_wallet');
+                if (!wallet) {
+                    alert('Please connect your wallet on the main page first');
+                    return;
+                }
+                
+                const response = await fetch(`/api/wallet-stats?wallet_address=${wallet}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch wallet stats');
+                }
+                
+                const data = await response.json();
+                updateModelStats(data);
+            } catch (error) {
+                console.error('Error fetching wallet stats:', error);
+                alert('Error fetching wallet stats: ' + error.message);
+            }
+        }
+        
+        function updateModelStats(data) {
+            const models = ['gemini', 'groq', 'mistral'];
+            
+            models.forEach(model => {
+                const modelStats = data.model_stats[model];
+                if (modelStats) {
+                    document.getElementById(`${model}-total`).textContent = modelStats.total_decisions;
+                    document.getElementById(`${model}-correct`).textContent = modelStats.correct_decisions;
+                    
+                    // Raw accuracy
+                    const rawAccuracy = modelStats.raw_accuracy.toFixed(1) + '%';
+                    const rawElement = document.getElementById(`${model}-raw`);
+                    rawElement.textContent = rawAccuracy;
+                    rawElement.className = getScoreClass(modelStats.raw_accuracy);
+                    
+                    // Performance score
+                    const score = modelStats.accuracy.toFixed(1) + '%';
+                    const scoreElement = document.getElementById(`${model}-score`);
+                    scoreElement.textContent = score;
+                    scoreElement.className = getScoreClass(modelStats.accuracy);
+                    
+                    // Decision distribution
+                    const dist = modelStats.decision_counts;
+                    document.getElementById(`${model}-dist`).textContent = 
+                        `BUY: ${dist.BUY}, SELL: ${dist.SELL}, HOLD: ${dist.HOLD}`;
+                }
+            });
+            
+            // Update current allocation if available
+            if (data.statistics && data.actions && data.actions.length > 0) {
+                document.getElementById('allocation').textContent = data.statistics.current_allocation.toFixed(1) + '%';
+            }
+        }
+        
+        function getScoreClass(score) {
+            if (score >= 65) return 'good';
+            if (score >= 45) return 'moderate';
+            return 'poor';
+        }
+        
+        function testScenarios() {
+            const severeImbalanceThreshold = 10; // Same as in the code
+            
+            // Scenario 1: Far Below Target (should override consensus)
+            testRecommendation(5, 20, 40, 'HOLD', severeImbalanceThreshold, 'scenario1');
+            
+            // Scenario 2: Slightly Below Target (should use consensus)
+            testRecommendation(15, 20, 40, 'HOLD', severeImbalanceThreshold, 'scenario2');
+            
+            // Scenario 3: Within Target (should use consensus)
+            testRecommendation(30, 20, 40, 'BUY', severeImbalanceThreshold, 'scenario3');
+            
+            // Scenario 4: Slightly Above Target (should use consensus)
+            testRecommendation(45, 20, 40, 'SELL', severeImbalanceThreshold, 'scenario4');
+            
+            // Scenario 5: Far Above Target (should override consensus)
+            testRecommendation(55, 20, 40, 'HOLD', severeImbalanceThreshold, 'scenario5');
+        }
+        
+        function testRecommendation(allocation, targetMin, targetMax, consensus, threshold, resultId) {
+            let recommendation;
+            
+            // This is the same logic we implemented in the main app
+            if (allocation < targetMin - threshold) {
+                recommendation = 'BUY';
+            } else if (allocation > targetMax + threshold) {
+                recommendation = 'SELL';
+            } else if (consensus) {
+                recommendation = consensus;
+            } else {
+                if (allocation < targetMin) {
+                    recommendation = 'BUY';
+                } else if (allocation > targetMax) {
+                    recommendation = 'SELL';
+                } else {
+                    recommendation = 'HOLD';
+                }
+            }
+            
+            const resultElement = document.getElementById(resultId);
+            resultElement.textContent = recommendation;
+            
+            // Highlight result based on correctness
+            let expectedResult;
+            switch (resultId) {
+                case 'scenario1': expectedResult = 'BUY'; break;
+                case 'scenario2': expectedResult = 'HOLD'; break;
+                case 'scenario3': expectedResult = 'BUY'; break;
+                case 'scenario4': expectedResult = 'SELL'; break;
+                case 'scenario5': expectedResult = 'SELL'; break;
+            }
+            
+            resultElement.className = recommendation === expectedResult ? 'good' : 'poor';
+        }
+    </script>
+</body>
+</html> 

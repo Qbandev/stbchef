@@ -727,162 +727,142 @@ class TradingDatabase:
             """, (wallet_address,))
 
             ai_decisions = []
-            for row in cursor.fetchall():
-                ai_decisions.append({
-                    'model': row['model'],
-                    'decision': row['decision'],
-                    'timestamp': row['timestamp'],
-                    'eth_price': row['eth_price'],
-                    'was_correct': row['was_correct'],
-                    'profit_loss': row['profit_loss']
-                })
-
-            # Calculate performance metrics
-            # For simplicity, just counting actions for now
-            action_counts = {
-                'BUY': 0,
-                'SELL': 0,
-                'HOLD': 0
+            # Rename to more accurately reflect the content - this stores aggregated stats by model, not individual decisions
+            decisions_by_model = {
+                'gemini': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []},
+                'groq': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []},
+                'mistral': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []}
             }
 
-            total_value_change = 0
-            previous_price = 0
-            profitable_actions = 0
+            for row in cursor.fetchall():
+                model = row['model']
+                decision = row['decision']
+                was_correct = row['was_correct']
+                profit_loss = row['profit_loss'] or 0
 
-            for i, action in enumerate(actions):
-                action_counts[action['action']] += 1
+                if model not in decisions_by_model:
+                    continue  # Skip if unknown model
 
-                # Skip first action for value change calculation
-                if i > 0 and previous_price > 0:
-                    price_change = action['eth_price'] - previous_price
+                # Add to the decisions tracking
+                ai_decisions.append({
+                    'model': model,
+                    'decision': decision,
+                    'timestamp': row['timestamp'],
+                    'eth_price': row['eth_price'],
+                    'was_correct': was_correct,
+                    'profit_loss': profit_loss
+                })
 
-                    # If action was BUY and price went up, or SELL and price went down, it was profitable
-                    was_profitable = (action['action'] == 'BUY' and price_change > 0) or \
-                                     (action['action'] ==
-                                      'SELL' and price_change < 0)
+                # Update model-specific stats
+                decisions_by_model[model]['total'] += 1
+                if was_correct:
+                    decisions_by_model[model]['correct'] += 1
 
-                    if was_profitable:
-                        profitable_actions += 1
+                # Track decision distribution
+                if decision == 'BUY':
+                    decisions_by_model[model]['buy'] += 1
+                elif decision == 'SELL':
+                    decisions_by_model[model]['sell'] += 1
+                elif decision == 'HOLD':
+                    decisions_by_model[model]['hold'] += 1
 
-                    # Calculate value change based on action and price movement
-                    if action['action'] == 'BUY':
-                        # Calculate how much ETH could have been bought with fixed USD
-                        eth_amount = 1000 / previous_price  # Assuming $1000 investment
-                        new_value = eth_amount * action['eth_price']
-                        value_change = new_value - 1000
-                    elif action['action'] == 'SELL':
-                        # Calculate how much USD would be from selling fixed ETH
-                        eth_amount = 1  # Assuming 1 ETH sale
-                        old_value = eth_amount * previous_price
-                        new_value = eth_amount * action['eth_price']
-                        value_change = old_value - new_value
-                    else:  # HOLD
-                        value_change = 0
+                # Track profits
+                if profit_loss is not None:
+                    decisions_by_model[model]['profits'].append(profit_loss)
 
-                    total_value_change += value_change
-
-                previous_price = action['eth_price']
-
-            # Calculate total actions and accuracy
-            total_actions = sum(action_counts.values())
-            accuracy = (profitable_actions / total_actions *
-                        100) if total_actions > 0 else 0
-
-            # Calculate model-specific statistics with time-weighted metrics
+            # Prepare model-specific stats
             model_stats = {}
-            for model in ['gemini', 'groq', 'mistral']:
-                model_decisions = [
-                    d for d in ai_decisions if d['model'] == model]
-                total_model_decisions = len(model_decisions)
+            for model, stats in decisions_by_model.items():
+                if stats['total'] > 0:
+                    # Calculate raw accuracy
+                    raw_accuracy = (stats['correct'] / stats['total']) * 100
 
-                # Count decision types
-                model_decision_counts = {
-                    'BUY': len([d for d in model_decisions if d['decision'] == 'BUY']),
-                    'SELL': len([d for d in model_decisions if d['decision'] == 'SELL']),
-                    'HOLD': len([d for d in model_decisions if d['decision'] == 'HOLD'])
-                }
+                    # Performance score with dynamic weighting
+                    profits = stats['profits']
+                    weighted_score = raw_accuracy
+                    if profits:
+                        # Positive/negative weighting - favor models with higher profit/loss ratios
+                        positive_trades = sum(1 for p in profits if p > 0)
+                        profit_ratio = positive_trades / \
+                            len(profits) if len(profits) > 0 else 0
+                        # Adjust weighted score - cap at ±20% adjustment
+                        profit_adjustment = min(
+                            20, max(-20, (profit_ratio - 0.5) * 40))
+                        weighted_score = min(
+                            100, max(0, raw_accuracy + profit_adjustment))
 
-                # Calculate correct decisions - with time weighting
-                # More recent decisions are weighted higher
-                correct_decisions = 0
-                time_weighted_correct = 0
-                time_weighted_total = 0
-
-                # Calculate weights based on recency
-                now = datetime.now()
-
-                # Skip empty decision lists
-                if total_model_decisions == 0:
                     model_stats[model] = {
-                        'total_decisions': 0,
-                        'correct_decisions': 0,
-                        'accuracy': 0,
-                        'decision_counts': model_decision_counts
+                        'total_decisions': stats['total'],
+                        'correct_decisions': stats['correct'],
+                        'accuracy': weighted_score,  # Weighted performance score
+                        'raw_accuracy': raw_accuracy,  # Simple correct/total
+                        'decision_counts': {
+                            'BUY': stats['buy'],
+                            'SELL': stats['sell'],
+                            'HOLD': stats['hold']
+                        }
                     }
-                    continue
 
-                for i, decision in enumerate(model_decisions):
-                    # Convert timestamp to datetime if it's a string
-                    if isinstance(decision['timestamp'], str):
-                        timestamp = datetime.fromisoformat(
-                            decision['timestamp'].replace('Z', '+00:00'))
-                    else:
-                        timestamp = decision['timestamp']
+            # Calculate overall wallet stats
+            total_actions = len(actions)
+            action_counts = {'BUY': 0, 'SELL': 0, 'HOLD': 0}
+            profitable_actions = 0
+            total_value_change = 0
 
-                    # Calculate age in hours with a minimum of 1 hour
-                    age_hours = max(
-                        1, (now - timestamp).total_seconds() / 3600)
+            # Get latest eth price
+            cursor.execute("""
+                SELECT eth_price FROM market_data
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            latest_price_row = cursor.fetchone()
+            latest_price = latest_price_row['eth_price'] if latest_price_row else 0
 
-                    # Weight is inverse to age - more recent decisions have higher weight
-                    # Use logarithmic decay: weight = 1/log(age_hours + 2)
-                    # +2 ensures positive weight for very recent decisions
-                    weight = 1 / (math.log(age_hours + 2))
+            # If we have actions, analyze them
+            if actions:
+                # Calculate action distribution
+                for action in actions:
+                    if action['action'] in action_counts:
+                        action_counts[action['action']] += 1
 
-                    if decision['was_correct']:
-                        correct_decisions += 1
-                        time_weighted_correct += weight
+                # Check if actions were profitable
+                if len(actions) > 1:
+                    total_value_change = 0  # Reset to accumulate across all periods
+                    for i in range(len(actions) - 1):
+                        current = actions[i]
+                        previous = actions[i + 1]
 
-                    time_weighted_total += weight
+                        # Use action price data to determine if profitable
+                        price_change = ((current['eth_price'] - previous['eth_price']) /
+                                        previous['eth_price']) * 100
 
-                # Calculate accuracy - with anti-bias adjustment
-                # If all decisions are the same type, reduce accuracy
-                standard_accuracy = (
-                    correct_decisions / total_model_decisions * 100) if total_model_decisions > 0 else 0
-                time_weighted_accuracy = (
-                    time_weighted_correct / time_weighted_total * 100) if time_weighted_total > 0 else 0
+                        # Determine if action was profitable
+                        if (current['action'] == 'BUY' and price_change > 0) or \
+                           (current['action'] == 'SELL' and price_change < 0) or \
+                           (current['action'] == 'HOLD' and abs(price_change) < 1):  # 1% threshold for HOLD
+                            profitable_actions += 1
 
-                # Calculate decision diversity as entropy
-                # Perfect diversity would be equal distribution across BUY, SELL, HOLD
-                total_count = sum(model_decision_counts.values())
-                entropy = 0
+                        # Calculate cumulative value change
+                        # For the oldest to newest value change, use the first pair (i==0)
+                        if i == 0:
+                            total_value_change = price_change
+                        # For more sophisticated value change calculation, you could consider:
+                        # - Weighted average by time between actions
+                        # - Compound calculation based on action type
+                        # total_value_change += price_change  # Simple cumulative approach
 
-                if total_count > 0:
-                    for count in model_decision_counts.values():
-                        prob = count / total_count
-                        if prob > 0:  # Avoid log(0)
-                            # Base 3 for three decision types
-                            entropy -= prob * math.log(prob, 3)
+            # Calculate combined accuracy
+            accuracy = 0
+            raw_accuracy = 0  # Add raw accuracy calculation
+            if total_actions > 0:
+                accuracy = (profitable_actions / total_actions) * 100
 
-                # Entropy is between 0 (all same decision) and 1 (perfectly distributed)
-                diversity_factor = entropy  # Higher diversity → higher factor → less penalty
-
-                # Apply diversity adjustment to accuracy
-                # If all decisions are the same, reduce the reported accuracy
-                adjusted_accuracy = time_weighted_accuracy * \
-                    (0.5 + 0.5 * diversity_factor)
-
-                # Ensure reasonable bounds
-                adjusted_accuracy = max(0, min(100, adjusted_accuracy))
-
-                model_stats[model] = {
-                    'total_decisions': total_model_decisions,
-                    'correct_decisions': correct_decisions,
-                    'accuracy': round(adjusted_accuracy, 1),
-                    'raw_accuracy': round(standard_accuracy, 1),
-                    'time_weighted_accuracy': round(time_weighted_accuracy, 1),
-                    'diversity_factor': round(diversity_factor, 2),
-                    'decision_counts': model_decision_counts
-                }
+                # Calculate raw accuracy from all AI decisions
+                correct_decisions = sum(
+                    1 for d in ai_decisions if d['was_correct'])
+                total_decisions = len(ai_decisions)
+                raw_accuracy = (correct_decisions / total_decisions) * \
+                    100 if total_decisions > 0 else 0
 
             return {
                 'wallet_address': wallet_address,
@@ -894,6 +874,8 @@ class TradingDatabase:
                     'action_distribution': action_counts,
                     'profitable_actions': profitable_actions,
                     'accuracy': round(accuracy, 1),
+                    # Add raw accuracy to output
+                    'raw_accuracy': round(raw_accuracy, 1),
                     'total_value_change': round(total_value_change, 2),
                     'current_eth_balance': actions[0]['eth_balance'] if actions else 0,
                     'current_usdc_balance': actions[0]['usdc_balance'] if actions else 0,
