@@ -297,6 +297,32 @@
             text-shadow: 0 0 5px var(--neon-blue);
             animation: pulse 2s infinite;
         }
+        .network-scan {
+            animation: network-scan 2s ease-in-out infinite;
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes network-scan {
+            0% {
+                left: -100%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+        .network-address-badge {
+            box-shadow: 0 0 5px rgba(0, 243, 255, 0.2);
+        }
+        .network-address-badge:hover {
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+        }
+        .wallet-address:hover {
+            background-image: linear-gradient(to right, #00f3ff, #9d00ff);
+        }
+        .hover:shadow-glow:hover {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -414,10 +440,11 @@
                 score = 1;
             }
 
-            // Bonus points for magnitude
+            // Bonus points for magnitude - MODIFIED to be less aggressive
             if (score > 0) {
                 const magnitude = Math.abs(priceChangePercent) - threshold;
-                score += Math.min(1, magnitude / threshold); // Up to 1 additional point
+                // Reduce the bonus points impact - max 0.5 additional points instead of 1
+                score += Math.min(0.5, magnitude / (threshold * 2)); 
             }
 
             return score;
@@ -676,6 +703,7 @@
             try {
                 localStorage.setItem(STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
                 localStorage.setItem(STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
+                localStorage.setItem('stbchef_raw_accuracy', JSON.stringify(aiRawAccuracy));
                 localStorage.setItem(STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
             } catch (error) {
                 console.error('Error persisting history:', error);
@@ -1436,20 +1464,51 @@
                 
                 // Check for consensus
                 const aiConsensus = checkLLMConsensus(decisions);
-                if (aiConsensus) {
-                    recommendedAction = aiConsensus;
-                } else if (totalValue > 0) {
-                    // Fall back to portfolio-based recommendation if no consensus
-                    if (currentEthAllocation < targetEthMin) {
+                
+                // NEW LOGIC - Check for severe portfolio imbalance first
+                const severeImbalanceThreshold = 10; // 10% threshold for severe imbalance
+                
+                if (totalValue > 0) {
+                    if (currentEthAllocation < targetEthMin - severeImbalanceThreshold) {
+                        // Severe imbalance - too little ETH regardless of consensus
                         recommendedAction = 'BUY';
                         const targetEthValue = (totalValue * targetEthMin / 100);
                         swapAmount = targetEthValue - ethValueUSD;
                         swapDirection = 'USDC → ETH';
-                    } else if (currentEthAllocation > targetEthMax) {
+                    } else if (currentEthAllocation > targetEthMax + severeImbalanceThreshold) {
+                        // Severe imbalance - too much ETH regardless of consensus
                         recommendedAction = 'SELL';
                         const targetEthValue = (totalValue * targetEthMax / 100);
                         swapAmount = ethValueUSD - targetEthValue;
                         swapDirection = 'ETH → USDC';
+                    } else if (aiConsensus) {
+                        // For moderate imbalance, use consensus if available
+                        recommendedAction = aiConsensus;
+                        
+                        // Calculate swap amount based on consensus
+                        if (recommendedAction === 'BUY' && currentEthAllocation < targetEthMin) {
+                            const targetEthValue = (totalValue * targetEthMin / 100);
+                            swapAmount = targetEthValue - ethValueUSD;
+                            swapDirection = 'USDC → ETH';
+                        } else if (recommendedAction === 'SELL' && currentEthAllocation > targetEthMax) {
+                            const targetEthValue = (totalValue * targetEthMax / 100);
+                            swapAmount = ethValueUSD - targetEthValue;
+                            swapDirection = 'ETH → USDC';
+                        }
+                    } else {
+                        // Fall back to portfolio-based recommendation if no consensus 
+                        // and no severe imbalance
+                        if (currentEthAllocation < targetEthMin) {
+                            recommendedAction = 'BUY';
+                            const targetEthValue = (totalValue * targetEthMin / 100);
+                            swapAmount = targetEthValue - ethValueUSD;
+                            swapDirection = 'USDC → ETH';
+                        } else if (currentEthAllocation > targetEthMax) {
+                            recommendedAction = 'SELL';
+                            const targetEthValue = (totalValue * targetEthMax / 100);
+                            swapAmount = ethValueUSD - targetEthValue;
+                            swapDirection = 'ETH → USDC';
+                        }
                     }
                 }
                 
@@ -1516,6 +1575,12 @@
                             <span class="text-gray-300">${targetEthMin}%-${targetEthMax}% ETH in ${isBullish ? 'bullish' : 'bearish'} market</span>
                         </div>
                         ` : ''}
+                        ${(currentEthAllocation < targetEthMin - severeImbalanceThreshold || currentEthAllocation > targetEthMax + severeImbalanceThreshold) && totalValue > 0 ? `
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Warning:</span>
+                            <span class="text-yellow-400">Portfolio significantly ${currentEthAllocation < targetEthMin ? 'below' : 'above'} target range</span>
+                        </div>
+                        ` : ''}
                     </div>
                 `;
                 
@@ -1523,9 +1588,46 @@
                     <div class="p-4">
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
-                            <div class="flex items-center">
-                                <span class="text-xs ${networkClass} mr-2">Network: ${networkName}</span>
-                                <span class="text-xs text-gray-400">${userAccount.substring(0, 6)}...${userAccount.substring(38)}</span>
+                            <div class="network-address-badge flex items-center bg-cyber-dark rounded-full px-2 py-1 border border-opacity-30 ${isLinea ? 'border-blue-400' : isEthereum ? 'border-indigo-400' : 'border-yellow-400'} hover:shadow-glow transition-all duration-300">
+                                ${isLinea ? `
+                                    <div class="network-icon-container mr-2 relative overflow-hidden">
+                                        <svg class="w-5 h-5 text-blue-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                            <circle cx="12" cy="12" r="11.5" stroke="currentColor" fill="rgba(0,171,255,0.1)"/>
+                                            <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="currentColor"/>
+                                            <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="currentColor"/>
+                                            <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="currentColor"/>
+                                        </svg>
+                                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-30 blur-sm network-scan"></div>
+                                    </div>
+                                ` : isEthereum ? `
+                                    <div class="network-icon-container mr-2 relative overflow-hidden">
+                                        <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                            <circle cx="12" cy="12" r="11.5" stroke="currentColor" fill="rgba(98,126,234,0.1)"/>
+                                            <path d="M11.9982 4L11.8 4.4V15.1133L11.9982 15.275L16.9963 12.3L11.9982 4Z" fill="currentColor" fill-opacity="0.7"/>
+                                            <path d="M12 4L7 12.3L12 15.275V10.0582V4Z" fill="currentColor"/>
+                                            <path d="M11.9982 16.4826L11.9063 16.597V19.8105L11.9982 20L17 13.4264L11.9982 16.4826Z" fill="currentColor" fill-opacity="0.7"/>
+                                            <path d="M12 20V16.4826L7 13.4264L12 20Z" fill="currentColor"/>
+                                        </svg>
+                                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-400 to-transparent opacity-30 blur-sm network-scan"></div>
+                                    </div>
+                                ` : `
+                                    <div class="network-icon-container mr-2 relative overflow-hidden">
+                                        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                `}
+                                <div class="flex flex-col">
+                                    <div class="text-xs ${isLinea ? 'text-blue-400' : isEthereum ? 'text-indigo-400' : 'text-yellow-400'} font-medium network-name">${networkName}</div>
+                                    <div class="flex items-center">
+                                        <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${userAccount.substring(0, 6)}...${userAccount.substring(38)}</span>
+                                        <button onclick="copyToClipboard('${userAccount}')" class="ml-1 text-gray-400 hover:text-blue-400 transition-colors duration-200">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2 text-sm">
@@ -1893,6 +1995,21 @@
                     if (lastDecisions[model]) {
                         const decision = lastDecisions[model];
                         const score = calculateTradeScore(decision, priceChangePercent, threshold);
+                        
+                        // Determine if the decision was correct (for raw accuracy)
+                        let isCorrect = false;
+                        if ((decision === 'BUY' && priceChangePercent > threshold) ||
+                            (decision === 'SELL' && priceChangePercent < -threshold) ||
+                            (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold)) {
+                            isCorrect = true;
+                        }
+                        
+                        // Update raw accuracy tracking
+                        aiRawAccuracy[model].total++;
+                        if (isCorrect) {
+                            aiRawAccuracy[model].correct++;
+                        }
+                        aiRawAccuracy[model].accuracy = (aiRawAccuracy[model].correct / aiRawAccuracy[model].total) * 100;
 
                         // Record trade with enhanced metrics
                         tradeHistory[model].push({
@@ -1902,7 +2019,8 @@
                             score: score,
                             threshold: threshold,
                             volatility: marketVolatility.current,
-                            price: currentPrice
+                            price: currentPrice,
+                            isCorrect: isCorrect
                         });
 
                         // Keep only last 100 trades for more recent performance focus
@@ -1916,6 +2034,8 @@
             // Update accuracy display with weighted metrics
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
+                const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
+                
                 if (accuracyElement) {
                     const trades = tradeHistory[model];
                     if (trades.length > 0) {
@@ -1939,6 +2059,17 @@
                         accuracyElement.textContent = '0.0%';
                         accuracyElement.className = 'font-bold text-gray-400';
                     }
+                }
+                
+                // Update raw accuracy display if available
+                if (rawAccuracyElement && aiRawAccuracy[model].total > 0) {
+                    const rawAccuracy = aiRawAccuracy[model].accuracy.toFixed(1);
+                    rawAccuracyElement.textContent = `${rawAccuracy}%`;
+                    rawAccuracyElement.className = `font-bold ${
+                        parseFloat(rawAccuracy) >= 65 ? 'text-green-400' :
+                        parseFloat(rawAccuracy) >= 45 ? 'text-yellow-400' :
+                        'text-red-400'
+                    }`;
                 }
             });
         }
@@ -2214,6 +2345,7 @@
             const totalActions = walletData.statistics?.total_actions || 0;
             const profitableActions = walletData.statistics?.profitable_actions || 0;
             const accuracy = walletData.statistics?.accuracy || 0;
+            const rawAccuracy = walletData.statistics?.raw_accuracy || 0;  // Add raw accuracy
             const valueChange = walletData.statistics?.total_value_change || 0;
             
             // Get model-specific stats
@@ -2223,11 +2355,13 @@
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const statsContainer = document.getElementById(`${model}-stats`);
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
+                const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
                 
                 const modelStat = modelStats[model] || {
                     total_decisions: 0,
                     correct_decisions: 0,
                     accuracy: 0,
+                    raw_accuracy: 0,
                     decision_counts: { BUY: 0, SELL: 0, HOLD: 0 }
                 };
                 
@@ -2251,9 +2385,9 @@
                                     <div class="font-bold text-red-400">${modelStat.total_decisions - modelStat.correct_decisions}</div>
                                 </div>
                                 <div>
-                                    <div class="text-gray-400">Accuracy:</div>
-                                    <div class="font-bold ${modelStat.accuracy >= 65 ? 'text-green-400' : modelStat.accuracy >= 45 ? 'text-yellow-400' : 'text-red-400'}">
-                                        ${modelStat.accuracy.toFixed(1)}%
+                                    <div class="text-gray-400">Raw Accuracy:</div>
+                                    <div class="font-bold ${modelStat.raw_accuracy >= 65 ? 'text-green-400' : modelStat.raw_accuracy >= 45 ? 'text-yellow-400' : 'text-red-400'}">
+                                        ${modelStat.raw_accuracy.toFixed(1)}%
                                     </div>
                                 </div>
                                 <div class="col-span-2">
@@ -2280,6 +2414,15 @@
                     accuracyElement.className = `font-bold ${
                         modelStat.accuracy >= 65 ? 'text-green-400' :
                         modelStat.accuracy >= 45 ? 'text-yellow-400' :
+                        'text-red-400'
+                    }`;
+                }
+                
+                if (rawAccuracyElement) {
+                    rawAccuracyElement.textContent = `${modelStat.raw_accuracy.toFixed(1)}%`;
+                    rawAccuracyElement.className = `font-bold text-xs ${
+                        modelStat.raw_accuracy >= 65 ? 'text-green-400' :
+                        modelStat.raw_accuracy >= 45 ? 'text-yellow-400' :
                         'text-red-400'
                     }`;
                 }
@@ -2777,6 +2920,7 @@
                     try {
                         localStorage.setItem(STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
                         localStorage.setItem(STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
+                        localStorage.setItem('stbchef_raw_accuracy', JSON.stringify(aiRawAccuracy));
                         localStorage.setItem(STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
                     } catch (e) {
                         // Ignore error in case localStorage is full
@@ -3302,6 +3446,23 @@
                 return 'bg-gradient-to-r from-green-500 to-blue-400';
             }
         }
+
+        // Add raw accuracy tracking
+        let aiRawAccuracy = JSON.parse(localStorage.getItem('stbchef_raw_accuracy') || JSON.stringify({
+            gemini: { correct: 0, total: 0, accuracy: 0 },
+            groq: { correct: 0, total: 0, accuracy: 0 },
+            mistral: { correct: 0, total: 0, accuracy: 0 }
+        }));
+
+        // Add a function to copy wallet address to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Address copied to clipboard!', 'info');
+            }).catch(err => {
+                console.error('Error copying address: ', err);
+                showNotification('Failed to copy address', 'error');
+            });
+        }
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -3465,23 +3626,31 @@
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-blue">Gemini AI</h3>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Performance Score:</span>
-                                <div class="tooltip-container">
-                                    <span id="gemini-accuracy" class="font-bold tooltip-trigger">0.0%</span>
-                                    <div class="tooltip">
-                                        Weighted average of recent trade scores (last 100 trades)
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-gray-400">Performance Score:</span>
+                                    <div class="tooltip-container">
+                                        <span id="gemini-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                        <div class="tooltip">
+                                            Weighted score based on trade profitability and magnitude.
+                                            Note: This is not raw accuracy but a weighted performance metric.
+                                            Perfect score would be 100% (all decisions correct with maximum magnitude).
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="tooltip-container">
-                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
-                                    <div class="tooltip">
-                                        Score Calculation:
+                                    <div class="tooltip-container">
+                                        <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                        <div class="tooltip">
+                                            Score Calculation:
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
-• Bonus points (up to 1) for magnitude of correct decision
+• Bonus points (up to 0.5) for magnitude of correct decision
 • Recent trades weighted more heavily
 • Based on last 100 trades
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <span class="text-gray-400 text-xs">Raw Accuracy:</span>
+                                    <span id="gemini-raw-accuracy" class="font-bold text-xs">0.0%</span>
                                 </div>
                             </div>
                         </div>
@@ -3496,23 +3665,31 @@
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark mb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-purple">Groq DeepSeek</h3>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Performance Score:</span>
-                                <div class="tooltip-container">
-                                    <span id="groq-accuracy" class="font-bold tooltip-trigger">0.0%</span>
-                                    <div class="tooltip">
-                                        Weighted average of recent trade scores (last 100 trades)
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-gray-400">Performance Score:</span>
+                                    <div class="tooltip-container">
+                                        <span id="groq-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                        <div class="tooltip">
+                                            Weighted score based on trade profitability and magnitude.
+                                            Note: This is not raw accuracy but a weighted performance metric.
+                                            Perfect score would be 100% (all decisions correct with maximum magnitude).
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="tooltip-container">
-                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
-                                    <div class="tooltip">
-                                        Score Calculation:
+                                    <div class="tooltip-container">
+                                        <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                        <div class="tooltip">
+                                            Score Calculation:
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
-• Bonus points (up to 1) for magnitude of correct decision
+• Bonus points (up to 0.5) for magnitude of correct decision
 • Recent trades weighted more heavily
 • Based on last 100 trades
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <span class="text-gray-400 text-xs">Raw Accuracy:</span>
+                                    <span id="groq-raw-accuracy" class="font-bold text-xs">0.0%</span>
                                 </div>
                             </div>
                         </div>
@@ -3527,23 +3704,31 @@
                     <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-neon-green">Mistral AI</h3>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-gray-400">Performance Score:</span>
-                                <div class="tooltip-container">
-                                    <span id="mistral-accuracy" class="font-bold tooltip-trigger">0.0%</span>
-                                    <div class="tooltip">
-                                        Weighted average of recent trade scores (last 100 trades)
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-gray-400">Performance Score:</span>
+                                    <div class="tooltip-container">
+                                        <span id="mistral-accuracy" class="font-bold tooltip-trigger">0.0%</span>
+                                        <div class="tooltip">
+                                            Weighted score based on trade profitability and magnitude.
+                                            Note: This is not raw accuracy but a weighted performance metric.
+                                            Perfect score would be 100% (all decisions correct with maximum magnitude).
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="tooltip-container">
-                                    <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
-                                    <div class="tooltip">
-                                        Score Calculation:
+                                    <div class="tooltip-container">
+                                        <i class="fas fa-info-circle text-cyber-text tooltip-trigger"></i>
+                                        <div class="tooltip">
+                                            Score Calculation:
 • Base score (1 point) for correct direction (BUY/SELL/HOLD)
-• Bonus points (up to 1) for magnitude of correct decision
+• Bonus points (up to 0.5) for magnitude of correct decision
 • Recent trades weighted more heavily
 • Based on last 100 trades
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <span class="text-gray-400 text-xs">Raw Accuracy:</span>
+                                    <span id="mistral-raw-accuracy" class="font-bold text-xs">0.0%</span>
                                 </div>
                             </div>
                         </div>

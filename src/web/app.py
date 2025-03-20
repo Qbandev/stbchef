@@ -317,10 +317,14 @@ def start_background_scheduler():
 
 @app.route("/")
 def index() -> str:
-    """Serve the main trading dashboard."""
-    # Clean up old data periodically
-    db.cleanup_old_data()
+    """Render the index page."""
     return render_template("index.html")
+
+
+@app.route("/stats-test")
+def test_stats() -> str:
+    """Render the test stats page."""
+    return render_template("test_stats.html")
 
 
 @app.route("/clear-storage", methods=["POST"])
