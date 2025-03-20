@@ -209,9 +209,12 @@ def update_trading_data():
 
         # Store individual AI decisions
         print("Storing AI decisions in database...")
-        db.store_ai_decision('gemini', gemini_action, market_data.eth_price)
-        db.store_ai_decision('groq', groq_action, market_data.eth_price)
-        db.store_ai_decision('mistral', mistral_action, market_data.eth_price)
+        db.store_ai_decision('gemini', gemini_action,
+                             market_data.eth_price, "global")
+        db.store_ai_decision('groq', groq_action,
+                             market_data.eth_price, "global")
+        db.store_ai_decision('mistral', mistral_action,
+                             market_data.eth_price, "global")
 
         # Update accuracy of previous decisions
         print("Updating decision accuracy...")
@@ -553,6 +556,35 @@ def client_log():
         return jsonify({"status": "success", "message": "Log recorded"}), 200
     except Exception as e:
         print(f"Error handling client log: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/store-ai-decision", methods=["POST"])
+def store_ai_decision() -> Union[dict, tuple[dict, int]]:
+    """Store AI decision for a specific wallet."""
+    try:
+        # Validate required input data
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Check required fields
+        required_fields = ["model", "decision", "eth_price", "wallet_address"]
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        # Store the AI decision in the database
+        db.store_ai_decision(
+            model=data["model"],
+            decision=data["decision"],
+            eth_price=data["eth_price"],
+            wallet_address=data["wallet_address"]
+        )
+
+        return jsonify({"status": "success", "message": "AI decision stored successfully"})
+    except Exception as e:
+        logging.error(f"Error storing AI decision: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

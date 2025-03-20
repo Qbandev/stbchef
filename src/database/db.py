@@ -37,7 +37,7 @@ class TradingDatabase:
                 )
             """)
 
-            # Create AI decisions table
+            # Create AI decisions table - add wallet_address column
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ai_decisions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,9 +47,21 @@ class TradingDatabase:
                     eth_price REAL NOT NULL,
                     was_correct BOOLEAN,
                     profit_loss REAL,
+                    wallet_address TEXT,
                     FOREIGN KEY (timestamp) REFERENCES market_data (timestamp)
                 )
             """)
+
+            # Check if wallet_address column exists in ai_decisions, add it if not
+            try:
+                cursor.execute(
+                    "SELECT wallet_address FROM ai_decisions LIMIT 1")
+            except sqlite3.OperationalError:
+                # Column doesn't exist, add it
+                cursor.execute(
+                    "ALTER TABLE ai_decisions ADD COLUMN wallet_address TEXT")
+                logging.info(
+                    "Added wallet_address column to ai_decisions table")
 
             # Create wallet actions table
             cursor.execute("""
@@ -78,6 +90,10 @@ class TradingDatabase:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ai_decisions_model 
                 ON ai_decisions(model)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ai_decisions_wallet_address 
+                ON ai_decisions(wallet_address)
             """)
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_wallet_actions_wallet_address 
@@ -177,7 +193,8 @@ class TradingDatabase:
         self,
         model: str,
         decision: str,
-        eth_price: float
+        eth_price: float,
+        wallet_address: str
     ) -> None:
         """Store AI trading decision in database."""
         with sqlite3.connect(self.db_path) as conn:
@@ -189,13 +206,15 @@ class TradingDatabase:
                     decision,
                     eth_price,
                     was_correct,
-                    profit_loss
-                ) VALUES (?, ?, ?, ?, NULL, NULL)
+                    profit_loss,
+                    wallet_address
+                ) VALUES (?, ?, ?, ?, NULL, NULL, ?)
             """, (
                 datetime.now(),
                 model,
                 decision,
-                eth_price
+                eth_price,
+                wallet_address
             ))
             conn.commit()
 
@@ -620,6 +639,32 @@ class TradingDatabase:
                     'eth_allocation': row['eth_allocation']
                 })
 
+            # Also get AI decisions specific to this wallet
+            cursor.execute("""
+                SELECT 
+                    model,
+                    decision,
+                    timestamp,
+                    eth_price,
+                    was_correct,
+                    profit_loss
+                FROM ai_decisions
+                WHERE wallet_address = ? OR wallet_address = 'global'
+                ORDER BY timestamp DESC
+                LIMIT 100
+            """, (wallet_address,))
+
+            ai_decisions = []
+            for row in cursor.fetchall():
+                ai_decisions.append({
+                    'model': row['model'],
+                    'decision': row['decision'],
+                    'timestamp': row['timestamp'],
+                    'eth_price': row['eth_price'],
+                    'was_correct': row['was_correct'],
+                    'profit_loss': row['profit_loss']
+                })
+
             # Calculate performance metrics
             # For simplicity, just counting actions for now
             action_counts = {
@@ -671,9 +716,36 @@ class TradingDatabase:
             accuracy = (profitable_actions / total_actions *
                         100) if total_actions > 0 else 0
 
+            # Calculate model-specific statistics
+            model_stats = {}
+            for model in ['gemini', 'groq', 'mistral']:
+                model_decisions = [
+                    d for d in ai_decisions if d['model'] == model]
+                total_model_decisions = len(model_decisions)
+
+                # Count decision types
+                model_decision_counts = {
+                    'BUY': len([d for d in model_decisions if d['decision'] == 'BUY']),
+                    'SELL': len([d for d in model_decisions if d['decision'] == 'SELL']),
+                    'HOLD': len([d for d in model_decisions if d['decision'] == 'HOLD'])
+                }
+
+                # Calculate correct decisions
+                correct_decisions = len(
+                    [d for d in model_decisions if d['was_correct']])
+
+                model_stats[model] = {
+                    'total_decisions': total_model_decisions,
+                    'correct_decisions': correct_decisions,
+                    'accuracy': round((correct_decisions / total_model_decisions * 100) if total_model_decisions > 0 else 0, 1),
+                    'decision_counts': model_decision_counts
+                }
+
             return {
                 'wallet_address': wallet_address,
                 'actions': actions,
+                'ai_decisions': ai_decisions,
+                'model_stats': model_stats,
                 'statistics': {
                     'total_actions': total_actions,
                     'action_distribution': action_counts,
