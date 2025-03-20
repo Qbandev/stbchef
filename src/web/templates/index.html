@@ -3467,118 +3467,6 @@
             }
         }
 
-        // Function to check API status
-        function checkAPIs() {
-            // Change button text to show loading
-            const checkBtn = document.getElementById('check-api-btn');
-            const originalText = checkBtn.innerHTML;
-            checkBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Checking...';
-            checkBtn.disabled = true;
-            
-            // Call the API check endpoint
-            fetch('/api/check-apis')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('API check results:', data);
-                    
-                    // Build notification message
-                    let message = '<strong>API Status Check Results:</strong><br>';
-                    for (const [api, status] of Object.entries(data)) {
-                        const icon = status.status === 'ok' ? '✅' : '❌';
-                        message += `${icon} ${api}: ${status.message}<br>`;
-                    }
-                    
-                    // Show notification
-                    showNotification(message, 'info');
-                    
-                    // Restore button
-                    checkBtn.innerHTML = originalText;
-                    checkBtn.disabled = false;
-                    
-                    // If Etherscan is working, try to update data
-                    if (data.etherscan && data.etherscan.status === 'ok') {
-                        // Instead of calling updateData directly which might trigger wallet transactions,
-                        // just update the UI elements without triggering consensus checks
-                        updateUIWithoutWalletTransactions();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking APIs:', error);
-                    showNotification('Error checking API status: ' + error, 'error');
-                    checkBtn.innerHTML = originalText;
-                    checkBtn.disabled = false;
-                });
-        }
-
-        // Function to update UI without triggering wallet transactions
-        function updateUIWithoutWalletTransactions() {
-            console.log('Updating UI data (without wallet transactions)...');
-            fetch('/api/trading-data')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Received data - UI update only');
-
-                    // Update metrics (without wallet transactions)
-                    document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
-                    document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
-                    document.getElementById('eth-high').textContent = `$${data.eth_high_24h.toFixed(2)}`;
-                    document.getElementById('eth-low').textContent = `$${data.eth_low_24h.toFixed(2)}`;
-
-                    // Update gas price information
-                    if (data.gas_prices) {
-                        document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
-                        document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
-                        document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
-                    }
-
-                    // Update model decisions and stats
-                    ['gemini', 'groq', 'mistral'].forEach(model => {
-                        const action = data[`${model}_action`];
-                        const decisionElement = document.getElementById(`${model}-decision`);
-                        if (decisionElement) {
-                            decisionElement.textContent = action || 'N/A';
-                            decisionElement.className = `font-bold text-xl cyber-value ${
-                                action === 'BUY' ? 'text-green-400' :
-                                action === 'SELL' ? 'text-red-400' :
-                                'text-blue-400'
-                            } animate-pulse`;
-                        }
-                    });
-
-                    // Update market sentiment
-                    const sentimentText = document.getElementById('sentiment');
-                    if (sentimentText && data.market_sentiment) {
-                        sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
-                        const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800';
-
-                        sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
-                    }
-
-                    // Update charts
-                    updateCharts(
-                        data.eth_price,
-                        data.market_sentiment?.fear_greed_value,
-                        data.gemini_action,
-                        data.groq_action,
-                        data.mistral_action,
-                        data.eth_volume_24h
-                    );
-
-                    // Fetch daily stats (without wallet notifications)
-                    fetchDailyStats();
-                })
-                .catch(error => {
-                    console.error('Error fetching data:', error);
-                });
-        }
-
         // Function to determine portfolio bar color based on target allocation
         function getPortfolioBarColor(allocation, minTarget, maxTarget) {
             // Below minimum target - needs more ETH
@@ -3624,10 +3512,6 @@
             <div class="flex items-center space-x-4">
                 <button id="wallet-btn" onclick="connectWallet()" class="wallet-btn px-4 py-2 rounded">
                     Connect Wallet
-                </button>
-                <button id="check-api-btn" onclick="checkAPIs()" class="cyber-btn px-4 py-2 rounded flex items-center">
-                    <i class="fas fa-sync-alt mr-2"></i>
-                    Check APIs
                 </button>
                 <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center">
                     <i class="fab fa-github mr-2"></i>
