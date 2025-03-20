@@ -2207,7 +2207,7 @@
                         setTimeout(() => {
                             getWalletBalances().then(() => {
                                 // Send wallet notification after balances are refreshed - only for BUY and SELL
-                                sendWalletNotification(message, consensus);
+                                sendWalletNotification(consensus, message);
                             });
                         }, 500);
                     } else if (consensus === 'HOLD') {
@@ -2489,9 +2489,9 @@
         }
 
         // Add wallet notification function
-        async function sendWalletNotification(message, signalType) {
-            if (!userAccount || !web3) {
-                console.log("No wallet connection available - cannot send notification");
+        async function sendWalletNotification(signalType, message) {
+            if (!userAccount || !window.ethereum || !web3) {
+                console.log("Cannot send wallet notification: no wallet connected");
                 return;
             }
             
@@ -2517,6 +2517,56 @@
                     return;
                 }
                 
+                // Get current chain ID
+                const chainId = await web3.eth.getChainId();
+                const isLinea = chainId === 59144;
+                const isEthereum = chainId === 1;
+                
+                // Get gas price data for the transaction
+                let gasPrice;
+                let maxFeePerGas;
+                let maxPriorityFeePerGas;
+                let gasLimit = '0x5208'; // 21000 gas for standard transfer
+                
+                try {
+                    // Fetch current gas prices from backend
+                    const gasDataResponse = await fetch('/api/trading-data');
+                    const gasData = await gasDataResponse.json();
+                    
+                    if (gasData && gasData.gas_prices) {
+                        // Use the standard gas price (convert from Gwei to Wei)
+                        const standardGasPriceGwei = gasData.gas_prices.standard;
+                        gasPrice = web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
+                        
+                        // For EIP-1559 compatible networks
+                        if (gasData.gas_prices.base_fee) {
+                            const baseFeeGwei = gasData.gas_prices.base_fee;
+                            // maxFeePerGas = 2 * baseFee + priorityFee
+                            const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
+                            maxPriorityFeePerGas = web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
+                            maxFeePerGas = web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
+                        }
+                    }
+                } catch (gasError) {
+                    console.warn("Error fetching gas data:", gasError);
+                    // Fallback gas values based on network
+                    if (isEthereum) {
+                        gasPrice = web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
+                        maxPriorityFeePerGas = web3.utils.toWei('1.5', 'gwei');
+                        maxFeePerGas = web3.utils.toWei('100', 'gwei');
+                    } else if (isLinea) {
+                        gasPrice = web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
+                        maxPriorityFeePerGas = web3.utils.toWei('0.05', 'gwei');
+                        maxFeePerGas = web3.utils.toWei('0.2', 'gwei');
+                    } else {
+                        // Use a reasonable default for other networks
+                        gasPrice = web3.utils.toWei('30', 'gwei');
+                    }
+                }
+                
+                // Record this wallet action in the database
+                await recordWalletAction(signalType);
+                
                 // Lower minimum transaction amount for micro-balances
                 // Set minimum to the lower of 0.001 ETH or 25% of available balance (with safety check)
                 const MIN_ETH_TRANSACTION = ethBalance > 0 ? Math.min(0.001, ethBalance * 0.25) : 0;
@@ -2525,14 +2575,7 @@
                 console.log(`Processing ${signalType} signal with balances: ${ethBalance} ETH, ${usdcBalance} USDC`);
                 console.log(`Minimum transactions: ${MIN_ETH_TRANSACTION} ETH, ${MIN_USDC_TRANSACTION} USDC`);
                 
-                // Record this wallet action in the database
-                await recordWalletAction(signalType);
-                
-                // Get the current chain ID
-                const chainId = await web3.eth.getChainId();
-                
                 // Create a notification message to send to the wallet
-                // This will trigger a MetaMask notification rather than just a browser notification
                 if (signalType === 'BUY' && usdcBalance > 0) {
                     // For BUY signal, suggest using USDC to buy ETH
                     const usdcToUse = usdcBalance > 0.5 ? Math.max(usdcBalance * 0.05, MIN_USDC_TRANSACTION) : usdcBalance * 0.9;
@@ -2551,17 +2594,42 @@
                     
                     // Create and send a transaction to the wallet (this will just prompt the user, not execute automatically)
                     try {
-                        // This sends a 0 ETH transaction with the message in the data field, which will trigger a notification
+                        // Prepare transaction parameters based on network support for EIP-1559
+                        let txParams = {
+                            from: userAccount,
+                            to: userAccount,
+                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: web3.utils.toHex(message),
+                            gas: gasLimit,
+                        };
+                        
+                        // Add appropriate gas parameters based on the network
+                        if (isEthereum) {
+                            // Ethereum mainnet uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else if (isLinea) {
+                            // Linea uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else {
+                            // Fallback for other networks
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                        
                         await window.ethereum.request({
                             method: 'eth_sendTransaction',
-                            params: [{
-                                from: userAccount,
-                                to: userAccount,
-                                value: '0x0', // 0 ETH
-                                data: web3.utils.toHex(message), // Put our message in the data field
-                                gas: '0x5208', // 21000 gas
-                            }],
+                            params: [txParams],
                         });
+                        
                         console.log("Wallet notification sent successfully");
                         
                         // Update model stats after notification
@@ -2592,16 +2660,42 @@
                     
                     // Create and send a transaction to the wallet
                     try {
+                        // Prepare transaction parameters based on network support for EIP-1559
+                        let txParams = {
+                            from: userAccount,
+                            to: userAccount,
+                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: web3.utils.toHex(message),
+                            gas: gasLimit,
+                        };
+                        
+                        // Add appropriate gas parameters based on the network
+                        if (isEthereum) {
+                            // Ethereum mainnet uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else if (isLinea) {
+                            // Linea uses EIP-1559
+                            if (maxFeePerGas && maxPriorityFeePerGas) {
+                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            } else {
+                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            }
+                        } else {
+                            // Fallback for other networks
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                        
                         await window.ethereum.request({
                             method: 'eth_sendTransaction',
-                            params: [{
-                                from: userAccount,
-                                to: userAccount,
-                                value: '0x0', // 0 ETH
-                                data: web3.utils.toHex(message), // Put our message in the data field
-                                gas: '0x5208', // 21000 gas
-                            }],
+                            params: [txParams],
                         });
+                        
                         console.log("Wallet notification sent successfully");
                         
                         // Update model stats after notification
@@ -2620,16 +2714,42 @@
                 
                 // Still try to send a simple notification transaction
                 try {
+                    // Prepare transaction parameters based on network support for EIP-1559
+                    let txParams = {
+                        from: userAccount,
+                        to: userAccount,
+                        value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                        data: web3.utils.toHex(`${signalType} signal received - Check your portfolio allocation`),
+                        gas: gasLimit,
+                    };
+                    
+                    // Add appropriate gas parameters based on the network
+                    if (isEthereum) {
+                        // Ethereum mainnet uses EIP-1559
+                        if (maxFeePerGas && maxPriorityFeePerGas) {
+                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                        } else {
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                    } else if (isLinea) {
+                        // Linea uses EIP-1559
+                        if (maxFeePerGas && maxPriorityFeePerGas) {
+                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                        } else {
+                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        }
+                    } else {
+                        // Fallback for other networks
+                        txParams.gasPrice = web3.utils.toHex(gasPrice);
+                    }
+                    
                     await window.ethereum.request({
                         method: 'eth_sendTransaction',
-                        params: [{
-                            from: userAccount,
-                            to: userAccount,
-                            value: '0x0', // 0 ETH
-                            data: web3.utils.toHex(`${signalType} signal received - Check your portfolio allocation`),
-                            gas: '0x5208', // 21000 gas
-                        }],
+                        params: [txParams],
                     });
+                    
                     console.log("General wallet notification sent successfully");
                     
                     // Update model stats after notification
@@ -2639,9 +2759,6 @@
                 } catch (txError) {
                     console.log("User declined the wallet notification transaction", txError);
                 }
-                
-                // Just show a generic notification
-                showNotification(`${signalType} signal received - Check your portfolio allocation`, 'info');
             } catch (error) {
                 logToServer('error', 'Error processing wallet notification', error);
                 showNotification(`Error processing ${signalType} signal: ${error.message}`, 'error');
