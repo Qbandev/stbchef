@@ -279,7 +279,7 @@ class TradingDatabase:
                     elif decision == 'SELL' and price_change_pct < 0:
                         was_correct = True
                     # Less than 2% change for HOLD
-                    elif decision == 'HOLD' and abs(price_change_pct) < 2:
+                    elif decision == 'HOLD' and abs(price_change_pct) < 0.5:
                         was_correct = True
 
                 # Update decision accuracy

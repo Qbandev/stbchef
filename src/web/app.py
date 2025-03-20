@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import logging
+from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Union
 from functools import lru_cache
@@ -275,17 +276,17 @@ def update_trading_data():
 
         # Update the global cache with a lock to ensure thread safety
         with trading_data_lock:
-            # Debug print to verify the issue
-            print(
-                f"DEBUG: Updating latest_trading_data with ETH price: ${data['eth_price']:.2f}")
-            # Use copy to prevent reference issues
-            latest_trading_data = data.copy()
-            print(
-                f"DEBUG: latest_trading_data updated, ETH price is now: ${latest_trading_data['eth_price']:.2f}")
+            # Log ETH price update
+            logging.debug(
+                f"Updating latest_trading_data with ETH price: ${data['eth_price']:.2f}")
+            # Use deepcopy to prevent reference issues with nested structures
+            latest_trading_data = deepcopy(data)
+            logging.debug(
+                f"latest_trading_data updated, ETH price is now: ${latest_trading_data['eth_price']:.2f}")
 
-        print(
+        logging.info(
             f"Trading data updated successfully at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(
+        logging.info(
             f"Model decisions: Gemini: {gemini_action}, Groq: {groq_action}, Mistral: {mistral_action}")
 
     except Exception as e:
