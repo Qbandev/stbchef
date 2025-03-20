@@ -218,41 +218,69 @@ class TradingDatabase:
             ))
             conn.commit()
 
-    def update_decision_accuracy(self, current_price: float) -> None:
-        """Update accuracy of previous decisions based on current price."""
+    def update_decision_accuracy(self, current_price: float, wallet_address: Optional[str] = None) -> None:
+        """Update accuracy of previous decisions based on current price.
+
+        If wallet_address is provided, only update decisions for that wallet.
+        Otherwise, only update decisions that have a wallet_address (ignore global).
+        """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            # Get last unchecked decisions
-            cursor.execute("""
-                SELECT id, decision, eth_price
-                FROM ai_decisions
-                WHERE was_correct IS NULL
-                AND timestamp < datetime('now', '-30 seconds')
-            """)
+            # Get recent decisions that have not been evaluated yet
+            if wallet_address:
+                # If wallet address is provided, use a parameterized query
+                query = """
+                    SELECT 
+                        id,
+                        decision,
+                        eth_price
+                    FROM ai_decisions
+                    WHERE was_correct IS NULL AND wallet_address = ?
+                    ORDER BY timestamp DESC
+                    LIMIT 200
+                """
+                cursor.execute(query, (wallet_address,))
+            else:
+                # If no wallet address, just get decisions with any wallet_address
+                query = """
+                    SELECT 
+                        id,
+                        decision,
+                        eth_price
+                    FROM ai_decisions
+                    WHERE was_correct IS NULL AND wallet_address IS NOT NULL
+                    ORDER BY timestamp DESC
+                    LIMIT 200
+                """
+                cursor.execute(query)
 
             decisions = cursor.fetchall()
-            for decision_id, decision, price in decisions:
-                price_change = current_price - price
-                price_change_pct = (price_change / price) * 100
-                is_correct = None
-                profit_loss = None
+            for decision_id, decision, decision_price in decisions:
+                # Skip if price is the same (just added)
+                if decision_price == current_price:
+                    continue
 
-                if decision == 'BUY':
-                    is_correct = price_change > 0
-                    profit_loss = price_change_pct if is_correct else -price_change_pct
-                elif decision == 'SELL':
-                    is_correct = price_change < 0
-                    profit_loss = -price_change_pct if is_correct else price_change_pct
-                elif decision == 'HOLD':
-                    is_correct = abs(price_change_pct) < 0.5
-                    profit_loss = 0
+                # Calculate profit/loss as percentage
+                price_change_pct = (
+                    (current_price - decision_price) / decision_price) * 100
 
+                # Determine if decision was correct
+                was_correct = False
+                if decision == 'BUY' and price_change_pct > 0:
+                    was_correct = True
+                elif decision == 'SELL' and price_change_pct < 0:
+                    was_correct = True
+                # Less than 2% change for HOLD
+                elif decision == 'HOLD' and abs(price_change_pct) < 2:
+                    was_correct = True
+
+                # Update decision accuracy
                 cursor.execute("""
                     UPDATE ai_decisions
                     SET was_correct = ?, profit_loss = ?
                     WHERE id = ?
-                """, (is_correct, profit_loss, decision_id))
+                """, (was_correct, price_change_pct, decision_id))
 
             conn.commit()
 
@@ -639,7 +667,7 @@ class TradingDatabase:
                     'eth_allocation': row['eth_allocation']
                 })
 
-            # Also get AI decisions specific to this wallet
+            # Get AI decisions specific to this wallet only (no global decisions)
             cursor.execute("""
                 SELECT 
                     model,
@@ -649,7 +677,7 @@ class TradingDatabase:
                     was_correct,
                     profit_loss
                 FROM ai_decisions
-                WHERE wallet_address = ? OR wallet_address = 'global'
+                WHERE wallet_address = ?
                 ORDER BY timestamp DESC
                 LIMIT 100
             """, (wallet_address,))

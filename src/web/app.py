@@ -53,7 +53,31 @@ recent_decisions = {
 }
 
 # Latest trading data cache
-latest_trading_data = {}
+latest_trading_data = {
+    'eth_price': 0,
+    'eth_volume_24h': 0,
+    'eth_high_24h': 0,
+    'eth_low_24h': 0,
+    'gas_prices': {
+        'low': 0,
+        'standard': 0,
+        'fast': 0
+    },
+    'market_sentiment': {
+        'fear_greed_value': '0',
+        'fear_greed_sentiment': 'neutral'
+    },
+    'gemini_action': '',
+    'groq_action': '',
+    'mistral_action': '',
+    'consensus': None,
+    'model_stats': {
+        'accuracy': {},
+        'comparison': {},
+        'daily_performance': {}
+    },
+    'timestamp': datetime.now().isoformat()
+}
 trading_data_lock = threading.Lock()
 
 # Add thread-safe cache invalidation timestamp
@@ -127,13 +151,14 @@ def update_trading_data():
     global latest_trading_data
 
     try:
-        # Get market data
+        # Get market data - this is always updated regardless of wallet connections
         print("Fetching market data...")
         market_data = market_agent.get_market_data()
         print(f"Market data fetched: ETH price = ${market_data.eth_price:.2f}")
 
+        # Get model decisions - these can be calculated without wallets,
+        # but will only be stored for specific wallets
         try:
-            # Get model decisions
             print("Getting Gemini trading decision...")
             gemini_action = gemini_client.get_trading_decision(
                 eth_price=market_data.eth_price,
@@ -195,7 +220,7 @@ def update_trading_data():
         }
         consensus = check_llm_consensus(decisions)
 
-        # Store market data and decisions in database
+        # Always store market data in database - this is not wallet dependent
         timestamp = datetime.now()
         print("Storing market data in database...")
         db.store_market_data(
@@ -207,17 +232,12 @@ def update_trading_data():
             market_sentiment=market_data.market_sentiment
         )
 
-        # Store individual AI decisions
-        print("Storing AI decisions in database...")
-        db.store_ai_decision('gemini', gemini_action,
-                             market_data.eth_price, "global")
-        db.store_ai_decision('groq', groq_action,
-                             market_data.eth_price, "global")
-        db.store_ai_decision('mistral', mistral_action,
-                             market_data.eth_price, "global")
+        # Note: AI decisions are only stored when wallets are connected through the API endpoint
+        print("Note: AI decisions will only be stored when wallets are connected")
 
-        # Update accuracy of previous decisions
-        print("Updating decision accuracy...")
+        # Update accuracy of previous decisions (only for wallet-specific decisions)
+        print("Updating decision accuracy for wallet-specific decisions...")
+        # Only updates wallet-specific decisions
         db.update_decision_accuracy(market_data.eth_price)
 
         # Invalidate cache after storing new data
@@ -236,6 +256,8 @@ def update_trading_data():
             'daily_performance': performance_by_day
         }
 
+        # Create data object with market data and model decisions
+        # These will be displayed in the UI but decisions won't be saved to DB without wallet
         data = {
             'eth_price': market_data.eth_price,
             'eth_volume_24h': market_data.eth_volume_24h,
@@ -253,7 +275,13 @@ def update_trading_data():
 
         # Update the global cache with a lock to ensure thread safety
         with trading_data_lock:
-            latest_trading_data = data
+            # Debug print to verify the issue
+            print(
+                f"DEBUG: Updating latest_trading_data with ETH price: ${data['eth_price']:.2f}")
+            # Use copy to prevent reference issues
+            latest_trading_data = data.copy()
+            print(
+                f"DEBUG: latest_trading_data updated, ETH price is now: ${latest_trading_data['eth_price']:.2f}")
 
         print(
             f"Trading data updated successfully at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -327,12 +355,18 @@ def get_trading_data():
         # Use the cached data instead of making API calls every time
         with trading_data_lock:
             if latest_trading_data:
+                print(
+                    f"DEBUG: Using cached trading data, ETH price: ${latest_trading_data.get('eth_price', 0):.2f}")
                 return jsonify(latest_trading_data)
+            else:
+                print("DEBUG: No cached trading data available, fetching new data")
 
         # If no cached data available yet, get it now
         update_trading_data()
 
         with trading_data_lock:
+            print(
+                f"DEBUG: Returning freshly updated trading data, ETH price: ${latest_trading_data.get('eth_price', 0):.2f}")
             return jsonify(latest_trading_data)
 
     except Exception as e:

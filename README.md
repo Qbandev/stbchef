@@ -82,6 +82,7 @@ The wallet integration includes sophisticated features for a seamless user exper
   - Real-time ETH balance tracking
   - Network-specific USDC balance fetching
   - Portfolio allocation visualization
+  - Data-driven recommendations requiring verified price data
   - Customized recommendations based on:
     - Current ETH/USDC allocation
     - Market sentiment (bullish/bearish)
@@ -89,6 +90,9 @@ The wallet integration includes sophisticated features for a seamless user exper
   - Swap amount suggestions for rebalancing
 
 - **Robust Error Handling**
+  - Strict validation of market price data
+  - Zero-default approach for critical calculations
+  - Clear visual indicators for missing data states
   - Timeouts for contract interactions
   - Fallbacks for network switch failures
   - Clear loading states during operations
@@ -111,6 +115,12 @@ The system uses a Flask web application with a background scheduler that:
 ### LLM Trading Strategy
 
 Each AI model evaluates the same market data using these parameters:
+
+- **Data Requirements**:
+  * Valid ETH/USD price data (no decisions made without verified prices)
+  * Gas fee information
+  * Market sentiment indicators
+  * Historical price trends
 
 - **Target Allocations**:
   * ETH: 60-80% in bullish conditions
@@ -308,8 +318,8 @@ The system implements comprehensive error handling and validation:
 - **API Response Validation**
   - Validates all API responses before processing
   - Handles empty or malformed responses gracefully
-  - Provides fallback values for missing data
-  - Graceful degradation during API outages
+  - Suspends calculations when critical data (like price) is unavailable
+  - Displays clear status messages during API outages
 
 - **Web3 Interaction Safety**
   - Robust contract interaction with timeout handling
@@ -319,8 +329,9 @@ The system implements comprehensive error handling and validation:
 
 - **Technical Calculation Safety**
   - Try/except blocks for all numerical calculations
-  - Default values for edge cases
+  - No default values for critical inputs like ETH price
   - Detailed logging for debugging
+  - Graceful degradation with informative messaging
 
 - **Database Operations**
   - Thread-safe operations

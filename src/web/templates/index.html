@@ -785,49 +785,55 @@
                     }
                 }
                 
-                // Get current ETH/USD price from the dashboard data
-                const ethPriceElement = document.getElementById('eth-price');
-                if (ethPriceElement) {
-                    const priceText = ethPriceElement.textContent;
-                    walletBalances.ethusd = parseFloat(priceText.replace('$', '').trim());
-                    console.log("ETH/USD price:", walletBalances.ethusd);
-                } else {
-                    console.warn("ETH price element not found");
-                    // Fallback price in case the element isn't found
-                    walletBalances.ethusd = 3000; 
+                // Get ETH price from the UI - NEVER use a default price
+                let validPriceFound = false;
+                try {
+                    const priceText = document.getElementById('eth-price').textContent;
+                    if (priceText && priceText !== 'Error' && priceText !== 'Waiting for data...') {
+                        const parsedPrice = parseFloat(priceText.replace('$', '').trim());
+                        if (!isNaN(parsedPrice) && parsedPrice > 0) {
+                            walletBalances.ethusd = parsedPrice;
+                            console.log("ETH/USD price from UI:", walletBalances.ethusd);
+                            validPriceFound = true;
+                        }
+                    }
+                    
+                    // If UI price failed, try the API directly
+                    if (!validPriceFound) {
+                        const response = await fetch('/api/trading-data');
+                        const data = await response.json();
+                        if (data && data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0) {
+                            walletBalances.ethusd = parseFloat(data.eth_price);
+                            console.log("ETH/USD price from API:", walletBalances.ethusd);
+                            validPriceFound = true;
+                        }
+                    }
+                } catch (priceError) {
+                    console.warn("Error getting ETH price:", priceError);
+                    validPriceFound = false;
                 }
                 
-                // Calculate total value in USD
+                if (!validPriceFound) {
+                    console.warn("No valid ETH price available - cannot calculate wallet value");
+                    walletBalances.ethusd = 0;
+                    walletBalances.totalValueUSD = 0;
+                    updateWalletCard();
+                    return;
+                }
+                
+                // Calculate total wallet value only if we have a valid price
                 walletBalances.totalValueUSD = (walletBalances.eth * walletBalances.ethusd) + walletBalances.usdc;
                 console.log("ETH value in USD:", walletBalances.eth * walletBalances.ethusd);
                 console.log("USDC value:", walletBalances.usdc);
                 console.log("Total wallet value:", walletBalances.totalValueUSD, "USD");
                 
-                // Make sure we have a valid total - if somehow it's still 0 or NaN, set a minimum value
-                if (!walletBalances.totalValueUSD || isNaN(walletBalances.totalValueUSD) || walletBalances.totalValueUSD <= 0) {
-                    if (walletBalances.eth > 0) {
-                        // If we have ETH but totalValue calculation failed, use the ETH value
-                        walletBalances.totalValueUSD = walletBalances.eth * walletBalances.ethusd;
-                        console.log("Using ETH-only value:", walletBalances.totalValueUSD, "USD");
-                    }
-                }
-                
-                // Update the wallet card
+                // Update UI
                 updateWalletCard();
-                
-                // Update model stats to reflect wallet-based operations
-                if (isSupportedNetwork) {
-                    updateModelStatsForWallet();
-                } else {
-                    console.log("Skipping model stats update for unsupported network");
-                }
-                
-                return walletBalances;
+                updateModelStatsForWallet();
             } catch (error) {
-                logToServer('error', "Error fetching wallet balances", error);
+                console.error("Error fetching wallet balances:", error);
                 showNotification("Error fetching wallet balances: " + error.message, "error");
-                resetWalletBalances();
-                return null;
+                // Don't reset wallet balances here, keep whatever was valid previously
             }
         }
         
@@ -971,7 +977,8 @@
                 return;
             }
             
-            // Note: We will proceed even if balances are zero - we want to show network switching options
+            // Check if we have valid price data
+            const hasValidPrice = walletBalances.ethusd && !isNaN(walletBalances.ethusd) && walletBalances.ethusd > 0;
             
             // Check if we're on Linea network
             web3.eth.getChainId().then(chainId => {
@@ -1038,15 +1045,8 @@
                     </div>
                 `;
                 
-                // Calculate optimal action based on current portfolio allocation
-                // Add validation to ensure we have valid ETH price before calculations
-                const ethValue = walletBalances.eth || 0;
-                const usdcValue = walletBalances.usdc || 0;
-                const ethPrice = walletBalances.ethusd || 0;
-                
-                // Skip detailed allocation calculations if price is invalid
-                if (ethPrice <= 0 || isNaN(ethPrice)) {
-                    // Render basic card without allocation recommendations
+                // If we don't have a valid ETH price, show error and don't make calculations
+                if (!hasValidPrice) {
                     walletCard.innerHTML = `
                         <div class="p-4">
                             <div class="flex justify-between items-center mb-3">
@@ -1059,23 +1059,29 @@
                             <div class="grid grid-cols-2 gap-2 text-sm">
                                 <div>
                                     <div class="text-gray-400">ETH Balance:</div>
-                                    <div class="font-bold text-cyber-text">${ethValue.toFixed(4)} ETH</div>
-                                    <div class="text-xs text-gray-400">Price data unavailable</div>
+                                    <div class="font-bold text-cyber-text">${walletBalances.eth.toFixed(4)} ETH</div>
+                                    <div class="text-xs text-red-400">Market price unavailable</div>
                                 </div>
                                 <div>
                                     <div class="text-gray-400">USDC Balance:</div>
-                                    <div class="font-bold text-cyber-text">${usdcValue.toFixed(2)} USDC</div>
+                                    <div class="font-bold text-cyber-text">${walletBalances.usdc.toFixed(2)} USDC</div>
                                     <div class="text-xs text-gray-400">${!isLinea && !isEthereum ? '(Only available on Linea or Ethereum)' : ''}</div>
                                 </div>
                                 ${switchNetworkButtons}
-                                <div class="col-span-2 mt-3 text-center text-yellow-400">
-                                    <p>Unable to calculate allocation - price data unavailable</p>
+                                <div class="col-span-2 mt-3 text-center">
+                                    <p class="text-yellow-400">Waiting for market data to make recommendations</p>
+                                    <p class="text-xs text-gray-400 mt-1">All calculations and recommendations require live price data</p>
                                 </div>
                             </div>
                         </div>
                     `;
                     return;
                 }
+                
+                // Calculate optimal action based on current portfolio allocation
+                const ethValue = walletBalances.eth || 0;
+                const usdcValue = walletBalances.usdc || 0;
+                const ethPrice = walletBalances.ethusd || 0;
                 
                 const ethValueUSD = ethValue * ethPrice;
                 const totalValue = (ethValueUSD + usdcValue) || 0;
@@ -1367,13 +1373,19 @@
             }
             
             try {
+                // Strictly validate ETH price before attempting any calculations
+                if (!walletBalances.ethusd || isNaN(walletBalances.ethusd) || walletBalances.ethusd <= 0) {
+                    console.log("No valid ETH price available - skipping model stats update");
+                    return;
+                }
+                
                 // Get current ETH price and portfolio values
                 const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
                 const totalValue = walletBalances.totalValueUSD || ethValueUSD; // Fallback if totalValueUSD is 0
                 
-                // Skip wallet action update if we have no value or invalid price
-                if (totalValue <= 0 || !walletBalances.ethusd || isNaN(walletBalances.ethusd)) {
-                    console.log("Wallet has no value or invalid price, skipping wallet action update");
+                // Skip wallet action update if we have no value
+                if (totalValue <= 0) {
+                    console.log("Wallet has no value, skipping wallet action update");
                     return;
                 }
                 
@@ -1952,55 +1964,121 @@
                 .then(data => {
                     console.log('Received data:', data);
 
-                    // Update metrics
-                    document.getElementById('eth-price').textContent = `$${data.eth_price.toFixed(2)}`;
-                    document.getElementById('eth-volume').textContent = `$${(data.eth_volume_24h/1e6).toFixed(2)}M`;
-                    document.getElementById('eth-high').textContent = `$${data.eth_high_24h.toFixed(2)}`;
-                    document.getElementById('eth-low').textContent = `$${data.eth_low_24h.toFixed(2)}`;
+                    // Validate ETH price first
+                    const hasValidPrice = data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0;
 
-                    // Update model decisions
-                    updateModelDecisions(data, userAccount);
+                    // Update metrics with proper error handling
+                    try {
+                        // Check if we have valid price data
+                        if (hasValidPrice) {
+                            document.getElementById('eth-price').textContent = `$${parseFloat(data.eth_price).toFixed(2)}`;
+                            document.getElementById('eth-volume').textContent = `$${(parseFloat(data.eth_volume_24h || 0)/1e6).toFixed(2)}M`;
+                            document.getElementById('eth-high').textContent = `$${parseFloat(data.eth_high_24h || 0).toFixed(2)}`;
+                            document.getElementById('eth-low').textContent = `$${parseFloat(data.eth_low_24h || 0).toFixed(2)}`;
+                        } else {
+                            document.getElementById('eth-price').textContent = `Waiting for data...`;
+                            document.getElementById('eth-volume').textContent = `Waiting for data...`;
+                            document.getElementById('eth-high').textContent = `Waiting for data...`;
+                            document.getElementById('eth-low').textContent = `Waiting for data...`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating price metrics:', error);
+                        document.getElementById('eth-price').textContent = `Error`;
+                        document.getElementById('eth-volume').textContent = `Error`;
+                        document.getElementById('eth-high').textContent = `Error`;
+                        document.getElementById('eth-low').textContent = `Error`;
+                    }
 
-                    // Update gas price information
-                    if (data.gas_prices) {
-                        document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
-                        document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
-                        document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                    // Update model decisions with error handling
+                    try {
+                        updateModelDecisions(data, userAccount);
+                    } catch (error) {
+                        console.error('Error updating model decisions:', error);
+                    }
+
+                    // Update gas price information with error handling
+                    try {
+                        if (data.gas_prices && 
+                            data.gas_prices.low !== undefined && 
+                            data.gas_prices.standard !== undefined && 
+                            data.gas_prices.fast !== undefined) {
+                            document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
+                            document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
+                            document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                        } else {
+                            document.getElementById('gas-low').textContent = `Waiting for data...`;
+                            document.getElementById('gas-standard').textContent = `Waiting for data...`;
+                            document.getElementById('gas-fast').textContent = `Waiting for data...`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating gas prices:', error);
+                        document.getElementById('gas-low').textContent = `Error`;
+                        document.getElementById('gas-standard').textContent = `Error`;
+                        document.getElementById('gas-fast').textContent = `Error`;
                     }
                     
-                    // Update market sentiment
-                    const sentimentText = document.getElementById('sentiment');
-                    if (sentimentText && data.market_sentiment) {
-                        sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
-                        const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800';
+                    // Update market sentiment with error handling
+                    try {
+                        const sentimentText = document.getElementById('sentiment');
+                        if (sentimentText && data.market_sentiment && 
+                            data.market_sentiment.fear_greed_value && 
+                            data.market_sentiment.fear_greed_sentiment) {
+                            sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
+                            const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800';
 
-                        sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                        } else if (sentimentText) {
+                            sentimentText.textContent = `-`;
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800`;
+                        }
+                    } catch (error) {
+                        console.error('Error updating market sentiment:', error);
+                        const sentimentText = document.getElementById('sentiment');
+                        if (sentimentText) {
+                            sentimentText.textContent = `Error`;
+                            sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800`;
+                        }
                     }
 
-                    // Update charts
-                    updateCharts(
-                        data.eth_price,
-                        data.market_sentiment?.fear_greed_value,
-                        data.gemini_action,
-                        data.groq_action,
-                        data.mistral_action,
-                        data.eth_volume_24h
-                    );
+                    // Update charts with error handling
+                    try {
+                        if (hasValidPrice) {
+                            updateCharts(
+                                parseFloat(data.eth_price),
+                                data.market_sentiment?.fear_greed_value,
+                                data.gemini_action,
+                                data.groq_action,
+                                data.mistral_action,
+                                parseFloat(data.eth_volume_24h || 0)
+                            );
+                        }
+                    } catch (error) {
+                        console.error('Error updating charts:', error);
+                    }
 
                     // Only update model stats if wallet is connected
-                    if (userAccount && data.model_stats?.comparison) {
-                        // Get wallet-specific stats instead of general stats
-                        fetchWalletStats();
-                    } else {
-                        // Make sure model cards show connect wallet message
+                    try {
+                        if (userAccount && hasValidPrice && data.model_stats?.comparison) {
+                            // Get wallet-specific stats instead of general stats
+                            fetchWalletStats();
+                        } else {
+                            // Make sure model cards show connect wallet message
+                            displayEmptyStats();
+                        }
+                    } catch (error) {
+                        console.error('Error updating model stats:', error);
                         displayEmptyStats();
                     }
 
                     // Only persist trading history if wallet is connected
-                    if (userAccount) {
-                        persistTradingHistory();
+                    try {
+                        if (userAccount && hasValidPrice) {
+                            persistTradingHistory();
+                        }
+                    } catch (error) {
+                        console.error('Error persisting trading history:', error);
                     }
                 })
                 .catch(error => {
@@ -2010,6 +2088,11 @@
                         el.classList.add('text-red-500');
                     });
                 });
+
+            // If we have a wallet but no valid price, update wallet card
+            if (userAccount && !hasValidPrice) {
+                updateWalletCard();
+            }
         }
 
         // Update model decisions based on wallet connection status
@@ -2021,6 +2104,9 @@
                 mistral: data.mistral_action
             };
 
+            // First, validate ETH price data
+            const hasValidPrice = data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0;
+            
             // For each model decision card
             models.forEach(model => {
                 const decisionElement = document.getElementById(`${model}-decision`);
@@ -2033,6 +2119,13 @@
                     // No wallet connected - show connect wallet message
                     decisionElement.innerHTML = `<span class="text-sm">Connect wallet first</span>`;
                     decisionElement.classList.add('text-gray-400');
+                    return;
+                }
+                
+                // If ETH price is invalid, show error message
+                if (!hasValidPrice) {
+                    decisionElement.innerHTML = `<span class="text-sm">Waiting for price data</span>`;
+                    decisionElement.classList.add('text-yellow-400');
                     return;
                 }
 
@@ -2066,12 +2159,15 @@
                 decisionElement.textContent = action;
                 decisionElement.classList.add(actionClass);
                 
-                // Store this decision linked to the current wallet
-                storeAIDecisionForWallet(model, action, data.eth_price, walletAddress);
+                // Only store decisions when wallet is connected
+                if (walletAddress) {
+                    // Store this decision linked to the current wallet
+                    storeAIDecisionForWallet(model, action, data.eth_price, walletAddress);
+                }
             });
 
             // Check for consensus and notify if wallet is connected
-            if (walletAddress) {
+            if (walletAddress && hasValidPrice) {
                 const decisions = {
                     gemini: data.gemini_action,
                     groq: data.groq_action,
@@ -2103,7 +2199,7 @@
                             message += `Recommended by: ${sellModels.join(', ')}`;
                         }
 
-                        // Show browser notification for all signals (BUY, SELL)
+                        // Show browser notification for BUY and SELL signals only
                         showNotification(message, 'info');
 
                         // Force wallet balance refresh with a slight delay
@@ -2315,7 +2411,7 @@
             console.log('Initializing dashboard...');
             checkFreshSession(); // Check if storage needs clearing
             
-            // Initialize UI with empty state first
+            // Initialize UI with empty state first for model stats
             displayEmptyStats();
             
             // Initialize charts before any data loading
@@ -2324,8 +2420,8 @@
             // Check for daily reset
             checkDailyReset(); 
             
-            // Fetch data after initialization
-            updateData();  // Initial data fetch
+            // First, load global market data (this is not wallet-dependent)
+            updateData();
             
             // Set up auto-refresh every 10 minutes
             const refreshInterval = setInterval(() => {
@@ -2414,10 +2510,10 @@
                 const usdcBalance = walletBalances.usdc || 0;
                 const currentPrice = walletBalances.ethusd || 0;
                 
-                // Skip transaction suggestions if price is invalid
+                // Strictly validate price data is available - NEVER use default values
                 if (currentPrice <= 0 || isNaN(currentPrice)) {
-                    console.log("Invalid ETH price, skipping transaction suggestions");
-                    showNotification(`${signalType} signal received - Unable to calculate swap amounts with current price data`, 'warning');
+                    console.log("No valid ETH price available - cannot send transaction suggestion");
+                    showNotification(`${signalType} signal received but ETH price data unavailable. No transaction suggested.`, 'warning');
                     return;
                 }
                 
@@ -2557,6 +2653,12 @@
             if (!userAccount) return;
             
             try {
+                // Verify we have valid price data first
+                if (!walletBalances.ethusd || isNaN(walletBalances.ethusd) || walletBalances.ethusd <= 0) {
+                    console.warn("Cannot record wallet action: ETH price data unavailable");
+                    return null;
+                }
+                
                 // Calculate ETH allocation
                 const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
                 const totalValue = walletBalances.totalValueUSD || ethValueUSD;
