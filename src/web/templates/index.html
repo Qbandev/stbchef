@@ -986,6 +986,9 @@
             try {
                 console.log("Fetching wallet balances for", userAccount);
                 
+                // Show loading state while fetching wallet data
+                showLoadingWalletState("Retrieving wallet balances...");
+                
                 // Get current network ID with timeout
                 let chainId;
                 try {
@@ -1000,6 +1003,9 @@
                 } catch (chainError) {
                     console.error("Error getting chain ID:", chainError);
                     chainId = 0; // Use 0 as "unknown network"
+                    
+                    // Update loading state to show network issue
+                    showLoadingWalletState("Network detection issue - please check MetaMask");
                 }
                 
                 // Check if we're on Linea (Chain ID 59144) or Ethereum (Chain ID 1)
@@ -1010,6 +1016,9 @@
                 if (!isSupportedNetwork) {
                     showNotification(`Unsupported network (Chain ID: ${chainId}). Please switch to Linea or Ethereum mainnet.`, 'warning');
                     console.warn(`Unsupported network: ${chainId}`);
+                    
+                    // Update loading state to show network issue
+                    showLoadingWalletState("Connected to unsupported network - please switch");
                 }
                 
                 // Get ETH balance
@@ -1021,6 +1030,9 @@
                 walletBalances.usdc = 0; // Default to 0
                 
                 if (isLinea) {
+                    // Update loading state to show token balance retrieval
+                    showLoadingWalletState("Retrieving Linea USDC balance...");
+                    
                     // USDC on Linea
                     const lineaUsdcAddress = '0x176211869cA2b568f2A7D4EE941E073a821EE1ff';
                     try {
@@ -1029,6 +1041,9 @@
                         console.warn("Error fetching Linea USDC balance:", contractError.message);
                     }
                 } else if (isEthereum) {
+                    // Update loading state to show token balance retrieval
+                    showLoadingWalletState("Retrieving Ethereum USDC balance...");
+                    
                     // USDC on Ethereum Mainnet
                     const ethUsdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
                     try {
@@ -1037,6 +1052,9 @@
                         console.warn("Error fetching Ethereum USDC balance:", contractError.message);
                     }
                 }
+                
+                // Update loading state to show price data retrieval
+                showLoadingWalletState("Retrieving ETH price data...");
                 
                 // Get ETH price from the UI - NEVER use a default price
                 let validPriceFound = false;
@@ -1070,7 +1088,37 @@
                     console.warn("No valid ETH price available - cannot calculate wallet value");
                     walletBalances.ethusd = 0;
                     walletBalances.totalValueUSD = 0;
-                    updateWalletCard();
+                    
+                    // Show specific message about missing price data
+                    walletCard.innerHTML = `
+                        <div class="p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                                <div class="flex items-center">
+                                    <span class="text-xs ${isLinea ? 'text-green-400' : isEthereum ? 'text-green-400' : 'text-yellow-400'} mr-2">
+                                        Network: ${isLinea ? 'Linea' : isEthereum ? 'Ethereum' : 'Unknown'}
+                                    </span>
+                                    <span class="text-xs text-gray-400">${userAccount.substring(0, 6)}...${userAccount.substring(38)}</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col">
+                                <div class="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                        <div class="text-gray-400">ETH Balance:</div>
+                                        <div class="font-bold text-cyber-text">${walletBalances.eth.toFixed(4)} ETH</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-400">USDC Balance:</div>
+                                        <div class="font-bold text-cyber-text">${walletBalances.usdc.toFixed(2)} USDC</div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-center">
+                                    <p class="text-yellow-400">Waiting for ETH price data</p>
+                                    <p class="text-xs text-gray-400 mt-1">Wallet balances ready, but portfolio analysis requires price data</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                     return;
                 }
                 
@@ -1086,6 +1134,25 @@
             } catch (error) {
                 console.error("Error fetching wallet balances:", error);
                 showNotification("Error fetching wallet balances: " + error.message, "error");
+                
+                // Show specific error message in wallet card
+                const walletCard = document.getElementById('wallet-card');
+                if (walletCard) {
+                    walletCard.innerHTML = `
+                        <div class="p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                            </div>
+                            <div class="flex flex-col items-center justify-center py-4">
+                                <p class="text-red-400 mb-2">Error retrieving wallet data</p>
+                                <p class="text-xs text-gray-400 text-center">${error.message}</p>
+                                <button onclick="getWalletBalances()" class="cyber-btn mt-3 text-xs px-3 py-1">
+                                    <i class="fas fa-sync-alt mr-1"></i> Retry
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
                 // Don't reset wallet balances here, keep whatever was valid previously
             }
         }
@@ -1313,7 +1380,7 @@
                                 <div>
                                     <div class="text-gray-400">ETH Balance:</div>
                                     <div class="font-bold text-cyber-text">${walletBalances.eth.toFixed(4)} ETH</div>
-                                    <div class="text-xs text-red-400">Market price unavailable</div>
+                                    <div class="text-xs text-gray-400">${!isLinea && !isEthereum ? '(Only available on Linea or Ethereum)' : ''}</div>
                                 </div>
                                 <div>
                                     <div class="text-gray-400">USDC Balance:</div>
@@ -1322,8 +1389,8 @@
                                 </div>
                                 ${switchNetworkButtons}
                                 <div class="col-span-2 mt-3 text-center">
-                                    <p class="text-yellow-400">Waiting for market data to make recommendations</p>
-                                    <p class="text-xs text-gray-400 mt-1">All calculations and recommendations require live price data</p>
+                                    <p class="text-yellow-400">Wallet portfolio analysis paused</p>
+                                    <p class="text-xs text-gray-400 mt-1">Portfolio recommendations will resume once data is available</p>
                                 </div>
                             </div>
                         </div>
@@ -1511,7 +1578,7 @@
             
             try {
                 // Show loading state first before attempting switch
-                showLoadingWalletState("Switching networks...");
+                showLoadingWalletState("Switching network - please confirm in MetaMask");
                 
                 // First, try to switch to the network
                 await window.ethereum.request({
@@ -1527,6 +1594,9 @@
                 // Wait a bit longer for MetaMask to complete the network switch
                 setTimeout(async () => {
                     try {
+                        // Show loading state for wallet data retrieval
+                        showLoadingWalletState("Loading wallet data for new network");
+                        
                         await getWalletBalances();
                         
                         // Also update model performance and LLM decision cards
@@ -1548,6 +1618,9 @@
                 // This error code indicates that the chain has not been added to MetaMask
                 if (switchError.code === 4902) {
                     try {
+                        // Show loading state for adding network
+                        showLoadingWalletState("Adding network to MetaMask");
+                        
                         if (chainId === 59144) {
                             // Add Linea network
                             await window.ethereum.request({
@@ -1585,6 +1658,9 @@
                         
                         // After adding the network, update model performance and LLM decision cards
                         setTimeout(async () => {
+                            // Show loading state for wallet data
+                            showLoadingWalletState("Loading wallet data on new network");
+                            
                             fetchWalletStats();
                             const tradingData = await fetch('/api/trading-data').then(res => res.json());
                             updateModelDecisions(tradingData, userAccount);
@@ -1592,10 +1668,16 @@
                     } catch (addError) {
                         logToServer('error', 'Error adding network to MetaMask', addError);
                         showNotification('Error adding network to MetaMask', 'error');
+                        
+                        // Restore normal wallet card state
+                        updateWalletCard();
                     }
                 } else {
                     logToServer('error', 'Error switching network', switchError);
                     showNotification('Error switching network. Check MetaMask.', 'error');
+                    
+                    // Restore normal wallet card state
+                    updateWalletCard();
                 }
             }
         }
