@@ -727,7 +727,8 @@ class TradingDatabase:
             """, (wallet_address,))
 
             ai_decisions = []
-            model_decisions = {
+            # Rename to more accurately reflect the content - this stores aggregated stats by model, not individual decisions
+            decisions_by_model = {
                 'gemini': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []},
                 'groq': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []},
                 'mistral': {'total': 0, 'correct': 0, 'buy': 0, 'sell': 0, 'hold': 0, 'profits': []}
@@ -739,7 +740,7 @@ class TradingDatabase:
                 was_correct = row['was_correct']
                 profit_loss = row['profit_loss'] or 0
 
-                if model not in model_decisions:
+                if model not in decisions_by_model:
                     continue  # Skip if unknown model
 
                 # Add to the decisions tracking
@@ -753,25 +754,25 @@ class TradingDatabase:
                 })
 
                 # Update model-specific stats
-                model_decisions[model]['total'] += 1
+                decisions_by_model[model]['total'] += 1
                 if was_correct:
-                    model_decisions[model]['correct'] += 1
+                    decisions_by_model[model]['correct'] += 1
 
                 # Track decision distribution
                 if decision == 'BUY':
-                    model_decisions[model]['buy'] += 1
+                    decisions_by_model[model]['buy'] += 1
                 elif decision == 'SELL':
-                    model_decisions[model]['sell'] += 1
+                    decisions_by_model[model]['sell'] += 1
                 elif decision == 'HOLD':
-                    model_decisions[model]['hold'] += 1
+                    decisions_by_model[model]['hold'] += 1
 
                 # Track profits
                 if profit_loss is not None:
-                    model_decisions[model]['profits'].append(profit_loss)
+                    decisions_by_model[model]['profits'].append(profit_loss)
 
             # Prepare model-specific stats
             model_stats = {}
-            for model, stats in model_decisions.items():
+            for model, stats in decisions_by_model.items():
                 if stats['total'] > 0:
                     # Calculate raw accuracy
                     raw_accuracy = (stats['correct'] / stats['total']) * 100
@@ -826,6 +827,7 @@ class TradingDatabase:
 
                 # Check if actions were profitable
                 if len(actions) > 1:
+                    total_value_change = 0  # Reset to accumulate across all periods
                     for i in range(len(actions) - 1):
                         current = actions[i]
                         previous = actions[i + 1]
@@ -840,9 +842,14 @@ class TradingDatabase:
                            (current['action'] == 'HOLD' and abs(price_change) < 1):  # 1% threshold for HOLD
                             profitable_actions += 1
 
-                        # Track value change
-                        if i == 0:  # Only calculate value change from oldest to newest
+                        # Calculate cumulative value change
+                        # For the oldest to newest value change, use the first pair (i==0)
+                        if i == 0:
                             total_value_change = price_change
+                        # For more sophisticated value change calculation, you could consider:
+                        # - Weighted average by time between actions
+                        # - Compound calculation based on action type
+                        # total_value_change += price_change  # Simple cumulative approach
 
             # Calculate combined accuracy
             accuracy = 0

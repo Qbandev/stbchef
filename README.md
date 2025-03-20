@@ -7,7 +7,7 @@
 
 ## Overview
 
-A proof-of-concept project that evaluates and compares the trading accuracy of different Large Language Models (LLMs) in cryptocurrency trading. The system provides real-time Ethereum (ETH) market data to multiple AI models and analyzes their performance through an interactive dashboard.
+A proof-of-concept project that evaluates the trading accuracy of different Large Language Models (LLMs) in cryptocurrency trading. The system provides real-time Ethereum (ETH) market data to multiple AI models and analyzes their performance through an interactive dashboard.
 
 ## Live Demo
 
@@ -15,346 +15,103 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 <div align="center">
   <img src="src/web/static/website.jpg" alt="Trading Bot Chef Dashboard" width="800"/>
-  <p><em>Trading Bot Chef Dashboard - Real-time AI Trading Analysis</em></p>
 </div>
-
-### AI Models in Action
-
-- **Gemini 2.0 Flash** - Google's latest LLM optimized for fast, accurate trading analysis
-- **Groq DeepSeek-R1-Distill-Llama-70B** - High-performance reasoning model for comprehensive market insights
-- **Mistral Medium** - Advanced model providing additional trading perspectives
 
 ## Key Features
 
-- **Real-time Monitoring**
-  - Live ETH price tracking via Etherscan
+- **Enhanced UI/UX**
+  - Cyberpunk-inspired design with animated elements
+  - Advanced network badges with visual network status
+  - Wallet address copy function with notification feedback
+  - Consistent UI state management during transitions
+  - Context-aware error handling with appropriate visual feedback
+
+- **Advanced AI Trading Analysis**
+  - Real-time trading signals from multiple LLMs:
+    - **Gemini 2.0 Flash** - Google's latest LLM
+    - **Groq DeepSeek-R1-Distill-Llama-70B** - High-performance reasoning model
+    - **Mistral Medium** - Advanced model for additional perspective
+  - Dual accuracy tracking system:
+    - Raw accuracy (simple correct/incorrect ratio)
+    - Weighted performance score based on decision magnitude
+  - Decision distribution analysis (Buy/Sell/Hold)
+
+- **Real-time Market Data**
+  - Live ETH price and volume tracking
   - Dynamic gas fee analysis
-  - Market sentiment tracking with Fear & Greed Index
-  - 10-minute update intervals for all metrics
+  - Market sentiment with Fear & Greed Index
+  - Price chart with volume indicators
 
-- **AI Analysis**
-  - Comparative trading signals from multiple LLMs
-  - Real-time performance metrics
-  - Advanced accuracy tracking system:
-    - Dynamic thresholds based on market volatility
-    - Weighted scoring system for recent trades
-    - Performance score based on last 100 trades per model
-    - Daily stats that reset at midnight
-    - Shows decision distribution (Buy/Sell/Hold)
+- **Intelligent Portfolio Management**
+  - Dynamic portfolio allocation recommendations
+  - Balance between AI consensus and portfolio health
+  - Automatic detection of severe portfolio imbalance
+  - Visual allocation indicators with target range markers
+  - Context-aware swap recommendations
 
-- **Interactive Dashboard**
-  - ETH Live price and volume charts
-  - Model performance visualization
-  - Gas price in real time
-  - Performance metrics:
-    - 24-hour trading stats
-    - Total trades within last day
-    - Correct/incorrect trades
-    - Average profit percentage
-    - Decision distribution breakdown
-    - Market volatility indicators
+- **Robust Wallet Integration**
+  - Seamless MetaMask connection with persistent session
+  - Support for Ethereum and Linea networks
+  - Network-specific token balances with easy switching
+  - Personalized alerts on important trading signals
+  - Wallet-specific performance statistics
 
-- **MetaMask Integration**
-  - Connect wallet for personalized notifications
-  - Receive alerts on LLM consensus signals
-  - Track performance with wallet connection
-  - Persistent wallet connection across sessions
-  - Support for both Ethereum Mainnet and Linea networks
-  - Easy network switching with intuitive UI
-  - Network-specific USDC token balances
-  - Portfolio allocation visualization and recommendations
-  - Real-time wallet balance updates
-  - Visual feedback during network operations
-  - Intelligent error recovery for network changes
-
-## Wallet Features
-
-The wallet integration includes sophisticated features for a seamless user experience:
-
-- **Multi-Network Support**
-  - Primary support for Linea and Ethereum Mainnet
-  - Automatic network detection at connection
-  - Visual indicators for current network
-  - One-click network switching capability
-  - Network-specific token contract support
-
-- **Portfolio Management**
-  - Real-time ETH balance tracking
-  - Network-specific USDC balance fetching
-  - Portfolio allocation visualization
-  - Data-driven recommendations requiring verified price data
-  - Customized recommendations based on:
-    - Current ETH/USDC allocation
-    - Market sentiment (bullish/bearish)
-    - Target allocation ranges
-  - Swap amount suggestions for rebalancing
-
-- **Robust Error Handling**
-  - Strict validation of market price data
-  - Zero-default approach for critical calculations
-  - Clear visual indicators for missing data states
-  - Timeouts for contract interactions
-  - Fallbacks for network switch failures
-  - Clear loading states during operations
-  - Graceful degradation for unsupported networks
-  - Detailed console logging for troubleshooting
-  - Non-blocking wallet operations
-
-## Technical Implementation
-
-### Backend Architecture
-
-The system uses a Flask web application with a background scheduler that:
-- Updates trading data every 10 minutes
-- Makes concurrent API calls to three different LLM providers
-- Stores historical data in an SQLite database with automatic cleanup
-- Maintains daily statistics with reset at midnight
-- Uses thread-safe caching for performance optimization
-- Comprehensive error handling and logging for stability
-
-### LLM Trading Strategy
-
-Each AI model evaluates the same market data using these parameters:
-
-- **Data Requirements**:
-  * Valid ETH/USD price data (no decisions made without verified prices)
-  * Gas fee information
-  * Market sentiment indicators
-  * Historical price trends
-
-- **Target Allocations**:
-  * ETH: 60-80% in bullish conditions
-  * USDC: 40-20% in bullish conditions
-  * Dynamic adjustment based on market conditions
-
-- **Decision Criteria**:
-  * BUY conditions:
-    - Price below support level
-    - RSI oversold
-    - Strong bullish momentum
-    - Low gas prices
-    - ETH allocation below target
-  * SELL conditions:
-    - Price above resistance
-    - RSI overbought
-    - Bearish momentum
-    - High gas prices
-    - ETH allocation above target
-  * HOLD conditions:
-    - Price within normal range
-    - Current allocation optimal
-    - Gas prices unfavorable
-    - No clear directional bias
-
-### Performance Tracking System
+## Technical Architecture
 
 ```mermaid
-graph LR
-    subgraph Data Collection
-        A[API Data] --> B[ETH Prices]
-        A --> C[Gas Fees]
-        A --> D[Market Sentiment]
-    end
-
-    subgraph Technical Analysis
-        B --> E[Calculate Volatility]
-        B --> F[Calculate Momentum]
-        B --> G[Calculate RSI]
-    end
-
-    subgraph AI Decision Making
-        E --> H[LLM Prompts]
-        F --> H
-        G --> H
-        C --> H
-        D --> H
-        H --> I[Gemini 2.0 Flash]
-        H --> J[DeepSeek-R1-Distill]
-        H --> K[Mistral Medium]
-    end
-
-    subgraph Performance Metrics
-        I --> L[Trade History]
-        J --> L
-        K --> L
-        L --> M[Last 100 Trades Score]
-        L --> N[24-Hour Stats]
-        N --> O[Daily Reset]
-        M --> P[Performance Dashboard]
-        N --> P
-    end
+graph TD
+    A[Market Data APIs] --> B[Backend Scheduler]
+    B --> C[AI LLM APIs]
+    C --> D[Trading Decisions]
+    D --> E[Performance Analysis]
+    F[User Wallet] --> G[Portfolio Analysis]
+    G --> H[Recommendation Engine]
+    D --> H
+    H --> I[User Dashboard]
+    E --> I
 ```
 
-The system implements a sophisticated accuracy tracking system:
+### Unique Features
 
-1. **Performance Score Calculation**
-   - Based on weighted average of last 100 trades
-   - Recent trades receive higher weight
-   - Score displayed as percentage (0-100%)
+- **Dynamic Threshold System**: Automatically adjusts trading thresholds based on market volatility
+- **Severe Imbalance Detection**: Prioritizes portfolio health over AI consensus when allocation is significantly out of range
+- **Weighted Performance Scoring**: More accurately reflects model performance with magnitude bonuses
+- **Visual Network Indicators**: Animated network badges that provide real-time connection status
+- **State-Consistent UI**: Maintains the same visual design language across all application states
 
-2. **Daily Statistics**
-   - Reset automatically at midnight
-   - Track total trades in 24-hour period
-   - Track correct/incorrect decisions
-   - Monitor decision distribution (BUY/SELL/HOLD)
-   - Calculate average profit for correct trades
+## Technical Stack
 
-3. **Visual Indicators**
-   - Green: ≥65% accuracy (High Performance)
-   - Yellow: ≥45% accuracy (Moderate Performance)
-   - Red: <45% accuracy (Low Performance)
+- **Backend**: Python 3.10+, Flask, SQLite
+- **Frontend**: TailwindCSS, Chart.js, Web3.js
+- **APIs**: Etherscan, Alternative.me (Fear & Greed), Google Gemini, Groq, Mistral
+- **Web3**: MetaMask integration with Ethereum and Linea support
 
 ## Quick Start
 
 1. **Setup Environment**
    ```bash
-   # Clone the repository
    git clone https://github.com/yourusername/stbchef.git
    cd stbchef
-
-   # Install Python 3.10+ if needed
-
-   # Install Poetry (dependency management)
-   curl -sSL https://install.python-poetry.org | python3 -
-
-   # Install dependencies
    poetry install
    ```
 
 2. **Configure API Keys**
    - Copy `.env.example` to `.env`
-   - Add your API keys:
-     ```env
-     ETHERSCAN_API_KEY=your_key_here   # Get from https://etherscan.io/myapikey
-     GEMINI_API_KEY=your_key_here      # Get from https://aistudio.google.com/
-     GROQ_API_KEY=your_key_here        # Get from https://console.groq.com/
-     MISTRAL_API_KEY=your_key_here     # Get from https://console.mistral.ai/
-     ```
+   - Add your API keys for Etherscan, Gemini, Groq, and Mistral
 
 3. **Launch Application**
    ```bash
-   # Run the Flask application
    poetry run python -m src.web.app
-
-   # Access the dashboard at http://localhost:8080
+   # Access at http://localhost:8080
    ```
-
-## Technical Stack
-
-- **Backend**
-  - Python 3.10+
-  - Flask web server
-  - Poetry for dependency management
-  - SQLite database with efficient WAL mode
-  - Background scheduler for regular updates
-  - Robust error logging and recovery mechanisms
-
-- **Frontend**
-  - TailwindCSS for styling
-  - Chart.js for visualizations
-  - Web3.js for MetaMask integration
-  - Dynamic stats and model comparisons
-  - Responsive wallet connection interface
-  - Network switching and detection
-
-- **APIs**
-  - Etherscan for ETH prices and gas fees
-  - Alternative.me for Fear & Greed Index
-  - AI Model APIs:
-    - Google Gemini 2.0 Flash
-    - Groq DeepSeek-R1-Distill-Llama-70B
-    - Mistral Medium
-
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Dashboard
-    participant BackgroundScheduler
-    participant AIModels
-    participant Database
-    participant Web3Provider
-
-    User->>Dashboard: Access application
-    Dashboard->>Database: Load historical data
-
-    loop Every 10 Minutes
-        BackgroundScheduler->>AIModels: Get market data
-        AIModels->>AIModels: Process data
-        AIModels->>Database: Store decisions
-
-        alt Daily Reset at Midnight
-            Database->>Database: Calculate 24h stats
-            Database->>Database: Reset daily counters
-        end
-
-        Dashboard->>Database: Fetch latest data
-        Dashboard->>User: Update UI
-    end
-
-    User->>Dashboard: Connect wallet
-    Dashboard->>Web3Provider: Request wallet connection
-    Web3Provider->>Dashboard: Return wallet address and network
-    Dashboard->>User: Show network-specific wallet UI
-    
-    alt Network Switch
-        User->>Dashboard: Request network switch
-        Dashboard->>Web3Provider: Switch network request
-        Web3Provider->>Dashboard: Return new network status
-        Dashboard->>User: Update wallet UI for new network
-    end
-    
-    alt Consensus Signal
-        AIModels->>Dashboard: 2+ models agree on action
-        Dashboard->>User: Show personalized notification
-    end
-```
-
-## Error Handling
-
-The system implements comprehensive error handling and validation:
-
-- **API Response Validation**
-  - Validates all API responses before processing
-  - Handles empty or malformed responses gracefully
-  - Suspends calculations when critical data (like price) is unavailable
-  - Displays clear status messages during API outages
-
-- **Web3 Interaction Safety**
-  - Robust contract interaction with timeout handling
-  - Network detection and validation
-  - Fallbacks for connection issues
-  - Clear user feedback for blockchain operations
-
-- **Technical Calculation Safety**
-  - Try/except blocks for all numerical calculations
-  - No default values for critical inputs like ETH price
-  - Detailed logging for debugging
-  - Graceful degradation with informative messaging
-
-- **Database Operations**
-  - Thread-safe operations
-  - Connection pooling
-  - Transaction management
 
 ## Important Disclaimer
 
 This is an **experimental project** for educational and research purposes only:
-
 - NOT financial advice
 - NOT intended for real trading
-- NO guarantee of accuracy
 - For AI model comparison only
 - Does NOT execute actual trades
-
-## Requirements
-
-- Python 3.10 or higher
-- Poetry package manager
-- API keys for all services
-- Stable internet connection
-- Modern web browser
 
 ## License
 

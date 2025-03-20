@@ -734,6 +734,16 @@
                 // Remove from localStorage to prevent auto-reconnect
                 localStorage.removeItem(STORAGE_KEYS.WALLET);
                 
+                // Clear raw accuracy data from localStorage
+                localStorage.removeItem('stbchef_raw_accuracy');
+                
+                // Reset raw accuracy tracking
+                aiRawAccuracy = {
+                    gemini: { correct: 0, total: 0, accuracy: 0 },
+                    groq: { correct: 0, total: 0, accuracy: 0 },
+                    mistral: { correct: 0, total: 0, accuracy: 0 }
+                };
+                
                 // Update UI
                 updateWalletUI();
                 
@@ -864,6 +874,16 @@
                                 // Remove from localStorage
                                 localStorage.removeItem(STORAGE_KEYS.WALLET);
                                 
+                                // Clear raw accuracy data from localStorage
+                                localStorage.removeItem('stbchef_raw_accuracy');
+                                
+                                // Reset raw accuracy tracking
+                                aiRawAccuracy = {
+                                    gemini: { correct: 0, total: 0, accuracy: 0 },
+                                    groq: { correct: 0, total: 0, accuracy: 0 },
+                                    mistral: { correct: 0, total: 0, accuracy: 0 }
+                                };
+                                
                                 // Update UI
                                 updateWalletUI();
                                 
@@ -875,6 +895,16 @@
                                     .catch(error => console.error('Error updating model decisions:', error));
                             } else {
                                 userAccount = accounts[0];
+                                
+                                // Clear old raw accuracy data since we're connecting to a new wallet
+                                localStorage.removeItem('stbchef_raw_accuracy');
+                                
+                                // Reset raw accuracy tracking for new wallet
+                                aiRawAccuracy = {
+                                    gemini: { correct: 0, total: 0, accuracy: 0 },
+                                    groq: { correct: 0, total: 0, accuracy: 0 },
+                                    mistral: { correct: 0, total: 0, accuracy: 0 }
+                                };
                                 
                                 // Save to localStorage
                                 persistWalletConnection(userAccount);
@@ -946,6 +976,16 @@
                                 
                                 // Remove from localStorage
                                 localStorage.removeItem(STORAGE_KEYS.WALLET);
+                                
+                                // Clear raw accuracy data from localStorage
+                                localStorage.removeItem('stbchef_raw_accuracy');
+                                
+                                // Reset raw accuracy tracking
+                                aiRawAccuracy = {
+                                    gemini: { correct: 0, total: 0, accuracy: 0 },
+                                    groq: { correct: 0, total: 0, accuracy: 0 },
+                                    mistral: { correct: 0, total: 0, accuracy: 0 }
+                                };
                                 
                                 // Update UI
                                 updateWalletUI();
@@ -2142,8 +2182,8 @@
                     }
                 }
                 
-                // Update raw accuracy display if available
-                if (rawAccuracyElement && aiRawAccuracy[model].total > 0) {
+                // Update raw accuracy display if available - ONLY if wallet is connected
+                if (rawAccuracyElement && userAccount && aiRawAccuracy[model].total > 0) {
                     const rawAccuracy = aiRawAccuracy[model].accuracy.toFixed(1);
                     rawAccuracyElement.textContent = `${rawAccuracy}%`;
                     rawAccuracyElement.className = `font-bold ${
@@ -2151,6 +2191,10 @@
                         parseFloat(rawAccuracy) >= 45 ? 'text-yellow-400' :
                         'text-red-400'
                     }`;
+                } else if (rawAccuracyElement && !userAccount) {
+                    // If wallet is not connected, don't show any accuracy data
+                    rawAccuracyElement.textContent = '0.0%';
+                    rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
                 }
             });
         }
@@ -2372,6 +2416,7 @@
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const statsContainer = document.getElementById(`${model}-stats`);
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
+                const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
 
                 if (statsContainer) {
                     statsContainer.innerHTML = `
@@ -2385,6 +2430,12 @@
                 if (accuracyElement) {
                     accuracyElement.textContent = '0.0%';
                     accuracyElement.className = 'font-bold text-gray-400';
+                }
+                
+                // Also reset raw accuracy display when wallet is disconnected
+                if (rawAccuracyElement) {
+                    rawAccuracyElement.textContent = '0.0%';
+                    rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
                 }
             });
         }
@@ -2942,11 +2993,21 @@
                         localStorage.removeItem(key);
                     });
                     
+                    // Also clear raw accuracy data
+                    localStorage.removeItem('stbchef_raw_accuracy');
+                    
                     // Reset trade history variables
                     tradeHistory = {
                         gemini: [],
                         groq: [],
                         mistral: []
+                    };
+                    
+                    // Reset raw accuracy tracking
+                    aiRawAccuracy = {
+                        gemini: { correct: 0, total: 0, accuracy: 0 },
+                        groq: { correct: 0, total: 0, accuracy: 0 },
+                        mistral: { correct: 0, total: 0, accuracy: 0 }
                     };
                     
                     // Set all accuracy elements to 0
@@ -2955,6 +3016,12 @@
                         if (accuracyElement) {
                             accuracyElement.textContent = '0.0%';
                             accuracyElement.className = 'font-bold text-gray-400';
+                        }
+                        
+                        const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
+                        if (rawAccuracyElement) {
+                            rawAccuracyElement.textContent = '0.0%';
+                            rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
                         }
                     });
                 })
