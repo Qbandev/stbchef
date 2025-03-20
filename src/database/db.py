@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import logging
+import math
 
 
 class TradingDatabase:
@@ -234,7 +235,8 @@ class TradingDatabase:
                     SELECT 
                         id,
                         decision,
-                        eth_price
+                        eth_price,
+                        timestamp
                     FROM ai_decisions
                     WHERE was_correct IS NULL AND wallet_address = ?
                     ORDER BY timestamp DESC
@@ -247,7 +249,8 @@ class TradingDatabase:
                     SELECT 
                         id,
                         decision,
-                        eth_price
+                        eth_price,
+                        timestamp
                     FROM ai_decisions
                     WHERE was_correct IS NULL AND wallet_address IS NOT NULL
                     ORDER BY timestamp DESC
@@ -256,31 +259,65 @@ class TradingDatabase:
                 cursor.execute(query)
 
             decisions = cursor.fetchall()
-            for decision_id, decision, decision_price in decisions:
+            for decision_id, decision, decision_price, timestamp_str in decisions:
                 # Skip if price is the same (just added)
                 if decision_price == current_price:
                     continue
 
-                # Calculate profit/loss as percentage
-                if decision_price == 0:
-                    # Handle zero price case - cannot calculate meaningful percentage
-                    # Preserving was_correct logic based on direction
-                    was_correct = False
-                    if decision == 'HOLD':
-                        was_correct = True
-                else:
+                # Calculate price change percentage
+                if decision_price > 0:
                     price_change_pct = (
                         (current_price - decision_price) / decision_price) * 100
+                else:
+                    # Handle zero price case
+                    price_change_pct = 0
 
-                    # Determine if decision was correct
-                    was_correct = False
-                    if decision == 'BUY' and price_change_pct > 0:
-                        was_correct = True
-                    elif decision == 'SELL' and price_change_pct < 0:
-                        was_correct = True
-                    # Less than 2% change for HOLD
-                    elif decision == 'HOLD' and abs(price_change_pct) < 0.5:
-                        was_correct = True
+                # Convert timestamp string to datetime
+                decision_timestamp = datetime.fromisoformat(timestamp_str.replace(
+                    'Z', '+00:00')) if isinstance(timestamp_str, str) else timestamp_str
+                time_passed = datetime.now() - decision_timestamp
+
+                # Use different thresholds based on time passed
+                # For recent decisions (< 1 hour), use tighter thresholds
+                # For older decisions, use looser thresholds
+
+                hours_passed = time_passed.total_seconds() / 3600
+
+                # Scale the threshold based on time - more time means we expect larger moves
+                # Starts at 0.5%, caps at 2%
+                hold_threshold = min(0.5 + (hours_passed * 0.1), 2.0)
+
+                # Market volatility adjustment - if market is volatile, require larger moves
+                # Get the volatility from recent price changes
+                cursor.execute("""
+                    SELECT eth_price FROM market_data
+                    ORDER BY timestamp DESC LIMIT 24
+                """)
+                recent_prices = [row[0] for row in cursor.fetchall()]
+
+                # Calculate volatility if we have enough data
+                if len(recent_prices) >= 2:
+                    price_changes = [abs(recent_prices[i] - recent_prices[i+1]) / recent_prices[i+1] * 100
+                                     for i in range(len(recent_prices)-1)]
+                    avg_volatility = sum(price_changes) / len(price_changes)
+
+                    # Adjust threshold based on volatility
+                    hold_threshold = max(hold_threshold, avg_volatility * 0.3)
+
+                # Determine if decision was correct
+                was_correct = False
+
+                if decision == 'BUY':
+                    # BUY is correct if price went up beyond threshold
+                    was_correct = price_change_pct > hold_threshold
+
+                elif decision == 'SELL':
+                    # SELL is correct if price went down beyond threshold
+                    was_correct = price_change_pct < -hold_threshold
+
+                elif decision == 'HOLD':
+                    # HOLD is correct if price stayed within threshold range
+                    was_correct = abs(price_change_pct) <= hold_threshold
 
                 # Update decision accuracy
                 cursor.execute("""
@@ -751,7 +788,7 @@ class TradingDatabase:
             accuracy = (profitable_actions / total_actions *
                         100) if total_actions > 0 else 0
 
-            # Calculate model-specific statistics
+            # Calculate model-specific statistics with time-weighted metrics
             model_stats = {}
             for model in ['gemini', 'groq', 'mistral']:
                 model_decisions = [
@@ -765,14 +802,85 @@ class TradingDatabase:
                     'HOLD': len([d for d in model_decisions if d['decision'] == 'HOLD'])
                 }
 
-                # Calculate correct decisions
-                correct_decisions = len(
-                    [d for d in model_decisions if d['was_correct']])
+                # Calculate correct decisions - with time weighting
+                # More recent decisions are weighted higher
+                correct_decisions = 0
+                time_weighted_correct = 0
+                time_weighted_total = 0
+
+                # Calculate weights based on recency
+                now = datetime.now()
+
+                # Skip empty decision lists
+                if total_model_decisions == 0:
+                    model_stats[model] = {
+                        'total_decisions': 0,
+                        'correct_decisions': 0,
+                        'accuracy': 0,
+                        'decision_counts': model_decision_counts
+                    }
+                    continue
+
+                for i, decision in enumerate(model_decisions):
+                    # Convert timestamp to datetime if it's a string
+                    if isinstance(decision['timestamp'], str):
+                        timestamp = datetime.fromisoformat(
+                            decision['timestamp'].replace('Z', '+00:00'))
+                    else:
+                        timestamp = decision['timestamp']
+
+                    # Calculate age in hours with a minimum of 1 hour
+                    age_hours = max(
+                        1, (now - timestamp).total_seconds() / 3600)
+
+                    # Weight is inverse to age - more recent decisions have higher weight
+                    # Use logarithmic decay: weight = 1/log(age_hours + 2)
+                    # +2 ensures positive weight for very recent decisions
+                    weight = 1 / (math.log(age_hours + 2))
+
+                    if decision['was_correct']:
+                        correct_decisions += 1
+                        time_weighted_correct += weight
+
+                    time_weighted_total += weight
+
+                # Calculate accuracy - with anti-bias adjustment
+                # If all decisions are the same type, reduce accuracy
+                standard_accuracy = (
+                    correct_decisions / total_model_decisions * 100) if total_model_decisions > 0 else 0
+                time_weighted_accuracy = (
+                    time_weighted_correct / time_weighted_total * 100) if time_weighted_total > 0 else 0
+
+                # Calculate decision diversity as entropy
+                # Perfect diversity would be equal distribution across BUY, SELL, HOLD
+                total_count = sum(model_decision_counts.values())
+                entropy = 0
+
+                if total_count > 0:
+                    for count in model_decision_counts.values():
+                        prob = count / total_count
+                        if prob > 0:  # Avoid log(0)
+                            # Base 3 for three decision types
+                            entropy -= prob * math.log(prob, 3)
+
+                # Entropy is between 0 (all same decision) and 1 (perfectly distributed)
+                diversity_factor = entropy  # Higher diversity → higher factor → less penalty
+
+                # Apply diversity adjustment to accuracy
+                # If all decisions are the same, reduce the reported accuracy
+                adjusted_accuracy = time_weighted_accuracy * \
+                    (0.5 + 0.5 * diversity_factor)
+
+                # Ensure reasonable bounds
+                adjusted_accuracy = max(0, min(100, adjusted_accuracy))
 
                 model_stats[model] = {
                     'total_decisions': total_model_decisions,
                     'correct_decisions': correct_decisions,
-                    'accuracy': round((correct_decisions / total_model_decisions * 100) if total_model_decisions > 0 else 0, 1),
+                    'accuracy': round(adjusted_accuracy, 1),
+                    'raw_accuracy': round(standard_accuracy, 1),
+                    'time_weighted_accuracy': round(time_weighted_accuracy, 1),
+                    'diversity_factor': round(diversity_factor, 2),
                     'decision_counts': model_decision_counts
                 }
 
