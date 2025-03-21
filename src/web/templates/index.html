@@ -430,7 +430,7 @@
                         
                         window.ethereum.on('accountsChanged', function (accounts) {
                             if (accounts.length === 0) {
-                                userAccount = null;
+                                window.userAccount = null;
                                 resetWalletBalances();
                                 
                                 // Remove from localStorage
@@ -488,7 +488,7 @@
                                 
                                 fetch('/api/trading-data')
                                     .then(res => res.json())
-                                    .then(data => updateModelDecisions(data, userAccount))
+                                    .then(data => updateModelDecisions(data, window.userAccount))
                                     .catch(error => console.error('Error updating model decisions:', error));
                             }
                             
@@ -521,7 +521,7 @@
                             
                             fetch('/api/trading-data')
                                 .then(res => res.json())
-                                .then(data => updateModelDecisions(data, userAccount))
+                                .then(data => updateModelDecisions(data, window.userAccount))
                                 .catch(error => console.error('Error updating model decisions:', error));
                             
                             showNotification(`Network changed to ID: ${newChainId}`, 'info');
@@ -532,7 +532,7 @@
                             console.log('MetaMask disconnected:', error);
                             
                             // Only clear if this is our current connection
-                            if (userAccount) {
+                            if (window.userAccount) {
                                 userAccount = null;
                                 resetWalletBalances();
                                 
@@ -1741,7 +1741,7 @@
                 }
                 
                 // Update raw accuracy display if available - ONLY if wallet is connected
-                if (rawAccuracyElement && userAccount && aiRawAccuracy[model].total > 0) {
+                if (rawAccuracyElement && window.userAccount && aiRawAccuracy[model].total > 0) {
                     const rawAccuracy = aiRawAccuracy[model].accuracy.toFixed(1);
                     rawAccuracyElement.textContent = `${rawAccuracy}%`;
                     rawAccuracyElement.className = `font-bold ${
@@ -1749,7 +1749,7 @@
                         parseFloat(rawAccuracy) >= 45 ? 'text-yellow-400' :
                         'text-red-400'
                     }`;
-                } else if (rawAccuracyElement && !userAccount) {
+                } else if (rawAccuracyElement && !window.userAccount) {
                     // If wallet is not connected, don't show any accuracy data
                     rawAccuracyElement.textContent = '0.0%';
                     rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
@@ -1830,7 +1830,7 @@
             checkDailyReset();
 
             // If wallet is connected, fetch wallet-specific stats
-            if (userAccount) {
+            if (window.userAccount) {
                 fetchWalletStats();
                 return;
             }
@@ -2312,6 +2312,7 @@
             ['gemini', 'groq', 'mistral'].forEach(model => {
                 const statsContainer = document.getElementById(`${model}-stats`);
                 const accuracyElement = document.getElementById(`${model}-accuracy`);
+                const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
                 
                 if (statsContainer) {
                     statsContainer.innerHTML = `
@@ -2324,6 +2325,12 @@
                 if (accuracyElement) {
                     accuracyElement.textContent = '0.0%';
                     accuracyElement.className = 'font-bold text-gray-400';
+                }
+
+                // Also reset the raw accuracy element
+                if (rawAccuracyElement) {
+                    rawAccuracyElement.textContent = '0.0%';
+                    rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
                 }
             });
         }
