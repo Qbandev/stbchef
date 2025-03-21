@@ -329,7 +329,7 @@
                     // Show loading state on wallet button
                     const walletBtn = document.getElementById('wallet-btn');
                     if (walletBtn) {
-                        walletBtn.innerHTML = `${window.userAccount.slice(0, 6)}...${window.userAccount.slice(-4)} <i class="fas fa-sign-out-alt ml-2"></i>`;
+                        walletBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i> Connecting...';
                         walletBtn.classList.add('connecting');
                     }
                     
@@ -2920,17 +2920,6 @@
 
         // copyToClipboard function has been moved to utils.js
 
-        // Sanitize input before rendering
-        function sanitizeHTML(str) {
-            const temp = document.createElement('div');
-            temp.textContent = str;
-            return temp.innerHTML;
-        }
-
-        // Then use in the function
-        const formattedMessage = message.split('\n')
-            .map(line => `<div>${sanitizeHTML(line)}</div>`)
-            .join('');
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
