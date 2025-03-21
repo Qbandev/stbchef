@@ -44,9 +44,9 @@ async function sendWalletNotification(signalType, message) {
         console.log(`Sending wallet notification for ${signalType} signal to ${userAccount}`);
         
         // Get current wallet balances and validate
-        const ethBalance = walletBalances.eth || 0;
-        const usdcBalance = walletBalances.usdc || 0;
-        const currentPrice = walletBalances.ethusd || 0;
+        const ethBalance = window.walletBalances.eth || 0;
+        const usdcBalance = window.walletBalances.usdc || 0;
+        const currentPrice = window.walletBalances.ethusd || 0;
         
         // Strictly validate price data is available - NEVER use default values
         if (currentPrice <= 0 || isNaN(currentPrice)) {
@@ -313,14 +313,14 @@ async function recordWalletAction(action) {
     
     try {
         // Verify we have valid price data first
-        if (!walletBalances.ethusd || isNaN(walletBalances.ethusd) || walletBalances.ethusd <= 0) {
+        if (!window.walletBalances.ethusd || isNaN(window.walletBalances.ethusd) || window.walletBalances.ethusd <= 0) {
             console.warn("Cannot record wallet action: ETH price data unavailable");
             return null;
         }
         
         // Calculate ETH allocation
-        const ethValueUSD = walletBalances.eth * walletBalances.ethusd;
-        const totalValue = walletBalances.totalValueUSD || ethValueUSD;
+        const ethValueUSD = window.walletBalances.eth * window.walletBalances.ethusd;
+        const totalValue = window.walletBalances.totalValueUSD || ethValueUSD;
         const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
         
         // Get current chain ID
@@ -335,8 +335,8 @@ async function recordWalletAction(action) {
             body: JSON.stringify({
                 wallet_address: window.userAccount,
                 wallet_action: action,
-                eth_balance: walletBalances.eth,
-                usdc_balance: walletBalances.usdc,
+                eth_balance: window.walletBalances.eth,
+                usdc_balance: window.walletBalances.usdc,
                 eth_allocation: currentEthAllocation,
                 network: chainId === 59144 ? 'linea' : 'ethereum'
             })

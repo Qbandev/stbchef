@@ -457,7 +457,7 @@ function updateData() {
         });
 
     // If we have a wallet but no valid price, update wallet card
-    if (window.userAccount && !window.hasValidPrice) {
+    if (window.userAccount && (!window.priceHistory || window.priceHistory.length === 0 || !document.getElementById('eth-price') || document.getElementById('eth-price').textContent === 'Error' || document.getElementById('eth-price').textContent === 'Waiting for data...')) {
         window.updateWalletCard();
     }
 }
@@ -533,4 +533,126 @@ function checkFreshSession() {
 }
 
 // Make checkFreshSession available globally
-window.checkFreshSession = checkFreshSession; 
+window.checkFreshSession = checkFreshSession;
+
+/**
+ * Update model stats to only show relevant operations when wallet is connected
+ * This function sends the user's wallet information to the API to track recommended actions
+ */
+function updateModelStatsForWallet() {
+    if (!window.userAccount) {
+        // No wallet connected, keep using all trades
+        return;
+    }
+    
+    try {
+        // Strictly validate ETH price before attempting any calculations
+        if (!window.walletBalances || !window.walletBalances.ethusd || 
+            isNaN(window.walletBalances.ethusd) || window.walletBalances.ethusd <= 0) {
+            console.log("No valid ETH price available - skipping model stats update");
+            return;
+        }
+        
+        // Get current ETH price and portfolio values
+        const ethValueUSD = window.walletBalances.eth * window.walletBalances.ethusd;
+        const totalValue = window.walletBalances.totalValueUSD || ethValueUSD; // Fallback if totalValueUSD is 0
+        
+        // Skip wallet action update if we have no value
+        if (totalValue <= 0) {
+            console.log("Wallet has no value, skipping wallet action update");
+            return;
+        }
+        
+        // Get decisions from AI models - use the model's recommended action instead of portfolio-based one
+        const geminiDecision = document.getElementById('gemini-decision');
+        const groqDecision = document.getElementById('groq-decision');
+        const mistralDecision = document.getElementById('mistral-decision');
+        
+        const decisions = {
+            gemini: geminiDecision ? geminiDecision.textContent : null,
+            groq: groqDecision ? groqDecision.textContent : null,
+            mistral: mistralDecision ? mistralDecision.textContent : null
+        };
+        
+        // Check for consensus (2 out of 3 models agree)
+        let walletAction = window.checkLLMConsensus(decisions);
+        
+        // If no consensus, calculate based on portfolio
+        if (!walletAction) {
+            // Target allocation range: 60-80% ETH in bullish, 20-40% in bearish
+            const marketSentiment = document.getElementById('sentiment');
+            const isBullish = marketSentiment && marketSentiment.textContent.includes('bullish');
+            
+            const targetEthMin = isBullish ? 60 : 20;
+            const targetEthMax = isBullish ? 80 : 40;
+            
+            // Safely calculate ETH allocation with zero checking
+            const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
+            
+            // Default to HOLD
+            walletAction = 'HOLD';
+            
+            // Only make BUY/SELL recommendations if we have some value
+            if (totalValue > 0) {
+                if (currentEthAllocation < targetEthMin) {
+                    walletAction = 'BUY';
+                } else if (currentEthAllocation > targetEthMax) {
+                    walletAction = 'SELL';
+                }
+            }
+        }
+        
+        // Get current chain ID to send with the API
+        window.web3.eth.getChainId().then(chainId => {
+            // Only send wallet action for supported networks
+            if (chainId !== 1 && chainId !== 59144) {
+                console.log(`Skipping wallet action on unsupported network ${chainId}`);
+                return;
+            }
+            
+            // Safely calculate ETH allocation again for the API call
+            const ethValueUSD = window.walletBalances.eth * window.walletBalances.ethusd;
+            const totalValue = window.walletBalances.totalValueUSD || ethValueUSD;
+            const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
+            
+            // Update the API to indicate the wallet action
+            fetch('/api/set-wallet-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    wallet_address: window.userAccount,
+                    wallet_action: walletAction,
+                    eth_balance: window.walletBalances.eth,
+                    usdc_balance: window.walletBalances.usdc,
+                    eth_allocation: currentEthAllocation,
+                    network: chainId === 59144 ? 'linea' : 'ethereum'
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.log(`API error: ${response.status}. This is non-critical.`);
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    console.log("Wallet action updated:", data);
+                }
+            })
+            .catch(error => {
+                console.log('Error setting wallet action (non-critical):', error.message);
+                // Don't show notification to avoid spamming the user
+            });
+        }).catch(error => {
+            console.log('Error getting chain ID:', error.message);
+        });
+    } catch (error) {
+        console.log('Error in updateModelStatsForWallet:', error.message);
+    }
+}
+
+// Make updateModelStatsForWallet available globally
+window.updateModelStatsForWallet = updateModelStatsForWallet; 
