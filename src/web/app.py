@@ -350,7 +350,7 @@ def clear_storage() -> dict:
 
         return jsonify({"status": "success", "message": "Storage cleared successfully"})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/trading-data")
@@ -477,10 +477,10 @@ def set_wallet_action() -> Union[dict, tuple[dict, int]]:
     except ValueError as ve:
         # Handle specific ValueError from missing market data
         # Service Unavailable
-        return jsonify({"status": "error", "message": str(ve)}), 503
+        return jsonify({"error": str(ve)}), 503
     except Exception as e:
         logging.error(f"Error recording wallet action: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/wallet-stats")
@@ -495,6 +495,58 @@ def get_wallet_stats() -> Union[dict, tuple[dict, int]]:
         stats = db.get_wallet_stats(wallet_address)
         return jsonify(stats)
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wallet/connection", methods=["GET"])
+def get_wallet_connection() -> Union[dict, tuple[dict, int]]:
+    """Get wallet connection status."""
+    try:
+        wallet_address = request.args.get('wallet_address')
+        if not wallet_address:
+            # If no wallet address provided, return list of all connected wallets
+            connected_wallets = db.get_connected_wallets()
+            return jsonify({
+                "connected_wallets": connected_wallets,
+                "most_recent_wallet": connected_wallets[0] if connected_wallets else None
+                # Not automatically selecting a default wallet - client should decide based on context
+            })
+
+        # Get connection status for specific wallet
+        connection_status = db.get_wallet_connection(wallet_address)
+        return jsonify(connection_status)
+    except Exception as e:
+        logging.error(f"Error getting wallet connection: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wallet/connection", methods=["POST"])
+def update_wallet_connection() -> Union[dict, tuple[dict, int]]:
+    """Update wallet connection status."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Check required fields
+        required_fields = ["wallet_address", "is_connected"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        wallet_address = data["wallet_address"]
+        is_connected = data["is_connected"]
+
+        # Update the connection status in the database
+        db.update_wallet_connection(wallet_address, is_connected)
+
+        return jsonify({
+            "status": "success",
+            "wallet_address": wallet_address,
+            "is_connected": is_connected
+        })
+    except Exception as e:
+        logging.error(f"Error updating wallet connection: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -521,8 +573,8 @@ def client_log():
 
         return jsonify({"status": "success", "message": "Log recorded"}), 200
     except Exception as e:
-        print(f"Error handling client log: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logging.error(f"Error handling client log: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/store-ai-decision", methods=["POST"])
@@ -551,7 +603,7 @@ def store_ai_decision() -> Union[dict, tuple[dict, int]]:
         return jsonify({"status": "success", "message": "AI decision stored successfully"})
     except Exception as e:
         logging.error(f"Error storing AI decision: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 def main() -> None:

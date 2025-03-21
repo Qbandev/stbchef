@@ -30,16 +30,15 @@
         // Initialize a notification permission state variable
         let notificationPermissionGranted = false;
         
-        // Storage keys for persisting data
-        const STORAGE_KEYS = {
+        // Define global storage keys for localStorage
+        window.STORAGE_KEYS = {
             WALLET: 'stbchef_wallet',
-            HISTORY: 'stbchef_history',
+            TRADE_HISTORY: 'stbchef_trade_history',
+            MODEL_PERFORMANCE: 'stbchef_model_performance',
             LAST_UPDATE: 'stbchef_last_update',
             PRICE_DATA: 'stbchef_price_data',
             VOLUME_DATA: 'stbchef_volume_data',
-            TIME_LABELS: 'stbchef_time_labels',
-            TRADE_HISTORY: 'stbchef_trade_history',
-            MODEL_PERFORMANCE: 'stbchef_model_performance'
+            TIME_LABELS: 'stbchef_time_labels'
         };
         
         // Initialize variables
@@ -47,19 +46,19 @@
         window.userAccount = null;
         let priceChart;
         let performanceChart;
-        let priceHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRICE_DATA) || '[]');
-        let timeLabels = JSON.parse(localStorage.getItem(STORAGE_KEYS.TIME_LABELS) || '[]');
-        let volumeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.VOLUME_DATA) || '[]');
+        let priceHistory = JSON.parse(localStorage.getItem(window.STORAGE_KEYS.PRICE_DATA) || '[]');
+        let timeLabels = JSON.parse(localStorage.getItem(window.STORAGE_KEYS.TIME_LABELS) || '[]');
+        let volumeHistory = JSON.parse(localStorage.getItem(window.STORAGE_KEYS.VOLUME_DATA) || '[]');
         const tradingActions = [];
 
         // Make chart data available globally
         window.priceHistory = priceHistory;
         window.timeLabels = timeLabels;
         window.volumeHistory = volumeHistory;
-        window.STORAGE_KEYS = STORAGE_KEYS;
+        window.STORAGE_KEYS = window.STORAGE_KEYS;
 
         // Initialize trade history for each model
-        let tradeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY) || JSON.stringify({
+        let tradeHistory = JSON.parse(localStorage.getItem(window.STORAGE_KEYS.TRADE_HISTORY) || JSON.stringify({
             gemini: [],
             groq: [],
             mistral: []
@@ -69,7 +68,7 @@
         window.tradeHistory = tradeHistory;
 
         // Add accuracy tracking variables
-        let aiAccuracy = JSON.parse(localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE) || JSON.stringify({
+        let aiAccuracy = JSON.parse(localStorage.getItem(window.STORAGE_KEYS.MODEL_PERFORMANCE) || JSON.stringify({
             gemini: { correct: 0, total: 0 },
             groq: { correct: 0, total: 0 },
             mistral: { correct: 0, total: 0 }
@@ -101,196 +100,345 @@
 
         // Load persisted wallet connection on page load
         window.addEventListener('load', async () => {
-            const persistedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
-            if (persistedWallet && typeof window.ethereum !== 'undefined') {
+            // Get persisted wallet connection from the server
+            try {
+                // Try to load from localStorage first (more reliable)
+                const localWallet = localStorage.getItem(window.STORAGE_KEYS.WALLET);
+                let persistedWallet = localWallet;
+                
+                // Try to get from server as fallback, but handle errors gracefully
                 try {
-                    window.web3 = new Web3(window.ethereum);
+                    const response = await fetch('/api/wallet/connection');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Check if we have most_recent_wallet (from the list endpoint)
+                        if (data && data.most_recent_wallet) {
+                            persistedWallet = data.most_recent_wallet;
+                        }
+                        // Or if we have a single wallet status
+                        else if (data && data.is_connected && data.wallet_address) {
+                            persistedWallet = data.wallet_address;
+                        }
+                    }
+                } catch (serverError) {
+                    console.warn('Server API for wallet connections not available, using local data only:', serverError);
+                    // Continue with localStorage data
+                }
+                
+                // First check if the persisted wallet is in the disconnected accounts list
+                if (persistedWallet && window.disconnectedAccounts && 
+                    window.disconnectedAccounts.includes(persistedWallet?.toLowerCase())) {
+                    console.log(`Persisted wallet ${persistedWallet} was previously disconnected, maintaining disconnected state`);
+                    // Clear the connection state
+                    localStorage.removeItem(window.STORAGE_KEYS.WALLET);
+                    userAccount = null;
+                    updateWalletUI();
+                    displayEmptyStats();
                     
-                    // First check if ethereum is connected at all
-                    const isConnected = window.ethereum.isConnected();
-                    if (!isConnected) {
-                        console.log('MetaMask is not connected, waiting for connection...');
-                        // Wait for connection
-                        await new Promise(resolve => {
-                            const connectionCheckInterval = setInterval(() => {
-                                if (window.ethereum.isConnected()) {
+                    // Show a notification after page loads
+                    setTimeout(() => {
+                        showNotification(`Account ${formatWalletAddress(persistedWallet)} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
+                    }, 1000);
+                    
+                    // Ensure model decisions show "Connect wallet first"
+                    fetch('/api/trading-data')
+                        .then(response => response.json())
+                        .then(data => {
+                            updateModelDecisions(data, null);
+                        })
+                        .catch(error => {
+                            console.error("Failed to fetch initial trading data:", error);
+                        });
+                    return;
+                }
+                
+                if (persistedWallet && typeof window.ethereum !== 'undefined') {
+                    try {
+                        window.web3 = new Web3(window.ethereum);
+                        
+                        // First check if ethereum is connected at all
+                        const isConnected = window.ethereum.isConnected();
+                        if (!isConnected) {
+                            console.log('MetaMask is not connected, waiting for connection...');
+                            // Wait for connection
+                            await new Promise(resolve => {
+                                const connectionCheckInterval = setInterval(() => {
+                                    if (window.ethereum.isConnected()) {
+                                        clearInterval(connectionCheckInterval);
+                                        resolve();
+                                    }
+                                }, 100);
+                                // Timeout after 3 seconds
+                                setTimeout(() => {
                                     clearInterval(connectionCheckInterval);
                                     resolve();
-                                }
-                            }, 100);
-                            // Timeout after 3 seconds
-                            setTimeout(() => {
-                                clearInterval(connectionCheckInterval);
-                                resolve();
-                            }, 3000);
-                        });
-                    }
-                    
-                    // Request accounts - this will NOT prompt if already connected
-                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                    
-                    if (accounts.length === 0) {
-                        // Need to explicitly request accounts
-                        try {
-                            const requestedAccounts = await window.ethereum.request({ 
-                                method: 'eth_requestAccounts',
-                                params: [] 
+                                }, 3000);
                             });
-                            
-                            if (requestedAccounts.length > 0 && 
-                                requestedAccounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
-                                userAccount = requestedAccounts[0];
-                            } else if (requestedAccounts.length > 0) {
-                                // Different account than stored
-                                userAccount = requestedAccounts[0];
-                                persistWalletConnection(userAccount);
-                            }
-                        } catch (err) {
-                            console.log('User rejected connection or request failed:', err);
-                            localStorage.removeItem(STORAGE_KEYS.WALLET);
+                        }
+                        
+                        // Request accounts - this will NOT prompt if already connected
+                        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                        
+                        // Check if the current MetaMask account is in the disconnected list
+                        if (accounts && accounts.length > 0 && window.disconnectedAccounts && 
+                            window.disconnectedAccounts.includes(accounts[0]?.toLowerCase())) {
+                            console.log(`Current MetaMask account ${accounts[0]} was previously disconnected, maintaining disconnected state`);
                             userAccount = null;
                             updateWalletUI();
+                            displayEmptyStats();
+                            
+                            // Show a notification
+                            showNotification(`Account ${formatWalletAddress(accounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
+                            
+                            // Ensure model decisions show "Connect wallet first"
+                            fetch('/api/trading-data')
+                                .then(response => response.json())
+                                .then(data => {
+                                    updateModelDecisions(data, null);
+                                })
+                                .catch(error => {
+                                    console.error("Failed to fetch initial trading data:", error);
+                                });
                             return;
                         }
-                    } else if (accounts[0] && accounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
-                        userAccount = accounts[0];
-                    } else if (accounts.length > 0) {
-                        // If account is available but different from stored one, update it
-                        userAccount = accounts[0];
-                        persistWalletConnection(userAccount);
-                    }
-                    
-                    if (userAccount) {
-                        updateWalletUI();
                         
-                        // Fetch initial wallet data
-                        await getWalletBalances();
-                        
-                        // Ensure model decisions are updated with wallet connection status
-                        fetch('/api/trading-data')
-                            .then(response => response.json())
-                            .then(data => {
-                                updateModelDecisions(data, userAccount);
-                            })
-                            .catch(error => {
-                                console.error("Failed to fetch initial trading data:", error);
-                            });
-                            
-                        // Load wallet-specific stats
-                        fetchWalletStats();
-                        
-                        // Setup session persistence - check connection status periodically
-                        setInterval(async () => {
-                            if (typeof window.ethereum !== 'undefined') {
-                                const isStillConnected = window.ethereum.isConnected();
-                                const currentAccounts = await window.ethereum.request({ method: 'eth_accounts' })
-                                    .catch(() => []);
+                        if (accounts.length === 0) {
+                            // Need to explicitly request accounts
+                            try {
+                                const requestedAccounts = await window.ethereum.request({ 
+                                    method: 'eth_requestAccounts',
+                                    params: [] 
+                                });
                                 
-                                // If metamask disconnected or account changed unexpectedly
-                                if (!isStillConnected || currentAccounts.length === 0 || 
-                                    (userAccount && currentAccounts[0].toLowerCase() !== userAccount.toLowerCase())) {
-                                    // Attempt to reconnect silently
-                                    if (isStillConnected && currentAccounts.length === 0) {
-                                        try {
-                                            const reconnectAccounts = await window.ethereum.request({ 
-                                                method: 'eth_requestAccounts',
-                                                params: [] 
-                                            }).catch(() => []);
-                                            
-                                            if (reconnectAccounts.length > 0) {
-                                                userAccount = reconnectAccounts[0];
-                                                persistWalletConnection(userAccount);
-                                                updateWalletUI();
-                                                await getWalletBalances();
-                                                fetchWalletStats();
+                                // Check if the requested account is in the disconnected list
+                                if (requestedAccounts && requestedAccounts.length > 0 && window.disconnectedAccounts && 
+                                    window.disconnectedAccounts.includes(requestedAccounts[0]?.toLowerCase())) {
+                                    console.log(`Requested account ${requestedAccounts[0]} was previously disconnected, maintaining disconnected state`);
+                                    userAccount = null;
+                                    updateWalletUI();
+                                    displayEmptyStats();
+                                    
+                                    // Show a notification
+                                    showNotification(`Account ${formatWalletAddress(requestedAccounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
+                                    
+                                    // Ensure model decisions show "Connect wallet first"
+                                    fetch('/api/trading-data')
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            updateModelDecisions(data, null);
+                                        })
+                                        .catch(error => {
+                                            console.error("Failed to fetch initial trading data:", error);
+                                        });
+                                    return;
+                                }
+                                
+                                if (requestedAccounts.length > 0 && 
+                                    requestedAccounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
+                                    userAccount = requestedAccounts[0];
+                                } else if (requestedAccounts.length > 0) {
+                                    // Different account than stored
+                                    userAccount = requestedAccounts[0];
+                                    persistWalletConnection(userAccount);
+                                }
+                            } catch (err) {
+                                console.log('User rejected connection or request failed:', err);
+                                    // Mark current wallet as disconnected
+                                    if (persistedWallet) {
+                                        persistWalletConnection(null);
+                                    }
+                                userAccount = null;
+                                updateWalletUI();
+                                return;
+                            }
+                        } else if (accounts[0] && accounts[0].toLowerCase() === persistedWallet.toLowerCase()) {
+                            userAccount = accounts[0];
+                        } else if (accounts.length > 0) {
+                            // If account is available but different from stored one, update it
+                            userAccount = accounts[0];
+                            persistWalletConnection(userAccount);
+                        }
+                        
+                        if (userAccount) {
+                            updateWalletUI();
+                            
+                            // Fetch initial wallet data
+                            await getWalletBalances();
+                            
+                            // Ensure model decisions are updated with wallet connection status
+                            fetch('/api/trading-data')
+                                .then(response => response.json())
+                                .then(data => {
+                                    updateModelDecisions(data, userAccount);
+                                })
+                                .catch(error => {
+                                    console.error("Failed to fetch initial trading data:", error);
+                                });
+                                
+                            // Load wallet-specific stats
+                            fetchWalletStats();
+                            
+                            // Setup session persistence - check connection status periodically
+                            setInterval(async () => {
+                                if (typeof window.ethereum !== 'undefined') {
+                                    const isStillConnected = window.ethereum.isConnected();
+                                    const currentAccounts = await window.ethereum.request({ method: 'eth_accounts' })
+                                        .catch(() => []);
+                                    
+                                    // If metamask disconnected or account changed unexpectedly
+                                    if (!isStillConnected || currentAccounts.length === 0 || 
+                                        (userAccount && currentAccounts[0].toLowerCase() !== userAccount.toLowerCase())) {
+                                        // Attempt to reconnect silently
+                                        if (isStillConnected && currentAccounts.length === 0) {
+                                            try {
+                                                const reconnectAccounts = await window.ethereum.request({ 
+                                                    method: 'eth_requestAccounts',
+                                                    params: [] 
+                                                }).catch(() => []);
+                                                
+                                                if (reconnectAccounts.length > 0) {
+                                                    userAccount = reconnectAccounts[0];
+                                                    persistWalletConnection(userAccount);
+                                                    updateWalletUI();
+                                                    await getWalletBalances();
+                                                    fetchWalletStats();
+                                                }
+                                            } catch (e) {
+                                                // Silent reconnect failed, don't bother user
+                                                console.log('Silent reconnect failed:', e);
                                             }
-                                        } catch (e) {
-                                            // Silent reconnect failed, don't bother user
-                                            console.log('Silent reconnect failed:', e);
                                         }
                                     }
                                 }
-                            }
-                        }, 10000); // Check every 10 seconds
+                            }, 10000); // Check every 10 seconds
+                        }
+                    } catch (error) {
+                        console.error('Error restoring wallet connection:', error);
+                            // Mark as disconnected
+                            persistWalletConnection(null);
+                        userAccount = null;
+                        updateWalletUI();
                     }
-                } catch (error) {
-                    console.error('Error restoring wallet connection:', error);
-                    localStorage.removeItem(STORAGE_KEYS.WALLET);
-                    userAccount = null;
-                    updateWalletUI();
+                } else {
+                    // Ensure model decisions show "Connect wallet first"
+                    fetch('/api/trading-data')
+                        .then(response => response.json())
+                        .then(data => {
+                            updateModelDecisions(data, null);
+                        })
+                        .catch(error => {
+                            console.error("Failed to fetch initial trading data:", error);
+                        });
                 }
-            } else {
-                // Ensure model decisions show "Connect wallet first"
-                fetch('/api/trading-data')
-                    .then(response => response.json())
-                    .then(data => {
-                        updateModelDecisions(data, null);
-                    })
-                    .catch(error => {
-                        console.error("Failed to fetch initial trading data:", error);
-                    });
+            } catch (error) {
+                console.error('Error fetching wallet connections from server:', error);
+                // Fallback to no wallet connected
+                userAccount = null;
+                updateWalletUI();
             }
+            
             clearExpiredData();
             
             // Setup visibility change handler to refresh wallet connection when tab becomes visible again
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible') {
                     // Tab is now visible, check wallet connection
-                    const persistedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
-                    if (persistedWallet && typeof window.ethereum !== 'undefined') {
+                    try {
+                        // Use localStorage as source of truth
+                        const localWallet = localStorage.getItem(window.STORAGE_KEYS.WALLET);
+                        let persistedWallet = localWallet;
+                        
+                        // Try server, but don't depend on it
                         try {
-                            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                            if (accounts.length > 0) {
-                                // If we have a stored wallet but it doesn't match, update it
-                                if (!userAccount || accounts[0].toLowerCase() !== userAccount.toLowerCase()) {
-                                    userAccount = accounts[0];
-                                    persistWalletConnection(userAccount);
-                                    updateWalletUI();
-                                    await getWalletBalances();
-                                    fetchWalletStats();
-                                    
-                                    // Update LLM decisions for the new account
-                                    const tradingData = await fetch('/api/trading-data').then(res => res.json());
-                                    updateModelDecisions(tradingData, userAccount);
+                            const response = await fetch('/api/wallet/connection');
+                            if (response.ok) {
+                                const data = await response.json();
+                                // Check if we have most_recent_wallet (from the list endpoint)
+                                if (data && data.most_recent_wallet) {
+                                    persistedWallet = data.most_recent_wallet;
                                 }
-                            } else if (userAccount) {
-                                // We have a userAccount but ethereum doesn't show any accounts
-                                // Try silently reconnecting
-                                try {
-                                    const reconnectAccounts = await window.ethereum.request({ 
-                                        method: 'eth_requestAccounts',
-                                        params: [] 
-                                    }).catch(() => []);
+                                // Or if we have a single wallet status
+                                else if (data && data.is_connected && data.wallet_address) {
+                                    persistedWallet = data.wallet_address;
+                                }
+                            }
+                        } catch (serverError) {
+                            console.warn('Server API for wallet connections not available on visibility change, using local data:', serverError);
+                            // Continue with localStorage data
+                        }
+                        
+                        if (typeof window.ethereum !== 'undefined') {
+                            try {
+                                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                                
+                                if (accounts.length > 0) {
+                                    const currentAccount = accounts[0].toLowerCase();
                                     
-                                    if (reconnectAccounts.length > 0) {
-                                        userAccount = reconnectAccounts[0];
+                                    // First check if the current account is in the disconnected list
+                                    if (window.disconnectedAccounts && window.disconnectedAccounts.includes(currentAccount)) {
+                                        console.log(`Tab visible: Account ${accounts[0]} was previously disconnected, maintaining disconnected state`);
+                                        // Clear the connection in our app
+                                        userAccount = null;
+                                        updateWalletUI();
+                                        displayEmptyStats();
+                                        // Show notification to remind user
+                                        showNotification(`Account ${formatWalletAddress(accounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
+                                        return;
+                                    }
+                                    
+                                    // Otherwise, handle normal account changes
+                                    if (!userAccount || accounts[0].toLowerCase() !== userAccount.toLowerCase()) {
+                                        userAccount = accounts[0];
                                         persistWalletConnection(userAccount);
                                         updateWalletUI();
                                         await getWalletBalances();
                                         fetchWalletStats();
-                                    } else {
-                                        // Failed to reconnect silently, reset wallet state
+                                        
+                                        // Update LLM decisions for the new account
+                                        const tradingData = await fetch('/api/trading-data').then(res => res.json());
+                                        updateModelDecisions(tradingData, userAccount);
+                                    }
+                                } else if (userAccount) {
+                                    // We have a userAccount but ethereum doesn't show any accounts
+                                    // Try silently reconnecting
+                                    try {
+                                        const reconnectAccounts = await window.ethereum.request({ 
+                                            method: 'eth_requestAccounts',
+                                            params: [] 
+                                        }).catch(() => []);
+                                        
+                                        if (reconnectAccounts.length > 0) {
+                                            userAccount = reconnectAccounts[0];
+                                            persistWalletConnection(userAccount);
+                                            updateWalletUI();
+                                            await getWalletBalances();
+                                            fetchWalletStats();
+                                        } else {
+                                            // Failed to reconnect silently, reset wallet state
+                                            userAccount = null;
+                                            persistWalletConnection(null);
+                                            updateWalletUI();
+                                            displayEmptyStats();
+                                        }
+                                    } catch (e) {
+                                        // Silent reconnect failed, reset wallet state
                                         userAccount = null;
                                         persistWalletConnection(null);
                                         updateWalletUI();
                                         displayEmptyStats();
                                     }
-                                } catch (e) {
-                                    // Silent reconnect failed, reset wallet state
-                                    userAccount = null;
-                                    persistWalletConnection(null);
-                                    updateWalletUI();
-                                    displayEmptyStats();
                                 }
+                            } catch (error) {
+                                console.error('Error checking wallet connection on visibility change:', error);
                             }
-                        } catch (error) {
-                            console.error('Error checking wallet connection on visibility change:', error);
                         }
+                    } catch (error) {
+                        console.error('Error fetching wallet connections on visibility change:', error);
                     }
                 }
             });
         });
-
+        
         // Define token contract ABIs
         const ERC20_ABI = [
             {
@@ -323,7 +471,7 @@
             ethusd: 0, // Current ETH/USD price
             totalValueUSD: 0
         };
-        
+
         // Add raw accuracy tracking
         let aiRawAccuracy = JSON.parse(localStorage.getItem('stbchef_raw_accuracy') || JSON.stringify({
                         gemini: { correct: 0, total: 0, accuracy: 0 },
@@ -363,15 +511,27 @@
                 
                 // Make sure wallet connection is saved before page unloads
                 if (userAccount) {
-                    // Force a synchronous localStorage save before page unload
-                    localStorage.setItem(STORAGE_KEYS.WALLET, userAccount);
+                    // We don't use localStorage for wallet connection anymore
+                    // Force a server update with wallet connection before unload
+                    fetch('/api/wallet/connection', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            wallet_address: userAccount,
+                            is_connected: true
+                        }),
+                        // Use keepalive to ensure request completes even as page unloads
+                        keepalive: true
+                    }).catch(() => {}); // Ignore errors on page unload
                     
                     // Also save any pending wallet stats or model decisions
                     try {
-                        localStorage.setItem(STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
-                        localStorage.setItem(STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
+                        localStorage.setItem(window.STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
+                        localStorage.setItem(window.STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
                         localStorage.setItem('stbchef_raw_accuracy', JSON.stringify(aiRawAccuracy));
-                        localStorage.setItem(STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
+                        localStorage.setItem(window.STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
                     } catch (e) {
                         // Ignore error in case localStorage is full
                         console.error('Error saving data on unload:', e);
@@ -379,6 +539,14 @@
                 }
             });
         });
+
+        // Save trade history and model performance to localStorage
+        function persistModelData() {
+            localStorage.setItem(window.STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
+            localStorage.setItem(window.STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
+            // Also save timestamp of last update
+            localStorage.setItem(window.STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
+        }
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">

@@ -83,6 +83,7 @@ graph TD
 
 - **Backend**: Python 3.10+, Flask, SQLite
 - **Frontend**: TailwindCSS, Chart.js, Web3.js
+- **Architecture**: Modular JavaScript with dedicated service managers for wallet, notifications, and analytics
 - **APIs**: Etherscan, Alternative.me (Fear & Greed), Google Gemini, Groq, Mistral
 - **Web3**: MetaMask integration with Ethereum and Linea support
 
