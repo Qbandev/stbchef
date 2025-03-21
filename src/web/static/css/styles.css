@@ -359,6 +359,7 @@ body {
     filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7));
     animation: pulse 2s ease-in-out infinite;
     margin-right: 1rem;
+    border-radius: 50%;
 }
 
 .spinner {
@@ -380,6 +381,7 @@ body {
 @media (max-width: 768px) {
     .header-logo {
         max-width: 60px;
+        border-radius: 50%;
     }
     .chart-container {
         height: 300px;
