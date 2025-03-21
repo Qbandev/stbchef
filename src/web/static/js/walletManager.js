@@ -10,6 +10,16 @@ window.savedWalletCardHTML = null;
  */
 function formatWalletAddress(address) {
     if (!address) return '';
+    
+    // Validate the address - Ethereum addresses should be 42 chars (0x + 40 hex chars)
+    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!addressRegex.test(address)) {
+        console.warn(`Invalid Ethereum address format: ${address}`);
+        // Still attempt to format even if invalid, but in a safe way
+        return address.length > 10 ? 
+            `${address.slice(0, 6)}...${address.slice(-4)}` : address;
+    }
+    
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
@@ -1372,9 +1382,24 @@ function setupMetaMaskEventListeners() {
         return;
     }
 
-    if (!window.hasSetupMetaMaskEvents) {
+    // Use a safe synchronous check to avoid race conditions
+    // First check if we're already in the process of setting up event listeners
+    if (window.isSettingUpMetaMaskEvents) {
+        console.log("MetaMask event listener setup already in progress");
+        return;
+    }
+    
+    // If already set up, exit early
+    if (window.hasSetupMetaMaskEvents) {
+        console.log("MetaMask event listeners already set up");
+        return;
+    }
+    
+    // Set flag to indicate setup is in progress (prevents race conditions)
+    window.isSettingUpMetaMaskEvents = true;
+    
+    try {
         console.log("Setting up MetaMask event listeners");
-        window.hasSetupMetaMaskEvents = true;
         
         // Store the current account for comparison
         window.lastKnownAccount = window.userAccount;
@@ -1453,8 +1478,14 @@ function setupMetaMaskEventListeners() {
                 window.showNotification('Wallet disconnected', 'warning');
             }
         });
-    } else {
-        console.log("MetaMask event listeners already set up");
+        
+        // Mark event listeners as successfully set up
+        window.hasSetupMetaMaskEvents = true;
+    } catch (error) {
+        console.error('Error setting up MetaMask event listeners:', error);
+    } finally {
+        // Reset flag after setting up event listeners
+        window.isSettingUpMetaMaskEvents = false;
     }
 }
 
