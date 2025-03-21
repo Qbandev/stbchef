@@ -111,9 +111,9 @@
                     const response = await fetch('/api/wallet/connection');
                     if (response.ok) {
                         const data = await response.json();
-                        // Check if we have connected_wallet (from the list endpoint)
-                        if (data && data.connected_wallet) {
-                            persistedWallet = data.connected_wallet;
+                        // Check if we have most_recent_wallet (from the list endpoint)
+                        if (data && data.most_recent_wallet) {
+                            persistedWallet = data.most_recent_wallet;
                         }
                         // Or if we have a single wallet status
                         else if (data && data.is_connected && data.wallet_address) {
@@ -353,9 +353,9 @@
                             const response = await fetch('/api/wallet/connection');
                             if (response.ok) {
                                 const data = await response.json();
-                                // Check if we have connected_wallet (from the list endpoint)
-                                if (data && data.connected_wallet) {
-                                    persistedWallet = data.connected_wallet;
+                                // Check if we have most_recent_wallet (from the list endpoint)
+                                if (data && data.most_recent_wallet) {
+                                    persistedWallet = data.most_recent_wallet;
                                 }
                                 // Or if we have a single wallet status
                                 else if (data && data.is_connected && data.wallet_address) {
