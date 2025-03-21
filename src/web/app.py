@@ -498,6 +498,57 @@ def get_wallet_stats() -> Union[dict, tuple[dict, int]]:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/wallet/connection", methods=["GET"])
+def get_wallet_connection() -> Union[dict, tuple[dict, int]]:
+    """Get wallet connection status."""
+    try:
+        wallet_address = request.args.get('wallet_address')
+        if not wallet_address:
+            # If no wallet address provided, return list of all connected wallets
+            connected_wallets = db.get_connected_wallets()
+            return jsonify({
+                "connected_wallets": connected_wallets,
+                "connected_wallet": connected_wallets[0] if connected_wallets else None
+            })
+
+        # Get connection status for specific wallet
+        connection_status = db.get_wallet_connection(wallet_address)
+        return jsonify(connection_status)
+    except Exception as e:
+        logging.error(f"Error getting wallet connection: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wallet/connection", methods=["POST"])
+def update_wallet_connection() -> Union[dict, tuple[dict, int]]:
+    """Update wallet connection status."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Check required fields
+        required_fields = ["wallet_address", "is_connected"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+
+        wallet_address = data["wallet_address"]
+        is_connected = data["is_connected"]
+
+        # Update the connection status in the database
+        db.update_wallet_connection(wallet_address, is_connected)
+
+        return jsonify({
+            "status": "success",
+            "wallet_address": wallet_address,
+            "is_connected": is_connected
+        })
+    except Exception as e:
+        logging.error(f"Error updating wallet connection: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route('/static/<path:path>')
 def send_static(path):
     """Serve static files."""

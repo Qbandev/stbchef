@@ -4,6 +4,23 @@
 window.savedWalletCardHTML = null;
 
 /**
+ * Declaration for disconnectedAccounts
+ */
+window.disconnectedAccounts = [];
+
+/**
+ * Save the list of disconnected accounts to localStorage
+ */
+function saveDisconnectedAccounts() {
+    try {
+        localStorage.setItem('stbchef_disconnected_accounts', JSON.stringify(window.disconnectedAccounts));
+        console.log(`Saved ${window.disconnectedAccounts.length} disconnected accounts to localStorage`);
+    } catch (error) {
+        console.error('Error saving disconnected accounts:', error);
+    }
+}
+
+/**
  * Format a wallet address for display, showing the first 6 characters and last 4
  * @param {string} address - The wallet address to format
  * @returns {string} Formatted address (e.g. "0x1234...5678")
@@ -24,14 +41,56 @@ function formatWalletAddress(address) {
 }
 
 /**
- * Persist wallet connection to localStorage
+ * Persist wallet connection to the database
  * @param {string} account - The connected wallet account address
  */
 function persistWalletConnection(account) {
     if (account) {
-        localStorage.setItem(window.STORAGE_KEYS.WALLET, account);
+        // Save connected wallet to database
+        fetch('/api/wallet/connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                wallet_address: account,
+                is_connected: true
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                console.warn('Failed to update wallet connection status:', response.statusText);
+                // Continue execution even if the server returns an error
+            }
+        })
+        .catch(error => {
+            // Log but don't throw to prevent breaking the app flow
+            console.warn('Error persisting wallet connection (continuing anyway):', error);
+        });
     } else {
-        localStorage.removeItem(window.STORAGE_KEYS.WALLET);
+        // Disconnect current wallet if any
+        if (window.userAccount) {
+            fetch('/api/wallet/connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    wallet_address: window.userAccount,
+                    is_connected: false
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.warn('Failed to update wallet disconnection status:', response.statusText);
+                    // Continue execution even if the server returns an error
+                }
+            })
+            .catch(error => {
+                // Log but don't throw to prevent breaking the app flow
+                console.warn('Error persisting wallet disconnection (continuing anyway):', error);
+            });
+        }
     }
 }
 
@@ -228,6 +287,8 @@ function updateWalletCard() {
     const walletCard = document.getElementById('wallet-card');
     if (!walletCard) return;
     
+    console.log(`Updating wallet card for account: ${window.userAccount || 'none'}`);
+    
     if (!window.userAccount || !window.web3) {
         walletCard.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full">
@@ -240,6 +301,15 @@ function updateWalletCard() {
     // Check if we have valid price data
     const hasValidPrice = window.walletBalances && window.walletBalances.ethusd && 
                          !isNaN(window.walletBalances.ethusd) && window.walletBalances.ethusd > 0;
+    
+    // Log the current balances for debugging
+    console.log(`Wallet balances for ${window.userAccount}:`, 
+        JSON.stringify({
+            eth: window.walletBalances.eth,
+            usdc: window.walletBalances.usdc,
+            ethusd: window.walletBalances.ethusd
+        })
+    );
     
     // Check if we're on Linea network
     window.web3.eth.getChainId().then(chainId => {
@@ -668,6 +738,15 @@ async function getWalletBalances() {
     try {
         console.log("Fetching wallet balances for", window.userAccount);
         
+        // Reset wallet balances to zero first to ensure we don't display stale data
+        // This is crucial when switching between accounts
+        window.walletBalances = {
+            eth: 0,
+            usdc: 0,
+            ethusd: 0,
+            totalValueUSD: 0
+        };
+        
         // Show loading state while fetching wallet data
         showLoadingWalletState("Retrieving wallet balances...");
         
@@ -1035,6 +1114,14 @@ function resetWalletBalances() {
 async function connectWallet() {
     // If already connected, disconnect
     if (window.userAccount) {
+        // Store this account as explicitly disconnected
+        if (window.userAccount && !window.disconnectedAccounts.includes(window.userAccount.toLowerCase())) {
+            console.log(`Adding ${window.userAccount} to disconnected accounts list`);
+            window.disconnectedAccounts.push(window.userAccount.toLowerCase());
+            // Save updated list to localStorage
+            saveDisconnectedAccounts();
+        }
+        
         window.userAccount = null;
         window.web3 = null;
         resetWalletBalances();
@@ -1110,6 +1197,16 @@ async function connectWallet() {
             window.userAccount = accounts[0];
             window.web3 = new Web3(window.ethereum);
 
+            // Remove this account from the disconnected list if it was there
+            const accountLower = accounts[0].toLowerCase();
+            const disconnectIndex = window.disconnectedAccounts.indexOf(accountLower);
+            if (disconnectIndex > -1) {
+                console.log(`Removing ${accounts[0]} from disconnected accounts list`);
+                window.disconnectedAccounts.splice(disconnectIndex, 1);
+                // Save updated list to localStorage
+                saveDisconnectedAccounts();
+            }
+
             // Check which network we're on
             const chainId = await window.web3.eth.getChainId();
             const isLinea = chainId === 59144;
@@ -1120,23 +1217,26 @@ async function connectWallet() {
                 window.showNotification(`Connected to unsupported network (ID: ${chainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
             }
 
-            // Save account immediately
+            // Save account to localStorage
+            localStorage.setItem(window.STORAGE_KEYS.WALLET, window.userAccount);
+
+            // Save account immediately to the server
             persistWalletConnection(window.userAccount);
             
             // Show loading state on wallet card
-            const walletCard = document.getElementById('wallet-card');
-            if (walletCard) {
-                walletCard.innerHTML = `
+    const walletCard = document.getElementById('wallet-card');
+    if (walletCard) {
+        walletCard.innerHTML = `
                     <div class="flex flex-col">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
-                        </div>
-                        <div class="flex flex-col items-center justify-center h-24">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                </div>
+                <div class="flex flex-col items-center justify-center h-24">
                             <p class="text-gray-400 mb-2">Loading wallet data...</p>
-                            <div class="spinner"><i class="fas fa-sync-alt fa-spin"></i></div>
-                        </div>
-                    </div>
-                `;
+                    <div class="spinner"><i class="fas fa-sync-alt fa-spin"></i></div>
+                </div>
+            </div>
+        `;
             }
             
             // Update UI before API calls
@@ -1194,21 +1294,43 @@ async function connectWallet() {
                         window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
                     }
                     
-                    // Update wallet data
-                    getWalletBalances().catch(error => 
-                        console.error('Error fetching wallet balances after chain change:', error));
-                    
-                    // Update UI
-                    updateWalletUI();
-                    
-                    // Update model stats and decisions
-                    window.fetchWalletStats().catch(error => 
-                        console.error('Error fetching wallet stats after chain change:', error));
-                    
-                    fetch('/api/trading-data')
-                        .then(res => res.json())
-                        .then(data => window.updateModelDecisions(data, window.userAccount))
-                        .catch(error => console.error('Error updating model decisions:', error));
+                    // Get the current MetaMask account and check if it's disconnected
+                    window.ethereum.request({ method: 'eth_accounts' })
+                        .then(accounts => {
+                            if (accounts && accounts.length > 0) {
+                                const currentAccount = accounts[0].toLowerCase();
+                                // If the current account is in the disconnected list, maintain disconnected state
+                                if (window.disconnectedAccounts.includes(currentAccount)) {
+                                    console.log(`Chain changed while using disconnected account ${accounts[0]}`);
+                                    window.userAccount = null;
+                                    updateWalletUI();
+                                    window.displayEmptyStats();
+                                    return;
+                                }
+                            }
+                            
+                            // If not a disconnected account, proceed with normal updates
+                            if (window.userAccount) {
+                                // Update wallet data
+                                getWalletBalances().catch(error => 
+                                    console.error('Error fetching wallet balances after chain change:', error));
+                                
+                                // Update UI
+                                updateWalletUI();
+                                
+                                // Update model stats and decisions
+                                window.fetchWalletStats().catch(error => 
+                                    console.error('Error fetching wallet stats after chain change:', error));
+                                
+                                fetch('/api/trading-data')
+                                    .then(res => res.json())
+                                    .then(data => window.updateModelDecisions(data, window.userAccount))
+                                    .catch(error => console.error('Error updating model decisions:', error));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error checking accounts after chain change:', error);
+                        });
                     
                     // Get network name for notification
                     const networkName = isLinea ? 'Linea' : 
@@ -1224,6 +1346,14 @@ async function connectWallet() {
                     
                     // Only clear if this is our current connection
                     if (window.userAccount) {
+                        // Add to disconnected accounts list
+                        if (!window.disconnectedAccounts.includes(window.userAccount.toLowerCase())) {
+                            console.log(`Adding ${window.userAccount} to disconnected accounts list on MetaMask disconnect`);
+                            window.disconnectedAccounts.push(window.userAccount.toLowerCase());
+                            // Save updated list to localStorage
+                            saveDisconnectedAccounts();
+                        }
+                        
                         window.userAccount = null;
                         resetWalletBalances();
                         
@@ -1357,7 +1487,7 @@ async function switchNetwork(chainId) {
                 } else {
                     console.log(`Network mismatch: wanted ${chainId}, got ${currentChainId}`);
                 }
-            } catch (error) {
+    } catch (error) {
                 console.log(`Error after network switch: ${error.message}`);
             } finally {
                 // Restore button text regardless of outcome
@@ -1447,6 +1577,14 @@ function setupMetaMaskEventListeners() {
             
             // Only clear if this is our current connection
             if (window.userAccount) {
+                // Add to disconnected accounts list
+                if (!window.disconnectedAccounts.includes(window.userAccount.toLowerCase())) {
+                    console.log(`Adding ${window.userAccount} to disconnected accounts list on MetaMask disconnect`);
+                    window.disconnectedAccounts.push(window.userAccount.toLowerCase());
+                    // Save updated list to localStorage
+                    saveDisconnectedAccounts();
+                }
+                
                 window.userAccount = null;
                 resetWalletBalances();
                 
@@ -1498,6 +1636,15 @@ function handleAccountsChanged(accounts) {
     if (accounts.length === 0) {
         if (window.userAccount) {
             console.log('User disconnected wallet');
+            
+            // Add the disconnected account to our list
+            if (window.userAccount && !window.disconnectedAccounts.includes(window.userAccount.toLowerCase())) {
+                console.log(`Adding ${window.userAccount} to disconnected accounts list`);
+                window.disconnectedAccounts.push(window.userAccount.toLowerCase());
+                // Save updated list to localStorage
+                saveDisconnectedAccounts();
+            }
+            
             window.userAccount = null;
             resetWalletBalances();
             
@@ -1532,6 +1679,101 @@ function handleAccountsChanged(accounts) {
     // Check if account actually changed - use case-insensitive comparison
     // Ethereum addresses can have different case but should be treated as identical
     const newAccount = accounts[0].toLowerCase();
+    
+    // Special case: Check if we're switching FROM a disconnected account TO a non-disconnected account
+    const isCurrentAccountDisconnected = !window.userAccount || window.userAccount === null;
+    const isNewAccountConnectable = !window.disconnectedAccounts.includes(newAccount);
+    
+    // If we're currently showing disconnected state but the new account isn't disconnected,
+    // we should automatically connect to it
+    if (isCurrentAccountDisconnected && isNewAccountConnectable) {
+        console.log(`Switching from disconnected state to connectable account ${accounts[0]}`);
+        
+        // Update the last known account
+        window.lastKnownAccount = window.userAccount;
+        
+        // Initialize web3 first
+        if (typeof window.ethereum !== 'undefined') {
+            window.web3 = new Web3(window.ethereum);
+        }
+        
+        // Set the account
+        window.userAccount = accounts[0];
+        
+        // Update UI with loading state
+        showLoadingWalletState(`Connecting to account ${formatWalletAddress(accounts[0])}...`);
+        updateWalletUI();
+        
+        // Save to localStorage
+        localStorage.setItem(window.STORAGE_KEYS.WALLET, window.userAccount);
+        
+        // Save to server
+        persistWalletConnection(window.userAccount);
+        
+        // Load wallet data in proper sequence
+        getWalletBalances()
+            .then(() => {
+                console.log('Successfully loaded wallet balances');
+                return window.fetchWalletStats();
+            })
+            .then(() => {
+                console.log('Successfully loaded wallet stats');
+                return fetch('/api/trading-data');
+            })
+            .then(res => res.json())
+            .then(data => {
+                window.updateModelDecisions(data, window.userAccount);
+                // Show notification
+                window.showNotification(`Connected to account ${formatWalletAddress(accounts[0])}`, 'success');
+            })
+            .catch(error => {
+                console.error('Error during wallet initialization:', error);
+                // Try to update the wallet card anyway
+                updateWalletCard();
+                // Still show success notification
+                window.showNotification(`Connected to account ${formatWalletAddress(accounts[0])}`, 'success');
+            });
+        
+        return;
+    }
+    
+    // Check if the new account is in the disconnected list - regardless of current connection state
+    if (window.disconnectedAccounts.includes(newAccount)) {
+        console.log(`Account ${accounts[0]} was previously disconnected, maintaining disconnected state`);
+        console.log(`Disconnected accounts: ${JSON.stringify(window.disconnectedAccounts)}`);
+        
+        // If MetaMask has switched to a disconnected account, we need to update our UI to show it's disconnected
+        // This is a switch, not a reconnect attempt, so we should show appropriate feedback
+        if (window.userAccount) {
+            console.log(`Switching from connected account ${window.userAccount} to disconnected account ${newAccount}`);
+            window.showNotification(`Account ${formatWalletAddress(accounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'warning');
+        }
+        
+        // We need to explicitly set userAccount to null to maintain disconnected state
+        window.userAccount = null;
+        
+        // Explicitly reset wallet balances to clear any data from the previous account
+        resetWalletBalances();
+        
+        // Also update the persistent connection state
+        persistWalletConnection(null);
+        
+        // Update UI for wallet button
+        updateWalletUI();
+        
+        // Explicitly update the wallet card to clear previous account data
+        updateWalletCard();
+        
+        // Update model stats and LLM decisions to show disconnected state
+        window.displayEmptyStats();
+        fetch('/api/trading-data')
+            .then(res => res.json())
+            .then(data => window.updateModelDecisions(data, null))
+            .catch(error => console.error('Error updating model decisions:', error));
+        
+        return;
+    }
+    
     if (newAccount === (window.userAccount ? window.userAccount.toLowerCase() : null)) {
         console.log('Account unchanged, no action needed');
         return;
@@ -1541,7 +1783,7 @@ function handleAccountsChanged(accounts) {
     
     // Update the last known account
     window.lastKnownAccount = window.userAccount;
-    window.userAccount = newAccount;
+    window.userAccount = accounts[0];
     
     // Clear old raw accuracy data since we're connecting to a new wallet
     localStorage.removeItem('stbchef_raw_accuracy');
@@ -1553,28 +1795,44 @@ function handleAccountsChanged(accounts) {
         mistral: { correct: 0, total: 0, accuracy: 0 }
     };
     
+    // Reset wallet UI and balances to clear data from previous account
+    resetWalletBalances();
+    
+    // Display loading state in wallet card
+    showLoadingWalletState(`Loading data for account ${formatWalletAddress(accounts[0])}...`);
+    
     // Save to localStorage
+    localStorage.setItem(window.STORAGE_KEYS.WALLET, window.userAccount);
+    
+    // Save to server
     persistWalletConnection(window.userAccount);
     
     // Update UI
     updateWalletUI();
     
-    // Update wallet data
-    getWalletBalances().catch(error => 
-        console.error('Error fetching wallet balances after account change:', error));
+    // Update wallet data with small delay to ensure previous data is cleared
+    setTimeout(() => {
+        getWalletBalances()
+            .then(() => {
+                console.log('Successfully fetched balances for new account');
+            })
+            .catch(error => {
+                console.error('Error fetching wallet balances after account change:', error);
+            });
+            
+        // Update model stats and LLM decisions on account change
+        window.fetchWalletStats()
+            .catch(error => console.error('Error fetching wallet stats after account change:', error));
+        
+        fetch('/api/trading-data')
+            .then(res => res.json())
+            .then(data => window.updateModelDecisions(data, window.userAccount))
+            .catch(error => console.error('Error updating model decisions:', error));
+    }, 100);
     
     // Request permission for new account
-    window.requestNotificationPermission().catch(error => 
-        console.error('Error requesting notification permission:', error)); 
-    
-    // Update model stats and LLM decisions on account change
-    window.fetchWalletStats().catch(error => 
-        console.error('Error fetching wallet stats after account change:', error));
-    
-    fetch('/api/trading-data')
-        .then(res => res.json())
-        .then(data => window.updateModelDecisions(data, window.userAccount))
-        .catch(error => console.error('Error updating model decisions:', error));
+    window.requestNotificationPermission()
+        .catch(error => console.error('Error requesting notification permission:', error));
     
     // Show notification
     window.showNotification('Wallet account changed', 'info');
@@ -1582,6 +1840,170 @@ function handleAccountsChanged(accounts) {
 
 // Add document ready handler to set up MetaMask event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    // Load the disconnected accounts list from localStorage
+    const savedDisconnectedAccounts = localStorage.getItem('stbchef_disconnected_accounts');
+    if (savedDisconnectedAccounts) {
+        try {
+            window.disconnectedAccounts = JSON.parse(savedDisconnectedAccounts);
+            console.log(`Loaded ${window.disconnectedAccounts.length} disconnected accounts from localStorage`);
+        } catch (e) {
+            console.error('Error parsing disconnected accounts:', e);
+            window.disconnectedAccounts = [];
+        }
+    }
+    
+    // If MetaMask is available, check for auto-connected accounts that may have been disconnected
+    if (typeof window.ethereum !== 'undefined') {
+        console.log('Checking for auto-connected accounts that should be disconnected');
+        window.ethereum.request({ method: 'eth_accounts' })
+            .then(accounts => {
+                if (accounts && accounts.length > 0) {
+                    const account = accounts[0].toLowerCase();
+                    if (window.disconnectedAccounts.includes(account)) {
+                        console.log(`Auto-connected account ${accounts[0]} was previously disconnected, maintaining disconnected state`);
+                        // Clear the connection in our app
+                        window.userAccount = null;
+                        // Update the persistent connection state without trying to fetch from the server first
+                        // This is a safer approach when the GET endpoint might not be implemented yet
+                        try {
+                            fetch('/api/wallet/connection', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    wallet_address: account,
+                                    is_connected: false
+                                })
+                            }).catch(error => {
+                                console.warn('Error updating wallet disconnection on page load, continuing anyway:', error);
+                            });
+                        } catch (e) {
+                            console.warn('Error sending disconnection to server, continuing anyway:', e);
+                        }
+                        
+                        // Update UI if needed
+                        if (typeof updateWalletUI === 'function') {
+                            updateWalletUI();
+                        }
+                        
+                        // Show notification to user after a short delay to ensure UI is loaded
+                        setTimeout(() => {
+                            window.showNotification(`Account ${formatWalletAddress(accounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
+                        }, 1000);
+                    } else {
+                        // If the account is not disconnected, we should connect to it
+                        if (!window.userAccount) {
+                            console.log(`Auto-connecting to account ${accounts[0]}`);
+                            // Initialize web3 first
+                            window.web3 = new Web3(window.ethereum);
+                            // Set account
+                            window.userAccount = accounts[0];
+                            // Save to localStorage
+                            localStorage.setItem(window.STORAGE_KEYS.WALLET, accounts[0]);
+                            // Update connection status
+                            persistWalletConnection(accounts[0]);
+                            // Update UI
+                            updateWalletUI();
+                            // Load wallet data
+                            Promise.all([
+                                getWalletBalances(),
+                                window.fetchWalletStats()
+                            ])
+                            .then(() => {
+                                console.log(`Successfully initialized wallet ${accounts[0]}`);
+                                // Update trading data after wallet is fully loaded
+                                return fetch('/api/trading-data');
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                window.updateModelDecisions(data, window.userAccount);
+                            })
+                            .catch(error => {
+                                console.error('Error during wallet initialization:', error);
+                            });
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error checking auto-connected accounts:', error);
+            });
+            
+        // Set up an interval to check for account changes in MetaMask that might not trigger events
+        window.accountCheckInterval = setInterval(async () => {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    
+                    if (accounts && accounts.length > 0) {
+                        const currentMetaMaskAccount = accounts[0].toLowerCase();
+                        const currentAppAccount = window.userAccount ? window.userAccount.toLowerCase() : null;
+                        
+                        // If the accounts don't match and the MetaMask account is not disconnected
+                        if (currentMetaMaskAccount !== currentAppAccount && 
+                            !window.disconnectedAccounts.includes(currentMetaMaskAccount)) {
+                            
+                            console.log(`Detected account change from MetaMask: ${currentAppAccount} -> ${currentMetaMaskAccount}`);
+                            
+                            // Handle the account change
+                            handleAccountsChanged(accounts);
+                        }
+                        
+                        // If we're showing disconnected but the current account is not in the disconnected list,
+                        // we should auto-connect
+                        if (!window.userAccount && !window.disconnectedAccounts.includes(currentMetaMaskAccount)) {
+                            console.log(`Auto-connecting to available account ${accounts[0]}`);
+                            
+                            // First disable any existing auto-connection attempts that might be in progress
+                            if (window.autoConnectTimeout) {
+                                clearTimeout(window.autoConnectTimeout);
+                            }
+                            
+                            // Initialize web3 first
+                            window.web3 = new Web3(window.ethereum);
+                            
+                            // Set account
+                            window.userAccount = accounts[0];
+                            
+                            // Update UI with loading state
+                            showLoadingWalletState(`Connecting to account ${formatWalletAddress(accounts[0])}...`);
+                            updateWalletUI();
+                            
+                            // Save to localStorage
+                            localStorage.setItem(window.STORAGE_KEYS.WALLET, accounts[0]);
+                            
+                            // Update connection status
+                            persistWalletConnection(accounts[0]);
+                            
+                            // Load wallet data in a proper sequence
+                            getWalletBalances()
+                                .then(() => {
+                                    console.log('Successfully loaded wallet balances');
+                                    return window.fetchWalletStats();
+                                })
+                                .then(() => {
+                                    console.log('Successfully loaded wallet stats');
+                                    return fetch('/api/trading-data');
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                    window.updateModelDecisions(data, window.userAccount);
+                                })
+                                .catch(error => {
+                                    console.error('Error during wallet initialization:', error);
+                                    // Try to update the wallet card anyway
+                                    updateWalletCard();
+                                });
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error during periodic account check:', error);
+                }
+            }
+        }, 1000); // Check every second
+    }
+    
     // Attempt to set up MetaMask event listeners if ethereum is available
     if (typeof window.ethereum !== 'undefined') {
         console.log('Setting up MetaMask event listeners on page load');
@@ -1589,6 +2011,94 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.log('MetaMask not detected on page load');
     }
+    
+    // Clear interval when page is hidden/closed
+    window.addEventListener('beforeunload', () => {
+        if (window.accountCheckInterval) {
+            clearInterval(window.accountCheckInterval);
+        }
+    });
+    
+    // Clear interval when page visibility changes
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.accountCheckInterval) {
+            clearInterval(window.accountCheckInterval);
+        } else if (document.visibilityState === 'visible' && !window.accountCheckInterval) {
+            // Restart the interval if it was cleared
+            window.accountCheckInterval = setInterval(async () => {
+                // Same code as above for consistency
+                if (typeof window.ethereum !== 'undefined') {
+                    try {
+                        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                        
+                        if (accounts && accounts.length > 0) {
+                            const currentMetaMaskAccount = accounts[0].toLowerCase();
+                            const currentAppAccount = window.userAccount ? window.userAccount.toLowerCase() : null;
+                            
+                            // If the accounts don't match and the MetaMask account is not disconnected
+                            if (currentMetaMaskAccount !== currentAppAccount && 
+                                !window.disconnectedAccounts.includes(currentMetaMaskAccount)) {
+                                
+                                console.log(`Detected account change from MetaMask: ${currentAppAccount} -> ${currentMetaMaskAccount}`);
+                                
+                                // Handle the account change
+                                handleAccountsChanged(accounts);
+                            }
+                            
+                            // If we're showing disconnected but the current account is not in the disconnected list,
+                            // we should auto-connect
+                            if (!window.userAccount && !window.disconnectedAccounts.includes(currentMetaMaskAccount)) {
+                                console.log(`Auto-connecting to available account ${accounts[0]}`);
+                                
+                                // First disable any existing auto-connection attempts that might be in progress
+                                if (window.autoConnectTimeout) {
+                                    clearTimeout(window.autoConnectTimeout);
+                                }
+                                
+                                // Initialize web3 first
+                                window.web3 = new Web3(window.ethereum);
+                                
+                                // Set account
+                                window.userAccount = accounts[0];
+                                
+                                // Update UI with loading state
+                                showLoadingWalletState(`Connecting to account ${formatWalletAddress(accounts[0])}...`);
+                                updateWalletUI();
+                                
+                                // Save to localStorage
+                                localStorage.setItem(window.STORAGE_KEYS.WALLET, accounts[0]);
+                                
+                                // Update connection status
+                                persistWalletConnection(accounts[0]);
+                                
+                                // Load wallet data in a proper sequence
+                                getWalletBalances()
+                                    .then(() => {
+                                        console.log('Successfully loaded wallet balances');
+                                        return window.fetchWalletStats();
+                                    })
+                                    .then(() => {
+                                        console.log('Successfully loaded wallet stats');
+                                        return fetch('/api/trading-data');
+                                    })
+                                    .then(res => res.json())
+                                    .then(data => {
+                                        window.updateModelDecisions(data, window.userAccount);
+                                    })
+                                    .catch(error => {
+                                        console.error('Error during wallet initialization:', error);
+                                        // Try to update the wallet card anyway
+                                        updateWalletCard();
+                                    });
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Error during periodic account check:', error);
+                    }
+                }
+            }, 1000);
+        }
+    });
 });
 
 // Make functions available globally
@@ -1602,9 +2112,10 @@ window.clearExpiredData = clearExpiredData;
 window.updateWalletCard = updateWalletCard;
 window.getWalletBalances = getWalletBalances;
 window.getTokenBalance = getTokenBalance;
-window.resetWalletBalances = resetWalletBalances;
+window.resetWalletBalances = resetWalletBalances; 
 window.connectWallet = connectWallet;
 window.switchNetwork = switchNetwork;
 window.setupMetaMaskEventListeners = setupMetaMaskEventListeners;
 window.handleAccountsChanged = handleAccountsChanged;
 window.formatWalletAddress = formatWalletAddress;
+window.saveDisconnectedAccounts = saveDisconnectedAccounts;

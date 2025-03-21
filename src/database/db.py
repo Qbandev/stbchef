@@ -79,6 +79,15 @@ class TradingDatabase:
                 )
             """)
 
+            # Create wallet connections table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wallet_connections (
+                    wallet_address TEXT PRIMARY KEY,
+                    is_connected BOOLEAN NOT NULL,
+                    last_updated DATETIME NOT NULL
+                )
+            """)
+
             # Create indices for better query performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_market_data_timestamp 
@@ -882,3 +891,56 @@ class TradingDatabase:
                     'current_allocation': actions[0]['eth_allocation'] if actions else 0
                 }
             }
+
+    def update_wallet_connection(self, wallet_address: str, is_connected: bool) -> None:
+        """Update the connection status of a wallet."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO wallet_connections (
+                    wallet_address, is_connected, last_updated
+                ) VALUES (?, ?, ?)
+            """, (
+                wallet_address,
+                is_connected,
+                datetime.now()
+            ))
+            conn.commit()
+
+    def get_wallet_connection(self, wallet_address: str) -> Dict[str, bool]:
+        """Get the connection status of a wallet."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT is_connected
+                FROM wallet_connections
+                WHERE wallet_address = ?
+            """, (wallet_address,))
+
+            result = cursor.fetchone()
+
+            if result:
+                return {
+                    "wallet_address": wallet_address,
+                    "is_connected": bool(result['is_connected'])
+                }
+            else:
+                # Default to not connected if no record found
+                return {
+                    "wallet_address": wallet_address,
+                    "is_connected": False
+                }
+
+    def get_connected_wallets(self) -> List[str]:
+        """Get a list of all connected wallet addresses."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT wallet_address
+                FROM wallet_connections
+                WHERE is_connected = 1
+                ORDER BY last_updated DESC
+            """)
+
+            return [row[0] for row in cursor.fetchall()]
