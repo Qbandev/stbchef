@@ -4,6 +4,16 @@
 window.savedWalletCardHTML = null;
 
 /**
+ * Format a wallet address for display, showing the first 6 characters and last 4
+ * @param {string} address - The wallet address to format
+ * @returns {string} Formatted address (e.g. "0x1234...5678")
+ */
+function formatWalletAddress(address) {
+    if (!address) return '';
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+/**
  * Persist wallet connection to localStorage
  * @param {string} account - The connected wallet account address
  */
@@ -21,7 +31,7 @@ function persistWalletConnection(account) {
 function updateWalletUI() {
     const walletBtn = document.getElementById('wallet-btn');
     if (window.userAccount) {
-        walletBtn.innerHTML = `${window.userAccount.slice(0, 6)}...${window.userAccount.slice(-4)} <i class="fas fa-sign-out-alt ml-2"></i>`;
+        walletBtn.innerHTML = `${formatWalletAddress(window.userAccount)} <i class="fas fa-sign-out-alt ml-2"></i>`;
         walletBtn.classList.add('connected');
         walletBtn.title = 'Click to disconnect wallet';
     } else {
@@ -60,7 +70,7 @@ function showLoadingWalletState(message = "Loading wallet data...") {
                         <div class="flex flex-col">
                             <div class="text-xs text-blue-400 font-medium">Processing</div>
                             <div class="flex items-center">
-                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)}</span>
+                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${formatWalletAddress(window.userAccount)}</span>
                             </div>
                         </div>
                     </div>
@@ -305,6 +315,8 @@ function updateWalletCard() {
                                 </div>
                             ` : isEthereum ? `
                                 <div class="network-icon-container mr-2 relative overflow-hidden">
+                                    <!-- Note: Ethereum icon uses 32x32 viewBox intentionally for correct proportions, 
+                                         while still constrained to w-5 h-5 display size like other icons -->
                                     <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
                                         <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
                                         <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
@@ -323,7 +335,7 @@ function updateWalletCard() {
                             <div class="flex flex-col">
                                 <div class="text-xs ${isLinea ? 'text-blue-400' : isEthereum ? 'text-indigo-400' : 'text-yellow-400'} font-medium network-name">${networkName}</div>
                                 <div class="flex items-center">
-                                    <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)}</span>
+                                    <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${formatWalletAddress(window.userAccount)}</span>
                                     <button onclick="copyToClipboard('${window.userAccount}')" class="ml-1 text-gray-400 hover:text-blue-400 transition-colors duration-200">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -530,6 +542,8 @@ function updateWalletCard() {
                             </div>
                         ` : isEthereum ? `
                             <div class="network-icon-container mr-2 relative overflow-hidden">
+                                <!-- Note: Ethereum icon uses 32x32 viewBox intentionally for correct proportions, 
+                                     while still constrained to w-5 h-5 display size like other icons -->
                                 <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
                                     <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
                                     <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
@@ -548,7 +562,7 @@ function updateWalletCard() {
                         <div class="flex flex-col">
                             <div class="text-xs ${isLinea ? 'text-blue-400' : isEthereum ? 'text-indigo-400' : 'text-yellow-400'} font-medium network-name">${networkName}</div>
                             <div class="flex items-center">
-                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)}</span>
+                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${formatWalletAddress(window.userAccount)}</span>
                                 <button onclick="copyToClipboard('${window.userAccount}')" class="ml-1 text-gray-400 hover:text-blue-400 transition-colors duration-200">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -599,7 +613,7 @@ function updateWalletCard() {
                         <div class="flex flex-col">
                             <div class="text-xs text-yellow-400 font-medium">Connection Issue</div>
                             <div class="flex items-center">
-                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)}</span>
+                                <span class="wallet-address text-xs font-mono bg-gradient-to-r from-gray-400 to-white bg-clip-text text-transparent transition-all duration-300">${formatWalletAddress(window.userAccount)}</span>
                                 <button onclick="copyToClipboard('${window.userAccount}')" class="ml-1 text-gray-400 hover:text-blue-400 transition-colors duration-200">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -758,7 +772,7 @@ async function getWalletBalances() {
                                 <span class="text-xs ${isLinea ? 'text-green-400' : isEthereum ? 'text-green-400' : 'text-yellow-400'} mr-2">
                                     Network: ${isLinea ? 'Linea' : isEthereum ? 'Ethereum' : 'Unknown'}
                                 </span>
-                                <span class="text-xs text-gray-400">${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)}</span>
+                                <span class="text-xs text-gray-400">${formatWalletAddress(window.userAccount)}</span>
                             </div>
                         </div>
                         <div class="flex flex-col">
@@ -1563,3 +1577,4 @@ window.connectWallet = connectWallet;
 window.switchNetwork = switchNetwork;
 window.setupMetaMaskEventListeners = setupMetaMaskEventListeners;
 window.handleAccountsChanged = handleAccountsChanged;
+window.formatWalletAddress = formatWalletAddress;
