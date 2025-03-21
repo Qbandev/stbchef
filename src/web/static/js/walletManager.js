@@ -1191,8 +1191,7 @@ async function connectWallet() {
                     
                     // Only show warning if on unsupported network
                     if (!isLinea && !isEthereum) {
-                        window.showNotification(`Switched to unsupported network (ID: ${newChainId}). 
-                                        Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+                        window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
                     }
                     
                     // Update wallet data
@@ -1415,8 +1414,7 @@ function setupMetaMaskEventListeners() {
             
             // Only show warning if on unsupported network
             if (!isLinea && !isEthereum) {
-                window.showNotification(`Switched to unsupported network (ID: ${newChainId}). 
-                                Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+                window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
             }
             
             // Update wallet data
