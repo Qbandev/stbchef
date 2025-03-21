@@ -22,6 +22,8 @@
     <script src="static/js/walletManager.js"></script>
     <!-- Include notification manager JS -->
     <script src="static/js/notificationManager.js"></script>
+    <!-- Include model predictions JS -->
+    <script src="static/js/modelPredictions.js"></script>
     <script>
         // Initialize a notification permission state variable
         let notificationPermissionGranted = false;
@@ -1632,41 +1634,11 @@
 
         // showNotification function has been moved to utils.js
 
-        // Function to get models that recommend BUY
-        function getModelDecisions(decisions) {
-            const modelDecisions = [];
-            if (decisions.gemini === 'BUY') modelDecisions.push('Gemini');
-            if (decisions.groq === 'BUY') modelDecisions.push('Groq');
-            if (decisions.mistral === 'BUY') modelDecisions.push('Mistral');
-            return modelDecisions;
-        }
+        // Function to get models that recommend BUY - moved to modelPredictions.js
+        
+        // Function to get models that recommend SELL - moved to modelPredictions.js
 
-        // Function to get models that recommend SELL
-        function getModelSellDecisions(decisions) {
-            const modelDecisions = [];
-            if (decisions.gemini === 'SELL') modelDecisions.push('Gemini');
-            if (decisions.groq === 'SELL') modelDecisions.push('Groq');
-            if (decisions.mistral === 'SELL') modelDecisions.push('Mistral');
-            return modelDecisions;
-        }
-
-        function checkLLMConsensus(decisions) {
-            const validDecisions = Object.values(decisions).filter(d => d);
-            if (validDecisions.length < 2) return null; // Need at least 2 valid decisions
-            
-            // Count occurrences of each action
-            const counts = {
-                'BUY': 0,
-                'SELL': 0,
-                'HOLD': 0
-            };
-            
-            validDecisions.forEach(d => counts[d]++);
-            
-            // 2 out of 3 models agree (or all 3)
-            const maxAction = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-            return counts[maxAction] >= 2 ? maxAction : null;
-        }
+        // checkLLMConsensus function - moved to modelPredictions.js and marketAnalysis.js
 
         // Add raw accuracy tracking
         let aiRawAccuracy = JSON.parse(localStorage.getItem('stbchef_raw_accuracy') || JSON.stringify({
@@ -1678,117 +1650,13 @@
         // Make aiRawAccuracy available globally
         window.aiRawAccuracy = aiRawAccuracy;
 
-        // Make updateAccuracy available globally
-        window.updateAccuracy = updateAccuracy;
-
+        // Make updateAccuracy available globally - now from modelPredictions.js
+        
         // copyToClipboard function has been moved to utils.js
 
-        function calculateAccuracy(model) {
-            const trades = tradeHistory[model];
-            if (trades.length === 0) return 0;
-
-            const correctTrades = trades.filter(trade => trade.profitable).length;
-            return ((correctTrades / trades.length) * 100).toFixed(1);
-        }
-
-        function updateAccuracy(currentPrice) {
-            if (lastDecisions.price !== null) {
-                const priceChange = currentPrice - lastDecisions.price;
-                const priceChangePercent = (priceChange / lastDecisions.price) * 100;
-
-                // Update market volatility
-                calculateVolatility(currentPrice, marketVolatility);
-
-                // Get dynamic threshold based on market conditions
-                const threshold = calculateDynamicThreshold(marketVolatility.current);
-
-                // Update accuracy for each model
-                ['gemini', 'groq', 'mistral'].forEach(model => {
-                    if (lastDecisions[model]) {
-                        const decision = lastDecisions[model];
-                        const score = calculateTradeScore(decision, priceChangePercent, threshold);
-                        
-                        // Determine if the decision was correct (for raw accuracy)
-                        let isCorrect = false;
-                        if ((decision === 'BUY' && priceChangePercent > threshold) ||
-                            (decision === 'SELL' && priceChangePercent < -threshold) ||
-                            (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold)) {
-                            isCorrect = true;
-                        }
-                        
-                        // Update raw accuracy tracking
-                        aiRawAccuracy[model].total++;
-                        if (isCorrect) {
-                            aiRawAccuracy[model].correct++;
-                        }
-                        aiRawAccuracy[model].accuracy = (aiRawAccuracy[model].correct / aiRawAccuracy[model].total) * 100;
-
-                        // Record trade with enhanced metrics
-                        tradeHistory[model].push({
-                            timestamp: new Date(),
-                            decision: decision,
-                            priceChange: priceChangePercent,
-                            score: score,
-                            threshold: threshold,
-                            volatility: marketVolatility.current,
-                            price: currentPrice,
-                            isCorrect: isCorrect
-                        });
-
-                        // Keep only last 100 trades for more recent performance focus
-                        if (tradeHistory[model].length > 100) {
-                            tradeHistory[model].shift();
-                        }
-                    }
-                });
-            }
-
-            // Update accuracy display with weighted metrics
-            ['gemini', 'groq', 'mistral'].forEach(model => {
-                const accuracyElement = document.getElementById(`${model}-accuracy`);
-                const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
-                
-                if (accuracyElement) {
-                    const trades = tradeHistory[model];
-                    if (trades.length > 0) {
-                        // Calculate weighted average score
-                        const recentTrades = trades.slice(-20); // Last 20 trades
-                        const weights = recentTrades.map((_, i) => 1 + (i / recentTrades.length));
-                        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-                        const weightedScore = recentTrades.reduce((sum, trade, i) => 
-                            sum + (trade.score * weights[i]), 0) / totalWeight;
-
-                        const accuracy = (weightedScore * 100).toFixed(1);
-                        accuracyElement.textContent = `${accuracy}%`;
-                        accuracyElement.className = `font-bold ${
-                            parseFloat(accuracy) >= 65 ? 'text-green-400' :
-                            parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
-                            'text-red-400'
-                        }`;
-                    } else {
-                        // No trades yet, show 0%
-                        accuracyElement.textContent = '0.0%';
-                        accuracyElement.className = 'font-bold text-gray-400';
-                    }
-                }
-                
-                // Update raw accuracy display if available - ONLY if wallet is connected
-                if (rawAccuracyElement && window.userAccount && aiRawAccuracy[model].total > 0) {
-                    const rawAccuracy = aiRawAccuracy[model].accuracy.toFixed(1);
-                    rawAccuracyElement.textContent = `${rawAccuracy}%`;
-                    rawAccuracyElement.className = `font-bold ${
-                        parseFloat(rawAccuracy) >= 65 ? 'text-green-400' :
-                        parseFloat(rawAccuracy) >= 45 ? 'text-yellow-400' :
-                        'text-red-400'
-                    }`;
-                } else if (rawAccuracyElement && !window.userAccount) {
-                    // If wallet is not connected, don't show any accuracy data
-                    rawAccuracyElement.textContent = '0.0%';
-                    rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
-                }
-            });
-        }
+        // calculateAccuracy function moved to modelPredictions.js
+        
+        // updateAccuracy function moved to modelPredictions.js
 
         // initCharts function has been moved to chartHandlers.js and is available globally via window.initCharts
         
@@ -1901,9 +1769,12 @@
 
         // Fetch wallet-specific stats from API
         function fetchWalletStats() {
-            if (!userAccount) return;
+            if (!userAccount) {
+                console.log('No wallet connected - skipping wallet stats fetch');
+                return Promise.resolve('not_applicable'); // Return a resolved promise to prevent catch errors
+            }
             
-            fetch(`/api/wallet-stats?wallet_address=${userAccount}`)
+            return fetch(`/api/wallet-stats?wallet_address=${userAccount}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch wallet stats');
@@ -1912,6 +1783,7 @@
                 })
                 .then(data => {
                     updateWalletModelStats(data);
+                    return data;
                 })
                 .catch(error => {
                     console.error('Error fetching wallet stats:', error);
@@ -1926,6 +1798,7 @@
                             `;
                         }
                     });
+                    throw error; // Re-throw the error to propagate it
                 });
         }
 
