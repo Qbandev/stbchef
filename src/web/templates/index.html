@@ -37,8 +37,8 @@
         };
         
         // Initialize variables
-        let web3;
-        let userAccount;
+        window.web3 = null;
+        window.userAccount = null;
         let priceChart;
         let performanceChart;
         let priceHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRICE_DATA) || '[]');
@@ -91,15 +91,14 @@
         // Make lastDecisions available globally
         window.lastDecisions = lastDecisions;
         
-        // Make user account available globally
-        window.userAccount = userAccount;
+        // User account is already initialized as a global variable
 
         // Load persisted wallet connection on page load
         window.addEventListener('load', async () => {
             const persistedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
             if (persistedWallet && typeof window.ethereum !== 'undefined') {
                 try {
-                    web3 = new Web3(window.ethereum);
+                    window.web3 = new Web3(window.ethereum);
                     
                     // First check if ethereum is connected at all
                     const isConnected = window.ethereum.isConnected();
@@ -289,9 +288,9 @@
         // Modified wallet connection function
         async function connectWallet() {
             // If already connected, disconnect
-            if (userAccount) {
-                userAccount = null;
-                web3 = null;
+            if (window.userAccount) {
+                window.userAccount = null;
+                window.web3 = null;
                 resetWalletBalances();
                 
                 // Remove from localStorage to prevent auto-reconnect
@@ -362,11 +361,11 @@
                         return;
                     }
                     
-                    userAccount = accounts[0];
-                    web3 = new Web3(window.ethereum);
+                    window.userAccount = accounts[0];
+                    window.web3 = new Web3(window.ethereum);
 
                     // Check which network we're on
-                    const chainId = await web3.eth.getChainId();
+                    const chainId = await window.web3.eth.getChainId();
                     const isLinea = chainId === 59144;
                     const isEthereum = chainId === 1;
                     
@@ -376,7 +375,7 @@
                     }
 
                     // Save account immediately
-                    persistWalletConnection(userAccount);
+                    persistWalletConnection(window.userAccount);
                     
                     // Show loading state on wallet card
                     const walletCard = document.getElementById('wallet-card');
@@ -415,7 +414,7 @@
                     try {
                         // Update LLM decision cards
                         const tradingData = await fetch('/api/trading-data').then(res => res.json());
-                        updateModelDecisions(tradingData, userAccount);
+                        updateModelDecisions(tradingData, window.userAccount);
                     } catch (error) {
                         console.error('Error updating model decisions:', error);
                     }
@@ -615,14 +614,14 @@
         
         // Get wallet balances
         async function getWalletBalances() {
-            if (!userAccount || !web3) {
+            if (!window.userAccount || !window.web3) {
                 console.log("No wallet connection available");
                 resetWalletBalances();
                 return;
             }
             
             try {
-                console.log("Fetching wallet balances for", userAccount);
+                console.log("Fetching wallet balances for", window.userAccount);
                 
                 // Show loading state while fetching wallet data
                 showLoadingWalletState("Retrieving wallet balances...");
@@ -634,7 +633,7 @@
                         setTimeout(() => reject(new Error('Chain ID request timed out')), ms));
                     
                     chainId = await Promise.race([
-                        web3.eth.getChainId(),
+                        window.web3.eth.getChainId(),
                         timeout(3000) // 3 second timeout
                     ]);
                     console.log("Current chain ID:", chainId);
@@ -660,8 +659,8 @@
                 }
                 
                 // Get ETH balance
-                const ethBalance = await web3.eth.getBalance(userAccount);
-                walletBalances.eth = parseFloat(web3.utils.fromWei(ethBalance, 'ether'));
+                const ethBalance = await window.web3.eth.getBalance(window.userAccount);
+                walletBalances.eth = parseFloat(window.web3.utils.fromWei(ethBalance, 'ether'));
                 console.log("ETH balance:", walletBalances.eth);
                 
                 // Only try to get USDC balance if we're on a supported network
@@ -803,7 +802,7 @@
                 // Create contract instance with error checking
                 let tokenContract;
                 try {
-                    tokenContract = new web3.eth.Contract(ERC20_ABI, tokenAddress);
+                    tokenContract = new window.web3.eth.Contract(ERC20_ABI, tokenAddress);
                     
                     // Check if methods and necessary functions exist on the contract
                     if (!tokenContract.methods || typeof tokenContract.methods.symbol !== 'function') {
@@ -866,7 +865,7 @@
                 try {
                     // Try balance next with short timeout
                     balance = await Promise.race([
-                        tokenContract.methods.balanceOf(userAccount).call(),
+                        tokenContract.methods.balanceOf(window.userAccount).call(),
                         timeout(3000)
                     ]);
                     console.log(`Token balance (raw): ${balance}`);
@@ -920,8 +919,8 @@
                 logToServer('error', "Token contract error", {
                     message: error.message,
                     tokenAddress: tokenAddress,
-                    userAccount: userAccount,
-                    chainId: web3.eth.chainId || 'unknown'
+                    userAccount: window.userAccount,
+                    chainId: window.web3.eth.chainId || 'unknown'
                 });
                 
                 // Set USDC to 0 on error
@@ -947,7 +946,7 @@
             const walletCard = document.getElementById('wallet-card');
             if (!walletCard) return;
             
-            if (!userAccount || !web3) {
+            if (!window.userAccount || !window.web3) {
                 walletCard.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-full">
                         <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
@@ -960,7 +959,7 @@
             const hasValidPrice = walletBalances.ethusd && !isNaN(walletBalances.ethusd) && walletBalances.ethusd > 0;
             
             // Check if we're on Linea network
-            web3.eth.getChainId().then(chainId => {
+            window.web3.eth.getChainId().then(chainId => {
                 const isLinea = chainId === 59144;
                 const isEthereum = chainId === 1;
                 const networkName = isLinea ? 'Linea' : isEthereum ? 'Ethereum' : 'Unknown Network';
@@ -1364,7 +1363,7 @@
         
         // Function to switch networks
         async function switchNetwork(chainId) {
-            if (!window.ethereum || !userAccount) {
+            if (!window.ethereum || !window.userAccount) {
                 showNotification('MetaMask not connected', 'error');
                 return;
             }
@@ -1395,7 +1394,7 @@
                         // Also update model performance and LLM decision cards
                         fetchWalletStats();
                         const tradingData = await fetch('/api/trading-data').then(res => res.json());
-                        updateModelDecisions(tradingData, userAccount);
+                        updateModelDecisions(tradingData, window.userAccount);
                         
                         // Don't show notification for zero balances, just update the UI
                         if (walletBalances.totalValueUSD <= 0) {
@@ -1578,7 +1577,7 @@
                 }
                 
                 // Get current chain ID to send with the API
-                web3.eth.getChainId().then(chainId => {
+                window.web3.eth.getChainId().then(chainId => {
                     // Only send wallet action for supported networks
                     if (chainId !== 1 && chainId !== 59144) {
                         console.log(`Skipping wallet action on unsupported network ${chainId}`);
@@ -1597,7 +1596,7 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            wallet_address: userAccount,
+                            wallet_address: window.userAccount,
                             wallet_action: walletAction,
                             eth_balance: walletBalances.eth,
                             usdc_balance: walletBalances.usdc,
@@ -2559,7 +2558,7 @@
 
         // Add wallet notification function
         async function sendWalletNotification(signalType, message) {
-            if (!userAccount || !window.ethereum || !web3) {
+            if (!window.userAccount || !window.ethereum || !window.web3) {
                 console.log("Cannot send wallet notification: no wallet connected");
                 return;
             }
@@ -2587,7 +2586,7 @@
                 }
                 
                 // Get current chain ID
-                const chainId = await web3.eth.getChainId();
+                const chainId = await window.web3.eth.getChainId();
                 const isLinea = chainId === 59144;
                 const isEthereum = chainId === 1;
                 
@@ -2605,31 +2604,31 @@
                     if (gasData && gasData.gas_prices) {
                         // Use the standard gas price (convert from Gwei to Wei)
                         const standardGasPriceGwei = gasData.gas_prices.standard;
-                        gasPrice = web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
+                        gasPrice = window.web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
                         
                         // For EIP-1559 compatible networks
                         if (gasData.gas_prices.base_fee) {
                             const baseFeeGwei = gasData.gas_prices.base_fee;
                             // maxFeePerGas = 2 * baseFee + priorityFee
                             const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
-                            maxPriorityFeePerGas = web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
-                            maxFeePerGas = web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
+                            maxPriorityFeePerGas = window.web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
+                            maxFeePerGas = window.web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
                         }
                     }
                 } catch (gasError) {
                     console.warn("Error fetching gas data:", gasError);
                     // Fallback gas values based on network
                     if (isEthereum) {
-                        gasPrice = web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
-                        maxPriorityFeePerGas = web3.utils.toWei('1.5', 'gwei');
-                        maxFeePerGas = web3.utils.toWei('100', 'gwei');
+                        gasPrice = window.web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
+                        maxPriorityFeePerGas = window.web3.utils.toWei('1.5', 'gwei');
+                        maxFeePerGas = window.web3.utils.toWei('100', 'gwei');
                     } else if (isLinea) {
-                        gasPrice = web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
-                        maxPriorityFeePerGas = web3.utils.toWei('0.05', 'gwei');
-                        maxFeePerGas = web3.utils.toWei('0.2', 'gwei');
+                        gasPrice = window.web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
+                        maxPriorityFeePerGas = window.web3.utils.toWei('0.05', 'gwei');
+                        maxFeePerGas = window.web3.utils.toWei('0.2', 'gwei');
                     } else {
                         // Use a reasonable default for other networks
-                        gasPrice = web3.utils.toWei('30', 'gwei');
+                        gasPrice = window.web3.utils.toWei('30', 'gwei');
                     }
                 }
                 
@@ -2665,10 +2664,10 @@
                     try {
                         // Prepare transaction parameters based on network support for EIP-1559
                         let txParams = {
-                            from: userAccount,
-                            to: userAccount,
-                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                            data: web3.utils.toHex(message),
+                            from: window.userAccount,
+                            to: window.userAccount,
+                            value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: window.web3.utils.toHex(message),
                             gas: gasLimit,
                         };
                         
@@ -2676,22 +2675,22 @@
                         if (isEthereum) {
                             // Ethereum mainnet uses EIP-1559
                             if (maxFeePerGas && maxPriorityFeePerGas) {
-                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                                txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                             } else {
-                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                                txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                             }
                         } else if (isLinea) {
                             // Linea uses EIP-1559
                             if (maxFeePerGas && maxPriorityFeePerGas) {
-                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                                txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                             } else {
-                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                                txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                             }
                         } else {
                             // Fallback for other networks
-                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                         }
                         
                         await window.ethereum.request({
@@ -2731,10 +2730,10 @@
                     try {
                         // Prepare transaction parameters based on network support for EIP-1559
                         let txParams = {
-                            from: userAccount,
-                            to: userAccount,
-                            value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                            data: web3.utils.toHex(message),
+                            from: window.userAccount,
+                            to: window.userAccount,
+                            value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                            data: window.web3.utils.toHex(message),
                             gas: gasLimit,
                         };
                         
@@ -2742,22 +2741,22 @@
                         if (isEthereum) {
                             // Ethereum mainnet uses EIP-1559
                             if (maxFeePerGas && maxPriorityFeePerGas) {
-                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                                txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                             } else {
-                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                                txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                             }
                         } else if (isLinea) {
                             // Linea uses EIP-1559
                             if (maxFeePerGas && maxPriorityFeePerGas) {
-                                txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                                txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                                txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                                txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                             } else {
-                                txParams.gasPrice = web3.utils.toHex(gasPrice);
+                                txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                             }
                         } else {
                             // Fallback for other networks
-                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                         }
                         
                         await window.ethereum.request({
@@ -2785,10 +2784,10 @@
                 try {
                     // Prepare transaction parameters based on network support for EIP-1559
                     let txParams = {
-                        from: userAccount,
-                        to: userAccount,
-                        value: web3.utils.toHex(web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                        data: web3.utils.toHex(`${signalType} signal received - Check your portfolio allocation`),
+                        from: window.userAccount,
+                        to: window.userAccount,
+                        value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                        data: window.web3.utils.toHex(`${signalType} signal received - Check your portfolio allocation`),
                         gas: gasLimit,
                     };
                     
@@ -2796,22 +2795,22 @@
                     if (isEthereum) {
                         // Ethereum mainnet uses EIP-1559
                         if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                         } else {
-                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                         }
                     } else if (isLinea) {
                         // Linea uses EIP-1559
                         if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = web3.utils.toHex(maxPriorityFeePerGas);
+                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
                         } else {
-                            txParams.gasPrice = web3.utils.toHex(gasPrice);
+                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                         }
                     } else {
                         // Fallback for other networks
-                        txParams.gasPrice = web3.utils.toHex(gasPrice);
+                        txParams.gasPrice = window.web3.utils.toHex(gasPrice);
                     }
                     
                     await window.ethereum.request({
@@ -2836,7 +2835,7 @@
         
         // Record wallet action to the database
         async function recordWalletAction(action) {
-            if (!userAccount) return;
+            if (!window.userAccount) return;
             
             try {
                 // Verify we have valid price data first
@@ -2851,7 +2850,7 @@
                 const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
                 
                 // Get current chain ID
-                const chainId = await web3.eth.getChainId();
+                const chainId = await window.web3.eth.getChainId();
                 
                 // Send action to server to be recorded
                 const response = await fetch('/api/set-wallet-action', {
@@ -2860,7 +2859,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        wallet_address: userAccount,
+                        wallet_address: window.userAccount,
                         wallet_action: action,
                         eth_balance: walletBalances.eth,
                         usdc_balance: walletBalances.usdc,
@@ -2885,7 +2884,7 @@
 
         // Add notification permission request
         async function requestNotificationPermission() {
-            if (!userAccount) return;
+            if (!window.userAccount) return;
 
             try {
                 const permission = await Notification.requestPermission();
@@ -2897,21 +2896,7 @@
             }
         }
 
-        // Function to determine portfolio bar color based on target allocation
-        function getPortfolioBarColor(allocation, minTarget, maxTarget) {
-            // Below minimum target - needs more ETH
-            if (allocation < minTarget) {
-                return 'bg-gradient-to-r from-yellow-500 to-blue-500';
-            } 
-            // Above maximum target - too much ETH
-            else if (allocation > maxTarget) {
-                return 'bg-gradient-to-r from-red-500 to-orange-500';
-            } 
-            // Within target range - optimal
-            else {
-                return 'bg-gradient-to-r from-green-500 to-blue-400';
-            }
-        }
+        // Function to determine portfolio bar color based on target allocation has been moved to utils.js
 
         // Add raw accuracy tracking
         let aiRawAccuracy = JSON.parse(localStorage.getItem('stbchef_raw_accuracy') || JSON.stringify({

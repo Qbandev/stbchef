@@ -80,7 +80,30 @@ function copyToClipboard(text) {
     });
 }
 
+/**
+ * Determine portfolio bar color based on target allocation
+ * @param {number} allocation - Current ETH allocation percentage
+ * @param {number} minTarget - Minimum target allocation percentage
+ * @param {number} maxTarget - Maximum target allocation percentage
+ * @returns {string} - Tailwind CSS class for portfolio bar coloring
+ */
+function getPortfolioBarColor(allocation, minTarget, maxTarget) {
+    // Below minimum target - needs more ETH
+    if (allocation < minTarget) {
+        return 'bg-gradient-to-r from-yellow-500 to-blue-500';
+    } 
+    // Above maximum target - too much ETH
+    else if (allocation > maxTarget) {
+        return 'bg-gradient-to-r from-red-500 to-orange-500';
+    } 
+    // Within target range - optimal
+    else {
+        return 'bg-gradient-to-r from-green-500 to-blue-400';
+    }
+}
+
 // Make functions available globally
 window.showNotification = showNotification;
 window.logToServer = logToServer;
 window.copyToClipboard = copyToClipboard;
+window.getPortfolioBarColor = getPortfolioBarColor;
