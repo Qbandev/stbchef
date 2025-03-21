@@ -296,21 +296,20 @@ function updateWalletCard() {
                             ${isLinea ? `
                                 <div class="network-icon-container mr-2 relative overflow-hidden">
                                     <svg class="w-5 h-5 text-blue-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                        <circle cx="12" cy="12" r="11.5" stroke="currentColor" fill="rgba(0,171,255,0.1)"/>
-                                        <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="currentColor"/>
-                                        <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="currentColor"/>
-                                        <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="currentColor"/>
+                                        <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#121212"/>
+                                        <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="#00ABFF"/>
+                                        <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="#00ABFF"/>
+                                        <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="#00ABFF"/>
                                     </svg>
                                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-30 blur-sm network-scan"></div>
                                 </div>
                             ` : isEthereum ? `
                                 <div class="network-icon-container mr-2 relative overflow-hidden">
-                                    <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                        <circle cx="12" cy="12" r="11.5" stroke="currentColor" fill="rgba(98,126,234,0.1)"/>
-                                        <path d="M11.9982 4L11.8 4.4V15.1133L11.9982 15.275L16.9963 12.3L11.9982 4Z" fill="currentColor" fill-opacity="0.7"/>
-                                        <path d="M12 4L7 12.3L12 15.275V10.0582V4Z" fill="currentColor"/>
-                                        <path d="M11.9982 16.4826L11.9063 16.597V19.8105L11.9982 20L17 13.4264L11.9982 16.4826Z" fill="currentColor" fill-opacity="0.7"/>
-                                        <path d="M12 20V16.4826L7 13.4264L12 20Z" fill="currentColor"/>
+                                    <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 21.93L15.8917 22.0633V26.4117L16 26.6633L22.6667 17.94L16 21.93Z" fill="#627EEA" fill-opacity="0.7"/>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 26.6633V21.93L9.33333 17.94L16 26.6633Z" fill="#627EEA"/>
                                     </svg>
                                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-400 to-transparent opacity-30 blur-sm network-scan"></div>
                                 </div>
@@ -522,16 +521,22 @@ function updateWalletCard() {
                         ${isLinea ? `
                             <div class="network-icon-container mr-2 relative overflow-hidden">
                                 <svg class="w-5 h-5 text-blue-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#121212"/>
+                                    <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="#00ABFF"/>
+                                    <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="#00ABFF"/>
+                                    <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="#00ABFF"/>
                                 </svg>
                                 <div class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-30 blur-sm network-scan"></div>
                             </div>
                         ` : isEthereum ? `
                             <div class="network-icon-container mr-2 relative overflow-hidden">
-                                <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                <svg class="w-5 h-5 text-indigo-400 animate-pulse-slow" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 21.93L15.8917 22.0633V26.4117L16 26.6633L22.6667 17.94L16 21.93Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 26.6633V21.93L9.33333 17.94L16 26.6633Z" fill="#627EEA"/>
                                 </svg>
-                                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-30 blur-sm network-scan"></div>
+                                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-400 to-transparent opacity-30 blur-sm network-scan"></div>
                             </div>
                         ` : `
                             <div class="network-icon-container mr-2 relative overflow-hidden">
@@ -1141,79 +1146,20 @@ async function connectWallet() {
             // Request notification permission after wallet connection
             await window.requestNotificationPermission();
 
+            // Set up MetaMask event listeners
+            setupMetaMaskEventListeners();
+
             // Handle account changes - only set up once
             if (!window.hasSetupMetaMaskEvents) {
                 window.hasSetupMetaMaskEvents = true;
                 
-                window.ethereum.on('accountsChanged', function (accounts) {
-                    if (accounts.length === 0) {
-                        window.userAccount = null;
-                        resetWalletBalances();
-                        
-                        // Remove from localStorage
-                        localStorage.removeItem(window.STORAGE_KEYS.WALLET);
-                        
-                        // Clear raw accuracy data from localStorage
-                        localStorage.removeItem('stbchef_raw_accuracy');
-                        
-                        // Reset raw accuracy tracking
-                        window.aiRawAccuracy = {
-                            gemini: { correct: 0, total: 0, accuracy: 0 },
-                            groq: { correct: 0, total: 0, accuracy: 0 },
-                            mistral: { correct: 0, total: 0, accuracy: 0 }
-                        };
-                        
-                        // Update UI
-                        updateWalletUI();
-                        
-                        // Update model stats and LLM decisions on disconnect
-                        window.displayEmptyStats();
-                        fetch('/api/trading-data')
-                            .then(res => res.json())
-                            .then(data => window.updateModelDecisions(data, null))
-                            .catch(error => console.error('Error updating model decisions:', error));
-                    } else {
-                        window.userAccount = accounts[0];
-                        
-                        // Clear old raw accuracy data since we're connecting to a new wallet
-                        localStorage.removeItem('stbchef_raw_accuracy');
-                        
-                        // Reset raw accuracy tracking for new wallet
-                        window.aiRawAccuracy = {
-                            gemini: { correct: 0, total: 0, accuracy: 0 },
-                            groq: { correct: 0, total: 0, accuracy: 0 },
-                            mistral: { correct: 0, total: 0, accuracy: 0 }
-                        };
-                        
-                        // Save to localStorage
-                        persistWalletConnection(window.userAccount);
-                        
-                        // Update UI
-                        updateWalletUI();
-                        
-                        // Update wallet data
-                        getWalletBalances().catch(error => 
-                            console.error('Error fetching wallet balances after account change:', error));
-                        
-                        // Request permission for new account
-                        window.requestNotificationPermission().catch(error => 
-                            console.error('Error requesting notification permission:', error)); 
-                        
-                        // Update model stats and LLM decisions on account change
-                        window.fetchWalletStats().catch(error => 
-                            console.error('Error fetching wallet stats after account change:', error));
-                        
-                        fetch('/api/trading-data')
-                            .then(res => res.json())
-                            .then(data => window.updateModelDecisions(data, window.userAccount))
-                            .catch(error => console.error('Error updating model decisions:', error));
-                    }
-                    
-                    window.showNotification(accounts.length === 0 ? 'Wallet disconnected' : 'Wallet account changed', 
-                                    accounts.length === 0 ? 'warning' : 'info');
-                });
+                // Store the current account for comparison
+                window.lastKnownAccount = window.userAccount;
+
+                // Handle account changes
+                window.ethereum.on('accountsChanged', handleAccountsChanged);
                 
-                // Update balances when chain changes
+                // Handle chain changes
                 window.ethereum.on('chainChanged', function (chainIdHex) {
                     const newChainId = parseInt(chainIdHex, 16);
                     const isLinea = newChainId === 59144;
@@ -1402,6 +1348,205 @@ async function switchNetwork(chainId) {
     }
 }
 
+/**
+ * Setup MetaMask event listeners
+ * This function can be called multiple times but will only set up listeners once
+ */
+function setupMetaMaskEventListeners() {
+    if (!window.ethereum) {
+        console.log("Cannot setup MetaMask event listeners: ethereum not available");
+        return;
+    }
+
+    if (!window.hasSetupMetaMaskEvents) {
+        console.log("Setting up MetaMask event listeners");
+        window.hasSetupMetaMaskEvents = true;
+        
+        // Store the current account for comparison
+        window.lastKnownAccount = window.userAccount;
+
+        // Handle account changes
+        window.ethereum.on('accountsChanged', handleAccountsChanged);
+        
+        // Handle chain changes
+        window.ethereum.on('chainChanged', function (chainIdHex) {
+            const newChainId = parseInt(chainIdHex, 16);
+            const isLinea = newChainId === 59144;
+            const isEthereum = newChainId === 1;
+            
+            // Only show warning if on unsupported network
+            if (!isLinea && !isEthereum) {
+                window.showNotification(`Switched to unsupported network (ID: ${newChainId}). 
+                                Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+            }
+            
+            // Update wallet data
+            getWalletBalances().catch(error => 
+                console.error('Error fetching wallet balances after chain change:', error));
+            
+            // Update UI
+            updateWalletUI();
+            
+            // Update model stats and decisions
+            window.fetchWalletStats().catch(error => 
+                console.error('Error fetching wallet stats after chain change:', error));
+            
+            fetch('/api/trading-data')
+                .then(res => res.json())
+                .then(data => window.updateModelDecisions(data, window.userAccount))
+                .catch(error => console.error('Error updating model decisions:', error));
+            
+            // Get network name for notification
+            const networkName = isLinea ? 'Linea' : 
+                                isEthereum ? 'Ethereum' : 
+                                `Unknown Network (ID: ${newChainId})`;
+            
+            window.showNotification(`Network changed to ${networkName}`, 'info');
+        });
+        
+        // Handle disconnect event
+        window.ethereum.on('disconnect', function (error) {
+            console.log('MetaMask disconnected:', error);
+            
+            // Only clear if this is our current connection
+            if (window.userAccount) {
+                window.userAccount = null;
+                resetWalletBalances();
+                
+                // Remove from localStorage
+                localStorage.removeItem(window.STORAGE_KEYS.WALLET);
+                
+                // Clear raw accuracy data from localStorage
+                localStorage.removeItem('stbchef_raw_accuracy');
+                
+                // Reset raw accuracy tracking
+                window.aiRawAccuracy = {
+                    gemini: { correct: 0, total: 0, accuracy: 0 },
+                    groq: { correct: 0, total: 0, accuracy: 0 },
+                    mistral: { correct: 0, total: 0, accuracy: 0 }
+                };
+                
+                // Update UI
+                updateWalletUI();
+                
+                // Update model stats and LLM decisions
+                window.displayEmptyStats();
+                fetch('/api/trading-data')
+                    .then(res => res.json())
+                    .then(data => window.updateModelDecisions(data, null))
+                    .catch(error => console.error('Error updating model decisions:', error));
+                
+                window.showNotification('Wallet disconnected', 'warning');
+            }
+        });
+    } else {
+        console.log("MetaMask event listeners already set up");
+    }
+}
+
+/**
+ * Handle accounts changed event from MetaMask
+ * @param {Array} accounts - Array of accounts from MetaMask
+ */
+function handleAccountsChanged(accounts) {
+    console.log(`Accounts changed event received. Got ${accounts.length} accounts, current account: ${window.userAccount}, last known: ${window.lastKnownAccount}`);
+    
+    // No accounts - handle disconnect
+    if (accounts.length === 0) {
+        if (window.userAccount) {
+            console.log('User disconnected wallet');
+            window.userAccount = null;
+            resetWalletBalances();
+            
+            // Remove from localStorage
+            localStorage.removeItem(window.STORAGE_KEYS.WALLET);
+            
+            // Clear raw accuracy data from localStorage
+            localStorage.removeItem('stbchef_raw_accuracy');
+            
+            // Reset raw accuracy tracking
+            window.aiRawAccuracy = {
+                gemini: { correct: 0, total: 0, accuracy: 0 },
+                groq: { correct: 0, total: 0, accuracy: 0 },
+                mistral: { correct: 0, total: 0, accuracy: 0 }
+            };
+            
+            // Update UI
+            updateWalletUI();
+            
+            // Update model stats and LLM decisions on disconnect
+            window.displayEmptyStats();
+            fetch('/api/trading-data')
+                .then(res => res.json())
+                .then(data => window.updateModelDecisions(data, null))
+                .catch(error => console.error('Error updating model decisions:', error));
+                
+            window.showNotification('Wallet disconnected', 'warning');
+        }
+        return;
+    }
+    
+    // Check if account actually changed
+    const newAccount = accounts[0];
+    if (newAccount === window.userAccount) {
+        console.log('Account unchanged, no action needed');
+        return;
+    }
+    
+    console.log(`Account changed from ${window.userAccount || 'none'} to ${newAccount}`);
+    
+    // Update the last known account
+    window.lastKnownAccount = window.userAccount;
+    window.userAccount = newAccount;
+    
+    // Clear old raw accuracy data since we're connecting to a new wallet
+    localStorage.removeItem('stbchef_raw_accuracy');
+    
+    // Reset raw accuracy tracking for new wallet
+    window.aiRawAccuracy = {
+        gemini: { correct: 0, total: 0, accuracy: 0 },
+        groq: { correct: 0, total: 0, accuracy: 0 },
+        mistral: { correct: 0, total: 0, accuracy: 0 }
+    };
+    
+    // Save to localStorage
+    persistWalletConnection(window.userAccount);
+    
+    // Update UI
+    updateWalletUI();
+    
+    // Update wallet data
+    getWalletBalances().catch(error => 
+        console.error('Error fetching wallet balances after account change:', error));
+    
+    // Request permission for new account
+    window.requestNotificationPermission().catch(error => 
+        console.error('Error requesting notification permission:', error)); 
+    
+    // Update model stats and LLM decisions on account change
+    window.fetchWalletStats().catch(error => 
+        console.error('Error fetching wallet stats after account change:', error));
+    
+    fetch('/api/trading-data')
+        .then(res => res.json())
+        .then(data => window.updateModelDecisions(data, window.userAccount))
+        .catch(error => console.error('Error updating model decisions:', error));
+    
+    // Show notification
+    window.showNotification('Wallet account changed', 'info');
+}
+
+// Add document ready handler to set up MetaMask event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Attempt to set up MetaMask event listeners if ethereum is available
+    if (typeof window.ethereum !== 'undefined') {
+        console.log('Setting up MetaMask event listeners on page load');
+        setupMetaMaskEventListeners();
+    } else {
+        console.log('MetaMask not detected on page load');
+    }
+});
+
 // Make functions available globally
 window.persistWalletConnection = persistWalletConnection;
 window.updateWalletUI = updateWalletUI;
@@ -1415,4 +1560,6 @@ window.getWalletBalances = getWalletBalances;
 window.getTokenBalance = getTokenBalance;
 window.resetWalletBalances = resetWalletBalances;
 window.connectWallet = connectWallet;
-window.switchNetwork = switchNetwork; 
+window.switchNetwork = switchNetwork;
+window.setupMetaMaskEventListeners = setupMetaMaskEventListeners;
+window.handleAccountsChanged = handleAccountsChanged;
