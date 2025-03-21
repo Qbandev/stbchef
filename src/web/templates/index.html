@@ -5,326 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple Crypto Trading Bot Chef</title>
     <link rel="icon" type="image/webp" href="static/favicon.webp">
+    <link rel="stylesheet" href="static/css/styles.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
-    <style>
-        :root {
-            --neon-blue: #00f3ff;
-            --neon-purple: #9d00ff;
-            --neon-pink: #ff0099;
-            --cyber-black: #0a0a0f;
-            --cyber-dark: #1a1a2e;
-            --cyber-text: #e2e8f0;
-        }
-        body {
-            background: var(--cyber-black);
-            color: var(--cyber-text);
-            font-family: 'Courier New', monospace;
-            background-image: 
-                linear-gradient(45deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(-45deg, rgba(157, 0, 255, 0.1) 1px, transparent 1px);
-            background-size: 40px 40px;
-            background-position: center;
-        }
-        .cyber-card {
-            background: rgba(26, 26, 46, 0.8);
-            border: 1px solid var(--neon-blue);
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
-            backdrop-filter: blur(10px);
-            position: relative;
-        }
-        .cyber-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
-            animation: scan-line 2s linear infinite;
-        }
-        @keyframes scan-line {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-        .cyber-title {
-            color: var(--neon-blue);
-            text-shadow: 0 0 10px rgba(0, 243, 255, 0.7);
-            position: relative;
-        }
-        .cyber-value {
-            color: var(--neon-purple);
-            text-shadow: 0 0 10px rgba(157, 0, 255, 0.7);
-            position: relative;
-        }
-        .cyber-btn {
-            background: transparent;
-            border: 1px solid var(--neon-blue);
-            color: var(--neon-blue);
-            text-shadow: 0 0 5px rgba(0, 243, 255, 0.7);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .cyber-btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 200%;
-            height: 200%;
-            background: rgba(0, 243, 255, 0.2);
-            transform: translate(-50%, -50%) rotate(45deg);
-            transition: all 0.3s ease;
-            opacity: 0;
-        }
-        .cyber-btn:hover::before {
-            opacity: 1;
-        }
-        .cyber-btn:hover {
-            background: rgba(0, 243, 255, 0.1);
-            color: var(--neon-blue);
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
-            transform: translateY(-2px);
-        }
-        .chart-container {
-            border: 1px solid var(--neon-blue);
-            background: rgba(26, 26, 46, 0.8);
-            height: 400px;
-            box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.2);
-            backdrop-filter: blur(5px);
-        }
-        .header-logo {
-            max-width: 60px;
-            height: auto;
-            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7));
-            animation: pulse 2s ease-in-out infinite;
-            margin-right: 1rem;
-        }
-        @keyframes pulse {
-            0% { filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7)); }
-            50% { filter: drop-shadow(0 0 25px rgba(157, 0, 255, 0.7)); }
-            100% { filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.7)); }
-        }
-        .cyber-header {
-            background: rgba(26, 26, 46, 0.8);
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
-        }
-        .cyber-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
-            animation: scan-line 2s linear infinite;
-        }
-        @media (max-width: 768px) {
-            .header-logo {
-                max-width: 60px;
-            }
-            .chart-container {
-                height: 300px;
-            }
-            .grid-cols-3 {
-                grid-template-columns: 1fr;
-            }
-        }
-        .wallet-btn {
-            background: linear-gradient(45deg, var(--neon-purple), var(--neon-pink));
-            border: 1px solid var(--neon-purple);
-            color: white;
-            text-shadow: 0 0 5px rgba(157, 0, 255, 0.7);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .wallet-btn:hover {
-            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
-            box-shadow: 0 0 20px rgba(157, 0, 255, 0.5);
-            transform: translateY(-2px);
-        }
-        .wallet-btn.connected {
-            background: linear-gradient(45deg, var(--neon-blue), var(--neon-purple));
-            border: 1px solid var(--neon-blue);
-        }
-        .wallet-btn.connected:hover {
-            background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
-        }
-        .cyber-btn-small {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            text-transform: uppercase;
-        }
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            background: rgba(26, 26, 46, 0.95);
-            border: 1px solid var(--neon-purple);
-            color: white;
-            z-index: 1000;
-            animation: slideIn 0.3s ease-out;
-            box-shadow: 0 0 20px rgba(157, 0, 255, 0.3);
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        /* Custom Tooltip Styles */
-        .tooltip-container {
-            position: relative;
-            display: inline-block;
-        }
-        .tooltip {
-            visibility: hidden;
-            position: fixed;
-            z-index: 9999;
-            padding: 8px 12px;
-            background: rgba(26, 26, 46, 0.95);
-            border: 1px solid var(--neon-blue);
-            border-radius: 4px;
-            color: var(--cyber-text);
-            font-size: 0.875rem;
-            white-space: pre-line;
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
-            opacity: 0;
-            transition: opacity 0.2s, visibility 0.2s;
-            min-width: 200px;
-            backdrop-filter: blur(5px);
-            transform: translateX(-50%) translateY(-100%);
-            margin-top: -10px;
-        }
-        .tooltip::after {
-            content: "";
-            position: absolute;
-            bottom: -5px;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: transparent transparent var(--neon-blue) transparent;
-        }
-        .tooltip-container:hover .tooltip,
-        .tooltip-container:focus-within .tooltip {
-            visibility: visible;
-            opacity: 1;
-        }
-        .tooltip-trigger {
-            cursor: help;
-        }
-        .spinner {
-            color: var(--neon-blue);
-            font-size: 1.5rem;
-            animation: pulse 2s infinite;
-        }
-        .network-btn {
-            background: rgba(10, 10, 20, 0.4);
-            border: 1px solid transparent;
-            color: var(--cyber-text);
-            font-size: 0.9rem;
-            padding: 0.5rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-radius: 4px;
-            min-width: 120px;
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(5px);
-        }
-        .network-btn:not(.network-active) {
-            animation: subtle-pulse 3s infinite;
-        }
-        @keyframes subtle-pulse {
-            0% { box-shadow: 0 0 0px rgba(0, 243, 255, 0); }
-            50% { box-shadow: 0 0 8px rgba(0, 243, 255, 0.3); }
-            100% { box-shadow: 0 0 0px rgba(0, 243, 255, 0); }
-        }
-        .network-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.2), transparent);
-            transition: 0.5s;
-        }
-        .network-btn:hover::before {
-            left: 100%;
-        }
-        .network-btn:hover {
-            border-color: var(--neon-blue);
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
-            color: var(--neon-blue);
-            transform: translateY(-2px);
-        }
-        .network-active {
-            color: var(--neon-blue);
-            border-color: var(--neon-blue);
-            background: rgba(0, 243, 255, 0.1);
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
-        }
-        .network-icon {
-            margin-right: 0.5rem;
-            width: 20px;
-            height: 20px;
-        }
-        .eth-icon {
-            color: #627eea;
-        }
-        .linea-icon {
-            color: #00ABFF;
-            background-color: #121212;
-            border-radius: 50%;
-        }
-        .active-indicator {
-            font-size: 0.75rem;
-            margin-left: 0.5rem;
-            color: var(--neon-blue);
-            text-shadow: 0 0 5px var(--neon-blue);
-            animation: pulse 2s infinite;
-        }
-        .network-scan {
-            animation: network-scan 2s ease-in-out infinite;
-        }
-        .animate-pulse-slow {
-            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes network-scan {
-            0% {
-                left: -100%;
-            }
-            100% {
-                left: 100%;
-            }
-        }
-        .network-address-badge {
-            box-shadow: 0 0 5px rgba(0, 243, 255, 0.2);
-        }
-        .network-address-badge:hover {
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
-        }
-        .wallet-address:hover {
-            background-image: linear-gradient(to right, #00f3ff, #9d00ff);
-        }
-        .hover:shadow-glow:hover {
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
-        }
-    </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Include utilities JS -->
+    <script src="static/js/utils.js"></script>
+    <!-- Include market analysis JS -->
+    <script src="static/js/marketAnalysis.js"></script>
     <script>
         // Initialize a notification permission state variable
         let notificationPermissionGranted = false;
@@ -341,41 +32,6 @@
             MODEL_PERFORMANCE: 'stbchef_model_performance'
         };
         
-        // Logger function to centralize logging
-        function logToServer(level, message, context = {}) {
-            // Always log to console
-            if (level === 'error') {
-                console.error(message, context);
-            } else if (level === 'warn') {
-                console.warn(message, context);
-            } else {
-                console.log(message, context);
-            }
-            
-            // Send logs to server for important events
-            if (level === 'error' || level === 'warn') {
-                try {
-                    fetch('/api/log', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            level,
-                            message,
-                            context,
-                            timestamp: new Date().toISOString(),
-                            userAgent: navigator.userAgent,
-                            url: window.location.href
-                        })
-                    }).catch(err => console.error('Error sending log to server:', err));
-                } catch (e) {
-                    // Fail silently - don't let logging errors create more errors
-                    console.error('Failed to send log to server:', e);
-                }
-            }
-        }
-
         // Initialize variables
         let web3;
         let userAccount;
@@ -407,49 +63,8 @@
             current: 0
         };
 
-        function calculateVolatility(price) {
-            marketVolatility.data.push(price);
-            if (marketVolatility.data.length > marketVolatility.window * 60) { // 60 data points per hour
-                marketVolatility.data.shift();
-            }
-
-            if (marketVolatility.data.length > 1) {
-                const returns = marketVolatility.data.slice(1).map((p, i) => 
-                    (p - marketVolatility.data[i]) / marketVolatility.data[i]
-                );
-                marketVolatility.current = Math.sqrt(returns.reduce((sum, r) => sum + r * r, 0) / returns.length) * 100;
-            }
-        }
-
-        function calculateDynamicThreshold() {
-            // Base threshold of 1%, adjusted by volatility
-            const baseThreshold = 1.0;
-            const volatilityFactor = Math.max(0.5, Math.min(2.0, marketVolatility.current));
-            return baseThreshold * volatilityFactor;
-        }
-
-        function calculateTradeScore(decision, priceChangePercent, threshold) {
-            let score = 0;
-
-            // Base score for correct direction
-            if (decision === 'BUY' && priceChangePercent > threshold) {
-                score = 1;
-            } else if (decision === 'SELL' && priceChangePercent < -threshold) {
-                score = 1;
-            } else if (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold) {
-                score = 1;
-            }
-
-            // Bonus points for magnitude - MODIFIED to be less aggressive
-            if (score > 0) {
-                const magnitude = Math.abs(priceChangePercent) - threshold;
-                // Reduce the bonus points impact - max 0.5 additional points instead of 1
-                score += Math.min(0.5, magnitude / (threshold * 2)); 
-            }
-
-            return score;
-        }
-
+        // Functions moved to marketAnalysis.js
+        
         let lastDecisions = {
             gemini: null,
             groq: null,
@@ -2038,44 +1653,9 @@
             }
         }
 
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
+        // showNotification function has been moved to utils.js
 
-            // Format message with line breaks
-            const formattedMessage = message.split('\n').map(line => `<div>${line}</div>`).join('');
-
-            notification.innerHTML = `
-                <div class="flex flex-col">
-                    ${formattedMessage}
-                </div>
-            `;
-
-            document.body.appendChild(notification);
-
-            // Remove notification after 8 seconds
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => notification.remove(), 300);
-            }, 8000);
-        }
-
-        // Function to check if 2 out of 3 LLMs agree on a decision
-        function checkLLMConsensus(decisions) {
-            const buyVotes = Object.values(decisions).filter(d => d === 'BUY').length;
-            const sellVotes = Object.values(decisions).filter(d => d === 'SELL').length;
-            const holdVotes = Object.values(decisions).filter(d => d === 'HOLD').length;
-
-            if (buyVotes >= 2) {
-                return 'BUY';
-            } else if (sellVotes >= 2) {
-                return 'SELL';
-            } else if (holdVotes >= 2) {
-                return 'HOLD';
-            }
-            return null;
-        }
-
+        // Function to get models that recommend BUY
         function getModelDecisions(decisions) {
             const modelDecisions = [];
             if (decisions.gemini === 'BUY') modelDecisions.push('Gemini');
@@ -2084,6 +1664,7 @@
             return modelDecisions;
         }
 
+        // Function to get models that recommend SELL
         function getModelSellDecisions(decisions) {
             const modelDecisions = [];
             if (decisions.gemini === 'SELL') modelDecisions.push('Gemini');
@@ -2091,6 +1672,8 @@
             if (decisions.mistral === 'SELL') modelDecisions.push('Mistral');
             return modelDecisions;
         }
+
+        // checkLLMConsensus function has been moved to marketAnalysis.js
 
         function calculateAccuracy(model) {
             const trades = tradeHistory[model];
@@ -2106,10 +1689,10 @@
                 const priceChangePercent = (priceChange / lastDecisions.price) * 100;
 
                 // Update market volatility
-                calculateVolatility(currentPrice);
+                calculateVolatility(currentPrice, marketVolatility);
 
                 // Get dynamic threshold based on market conditions
-                const threshold = calculateDynamicThreshold();
+                const threshold = calculateDynamicThreshold(marketVolatility.current);
 
                 // Update accuracy for each model
                 ['gemini', 'groq', 'mistral'].forEach(model => {
@@ -3490,15 +3073,7 @@
             mistral: { correct: 0, total: 0, accuracy: 0 }
         }));
 
-        // Add a function to copy wallet address to clipboard
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                showNotification('Address copied to clipboard!', 'info');
-            }).catch(err => {
-                console.error('Error copying address: ', err);
-                showNotification('Failed to copy address', 'error');
-            });
-        }
+        // copyToClipboard function has been moved to utils.js
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
