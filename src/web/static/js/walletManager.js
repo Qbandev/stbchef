@@ -1531,9 +1531,10 @@ function handleAccountsChanged(accounts) {
         return;
     }
     
-    // Check if account actually changed
-    const newAccount = accounts[0];
-    if (newAccount === window.userAccount) {
+    // Check if account actually changed - use case-insensitive comparison
+    // Ethereum addresses can have different case but should be treated as identical
+    const newAccount = accounts[0].toLowerCase();
+    if (newAccount === (window.userAccount ? window.userAccount.toLowerCase() : null)) {
         console.log('Account unchanged, no action needed');
         return;
     }
