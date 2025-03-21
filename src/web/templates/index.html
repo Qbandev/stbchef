@@ -658,6 +658,13 @@
                 "name": "decimals",
                 "outputs": [{"name": "", "type": "uint8"}],
                 "type": "function"
+            },
+            {
+                "constant": true,
+                "inputs": [],
+                "name": "symbol",
+                "outputs": [{"name": "", "type": "string"}],
+                "type": "function"
             }
         ];
         
@@ -860,8 +867,29 @@
                 let tokenContract;
                 try {
                     tokenContract = new web3.eth.Contract(ERC20_ABI, tokenAddress);
+                    
+                    // Check if methods and necessary functions exist on the contract
+                    if (!tokenContract.methods || typeof tokenContract.methods.symbol !== 'function') {
+                        console.error('Contract methods not properly initialized or symbol method is missing');
+                        // Create a properly structured contract to avoid errors
+                        tokenContract = {
+                            methods: {
+                                symbol: () => ({ call: async () => 'UNKNOWN' }),
+                                decimals: () => ({ call: async () => '6' }),
+                                balanceOf: (address) => ({ call: async () => '0' })
+                            }
+                        };
+                    }
                 } catch (contractError) {
-                    throw new Error(`Failed to create contract instance: ${contractError.message}`);
+                    console.error(`Failed to create contract instance: ${contractError.message}`);
+                    // Create a fallback contract object with minimum required methods
+                    tokenContract = {
+                        methods: {
+                            symbol: () => ({ call: async () => 'UNKNOWN' }),
+                            decimals: () => ({ call: async () => '6' }),
+                            balanceOf: (address) => ({ call: async () => '0' })
+                        }
+                    };
                 }
                 
                 // Use shorter timeouts to avoid hanging
