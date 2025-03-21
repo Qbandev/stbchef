@@ -18,6 +18,8 @@
     <script src="static/js/marketAnalysis.js"></script>
     <!-- Include chart handlers JS -->
     <script src="static/js/chartHandlers.js"></script>
+    <!-- Include wallet manager JS -->
+    <script src="static/js/walletManager.js"></script>
     <script>
         // Initialize a notification permission state variable
         let notificationPermissionGranted = false;
@@ -56,6 +58,9 @@
             groq: [],
             mistral: []
         }));
+        
+        // Make tradeHistory available globally
+        window.tradeHistory = tradeHistory;
 
         // Add accuracy tracking variables
         let aiAccuracy = JSON.parse(localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE) || JSON.stringify({
@@ -63,6 +68,9 @@
             groq: { correct: 0, total: 0 },
             mistral: { correct: 0, total: 0 }
         }));
+        
+        // Make aiAccuracy available globally
+        window.aiAccuracy = aiAccuracy;
 
         // Add market volatility tracking
         let marketVolatility = {
@@ -82,6 +90,9 @@
 
         // Make lastDecisions available globally
         window.lastDecisions = lastDecisions;
+        
+        // Make user account available globally
+        window.userAccount = userAccount;
 
         // Load persisted wallet connection on page load
         window.addEventListener('load', async () => {
@@ -274,80 +285,6 @@
                 }
             });
         });
-
-        // Persist wallet connection
-        function persistWalletConnection(account) {
-            if (account) {
-                localStorage.setItem(STORAGE_KEYS.WALLET, account);
-            } else {
-                localStorage.removeItem(STORAGE_KEYS.WALLET);
-            }
-        }
-
-        // Update wallet UI
-        function updateWalletUI() {
-            const walletBtn = document.getElementById('wallet-btn');
-            if (userAccount) {
-                walletBtn.innerHTML = `${userAccount.substring(0, 6)}...${userAccount.substring(38)} <i class="fas fa-sign-out-alt ml-2"></i>`;
-                walletBtn.classList.add('connected');
-                walletBtn.title = 'Click to disconnect wallet';
-            } else {
-                walletBtn.innerHTML = 'Connect Wallet';
-                walletBtn.classList.remove('connected');
-                walletBtn.title = 'Connect to MetaMask';
-            }
-        }
-
-        // Load persisted trading history
-        function loadPersistedHistory() {
-            try {
-                // Only load persisted history if wallet is connected
-                if (!userAccount) {
-                    displayEmptyStats();
-                    return;
-                }
-                
-                const history = localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY);
-                const performance = localStorage.getItem(STORAGE_KEYS.MODEL_PERFORMANCE);
-
-                if (history) {
-                    tradeHistory = JSON.parse(history);
-                }
-                if (performance) {
-                    aiAccuracy = JSON.parse(performance);
-                }
-
-                // Update UI with loaded data
-                updateModelStatsDisplay();
-            } catch (error) {
-                console.error('Error loading persisted history:', error);
-            }
-        }
-
-        // Persist trading history
-        function persistTradingHistory() {
-            try {
-                localStorage.setItem(STORAGE_KEYS.TRADE_HISTORY, JSON.stringify(tradeHistory));
-                localStorage.setItem(STORAGE_KEYS.MODEL_PERFORMANCE, JSON.stringify(aiAccuracy));
-                localStorage.setItem('stbchef_raw_accuracy', JSON.stringify(aiRawAccuracy));
-                localStorage.setItem(STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
-            } catch (error) {
-                console.error('Error persisting history:', error);
-            }
-        }
-
-        // Clear expired data
-        function clearExpiredData() {
-            const lastUpdate = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_UPDATE) || '0');
-            if (Date.now() - lastUpdate > 24 * 60 * 60 * 1000) {
-                localStorage.removeItem(STORAGE_KEYS.TRADE_HISTORY);
-                localStorage.removeItem(STORAGE_KEYS.MODEL_PERFORMANCE);
-                localStorage.removeItem(STORAGE_KEYS.LAST_UPDATE);
-                localStorage.removeItem(STORAGE_KEYS.PRICE_DATA);
-                localStorage.removeItem(STORAGE_KEYS.VOLUME_DATA);
-                localStorage.removeItem(STORAGE_KEYS.TIME_LABELS);
-            }
-        }
 
         // Modified wallet connection function
         async function connectWallet() {
@@ -1927,6 +1864,9 @@
             });
         }
 
+        // Make updateModelStatsDisplay available globally
+        window.updateModelStatsDisplay = updateModelStatsDisplay;
+
         // Fetch wallet-specific stats from API
         function fetchWalletStats() {
             if (!userAccount) return;
@@ -2389,6 +2329,9 @@
             });
         }
         
+        // Make displayEmptyStats available globally
+        window.displayEmptyStats = displayEmptyStats;
+
         // Display wallet-specific stats
         function displayWalletStats(walletData) {
             const stats = walletData.statistics;
@@ -2976,7 +2919,7 @@
             groq: { correct: 0, total: 0, accuracy: 0 },
             mistral: { correct: 0, total: 0, accuracy: 0 }
         }));
-
+        
         // Make aiRawAccuracy available globally
         window.aiRawAccuracy = aiRawAccuracy;
 
