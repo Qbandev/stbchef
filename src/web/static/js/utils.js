@@ -1,6 +1,17 @@
 // Utility functions for Simple Crypto Trading Bot Chef
 
 /**
+ * Sanitize string to prevent XSS attacks
+ * @param {string} str - The string to sanitize
+ * @returns {string} - Sanitized string
+ */
+function sanitizeHTML(str) {
+    const temp = document.createElement('div');
+    temp.textContent = str;
+    return temp.innerHTML;
+}
+
+/**
  * Display a notification message to the user
  * @param {string} message - The message to display
  * @param {string} type - Type of notification (info, success, warning, error)
@@ -9,8 +20,10 @@ function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
 
-    // Format message with line breaks
-    const formattedMessage = message.split('\n').map(line => `<div>${line}</div>`).join('');
+    // Format message with line breaks and sanitize against XSS
+    const formattedMessage = message.split('\n')
+        .map(line => `<div>${sanitizeHTML(line)}</div>`)
+        .join('');
 
     notification.innerHTML = `
         <div class="flex flex-col">

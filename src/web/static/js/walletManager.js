@@ -18,7 +18,7 @@ function persistWalletConnection(account) {
 function updateWalletUI() {
     const walletBtn = document.getElementById('wallet-btn');
     if (window.userAccount) {
-        walletBtn.innerHTML = `${window.userAccount.substring(0, 6)}...${window.userAccount.substring(38)} <i class="fas fa-sign-out-alt ml-2"></i>`;
+        walletBtn.innerHTML = `${window.userAccount.slice(0, 6)}...${window.userAccount.slice(-4)} <i class="fas fa-sign-out-alt ml-2"></i>`;
         walletBtn.classList.add('connected');
         walletBtn.title = 'Click to disconnect wallet';
     } else {
