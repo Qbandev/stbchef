@@ -19,14 +19,7 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ## Key Features
 
-- **Enhanced UI/UX**
-  - Cyberpunk-inspired design with animated elements
-  - Advanced network badges with visual network status
-  - Wallet address copy function with notification feedback
-  - Consistent UI state management during transitions
-  - Context-aware error handling with appropriate visual feedback
-
-- **Advanced AI Trading Analysis**
+- **AI Trading Analysis**
   - Real-time trading signals from multiple LLMs:
     - **Gemini 2.0 Flash** - Google's latest LLM
     - **Groq DeepSeek-R1-Distill-Llama-70B** - High-performance reasoning model
@@ -42,12 +35,11 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Market sentiment with Fear & Greed Index
   - Price chart with volume indicators
 
-- **Intelligent Portfolio Management**
+- **Portfolio Management**
   - Dynamic portfolio allocation recommendations
   - Balance between AI consensus and portfolio health
   - Automatic detection of severe portfolio imbalance
   - Visual allocation indicators with target range markers
-  - Context-aware swap recommendations
 
 - **Robust Wallet Integration**
   - Seamless MetaMask connection with persistent session
@@ -55,29 +47,6 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Network-specific token balances with easy switching
   - Personalized alerts on important trading signals
   - Wallet-specific performance statistics
-
-## Technical Architecture
-
-```mermaid
-graph TD
-    A[Market Data APIs] --> B[Backend Scheduler]
-    B --> C[AI LLM APIs]
-    C --> D[Trading Decisions]
-    D --> E[Performance Analysis]
-    F[User Wallet] --> G[Portfolio Analysis]
-    G --> H[Recommendation Engine]
-    D --> H
-    H --> I[User Dashboard]
-    E --> I
-```
-
-### Unique Features
-
-- **Dynamic Threshold System**: Automatically adjusts trading thresholds based on market volatility
-- **Severe Imbalance Detection**: Prioritizes portfolio health over AI consensus when allocation is significantly out of range
-- **Weighted Performance Scoring**: More accurately reflects model performance with magnitude bonuses
-- **Visual Network Indicators**: Animated network badges that provide real-time connection status
-- **State-Consistent UI**: Maintains the same visual design language across all application states
 
 ## Technical Stack
 
@@ -105,6 +74,52 @@ graph TD
    poetry run python -m src.web.app
    # Access at http://localhost:8080
    ```
+
+## Technical Architecture
+
+```mermaid
+graph TD
+    A[Market Data APIs] --> B[Web API Layer]
+    M[Fear & Greed API] --> B
+    B --> C[Background Scheduler]
+    C --> P[State Management]
+    P --> D[Database/SQLite]
+    
+    C --> E1[Gemini LLM]
+    C --> E2[Groq LLM]
+    C --> E3[Mistral LLM]
+    
+    E1 --> F[Trading Decisions]
+    E2 --> F
+    E3 --> F
+    
+    F --> G[Performance Analysis]
+    F --> K[Model Comparison]
+    G --> K
+    
+    H[User Wallet] --> I[Portfolio Analysis]
+    H --> J[Session Management]
+    I --> L[Recommendation Engine]
+    F --> L
+    
+    L --> N[User Dashboard]
+    K --> N
+    J --> N
+    
+    D -.-> |Data Retrieval| N
+    D -.-> |Historical Data| K
+```
+
+The architecture follows a modular design with distinct components:
+
+- **Data Sources**: External APIs provide market data and sentiment indicators
+- **Core Processing**: Background scheduler manages the data flow and model interactions
+- **AI Layer**: Multiple LLM models analyze market data independently
+- **Analysis Engine**: Compares model performance and generates recommendations
+- **Persistence**: SQLite database stores historical data and user interactions
+- **User Interface**: Interactive dashboard with real-time updates and wallet integration
+
+This design ensures separation of concerns while maintaining data flow through the system.
 
 ## Important Disclaimer
 
