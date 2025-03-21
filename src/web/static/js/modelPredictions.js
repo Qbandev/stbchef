@@ -27,6 +27,179 @@ function getModelSellDecisions(decisions) {
 }
 
 /**
+ * Update model decisions in the UI based on data and wallet connection status
+ * @param {Object} data - Trading data including model actions
+ * @param {string|null} walletAddress - Connected wallet address or null if no wallet is connected
+ */
+function updateModelDecisions(data, walletAddress) {
+    const models = ['gemini', 'groq', 'mistral'];
+    const modelActions = {
+        gemini: data.gemini_action,
+        groq: data.groq_action,
+        mistral: data.mistral_action
+    };
+
+    // First, validate ETH price data
+    const hasValidPrice = data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0;
+    
+    // For each model decision card
+    models.forEach(model => {
+        const decisionElement = document.getElementById(`${model}-decision`);
+        if (!decisionElement) return;
+
+        // First remove all classes to start fresh
+        decisionElement.classList.remove('text-green-400', 'text-red-400', 'text-blue-400', 'text-gray-400', 'text-yellow-400');
+        
+        if (!walletAddress) {
+            // No wallet connected - show connect wallet message
+            decisionElement.innerHTML = `<span class="text-sm">Connect wallet first</span>`;
+            decisionElement.classList.add('text-gray-400');
+            return;
+        }
+        
+        // If ETH price is invalid, show error message
+        if (!hasValidPrice) {
+            decisionElement.innerHTML = `<span class="text-sm">Waiting for price data</span>`;
+            decisionElement.classList.add('text-yellow-400');
+            return;
+        }
+
+        // Wallet connected - show action and appropriate color
+        const action = modelActions[model];
+        
+        // If no action yet (null, undefined, empty string), show "Decision in progress"
+        if (!action || action === '') {
+            decisionElement.innerHTML = `<span>Decision in progress</span>`;
+            decisionElement.classList.add('text-yellow-400');
+            return;
+        }
+        
+        // Valid action received, show the action with appropriate styling
+        let actionClass = '';
+        
+        switch (action) {
+            case 'BUY':
+                actionClass = 'text-green-400';
+                break;
+            case 'SELL':
+                actionClass = 'text-red-400';
+                break;
+            case 'HOLD':
+                actionClass = 'text-blue-400';
+                break;
+            default:
+                actionClass = 'text-gray-400';
+        }
+        
+        decisionElement.textContent = action;
+        decisionElement.classList.add(actionClass);
+        
+        // Only store decisions when wallet is connected
+        if (walletAddress) {
+            // Store this decision linked to the current wallet
+            storeAIDecisionForWallet(model, action, data.eth_price, walletAddress);
+        }
+    });
+
+    // Check for consensus and notify if wallet is connected
+    if (walletAddress && hasValidPrice) {
+        const decisions = {
+            gemini: data.gemini_action,
+            groq: data.groq_action,
+            mistral: data.mistral_action
+        };
+
+        // Filter out undefined or empty decisions
+        const validDecisions = {};
+        for (const [model, decision] of Object.entries(decisions)) {
+            if (decision && decision !== '') {
+                validDecisions[model] = decision;
+            }
+        }
+
+        // Only check consensus if we have at least 2 valid decisions
+        if (Object.keys(validDecisions).length >= 2) {
+            const consensus = checkLLMConsensus(validDecisions);
+            if (consensus && (consensus === 'BUY' || consensus === 'SELL')) {
+                const buyModels = getModelDecisions(decisions);
+                const sellModels = getModelSellDecisions(decisions);
+                const currentPrice = data.eth_price.toFixed(2);
+
+                let message = '';
+                if (consensus === 'BUY') {
+                    message = `🟢 BUY Signal at $${currentPrice}\n`;
+                    message += `Recommended by: ${buyModels.join(', ')}`;
+                } else if (consensus === 'SELL') {
+                    message = `🔴 SELL Signal at $${currentPrice}\n`;
+                    message += `Recommended by: ${sellModels.join(', ')}`;
+                }
+
+                // Show browser notification for BUY and SELL signals only
+                showNotification(message, 'info');
+
+                // Force wallet balance refresh with a slight delay
+                // This ensures the wallet card recommendation is updated first
+                setTimeout(() => {
+                    getWalletBalances().then(() => {
+                        // Send wallet notification after balances are refreshed - only for BUY and SELL
+                        sendWalletNotification(consensus, message);
+                    });
+                }, 500);
+            } else if (consensus === 'HOLD') {
+                // For HOLD signals, don't show any notification, just refresh wallet balances
+                console.log('HOLD signal - No notification needed');
+                
+                // Still refresh wallet balances to keep things in sync
+                getWalletBalances();
+            } else {
+                // No consensus, but still refresh wallet balances
+                getWalletBalances();
+            }
+        } else {
+            console.log("Not enough valid decisions to determine consensus");
+        }
+    }
+
+    // Update the global lastDecisions object with current price and model decisions
+    if (hasValidPrice) {
+        window.lastDecisions = {
+            gemini: modelActions.gemini,
+            groq: modelActions.groq,
+            mistral: modelActions.mistral,
+            price: parseFloat(data.eth_price)
+        };
+    }
+}
+
+/**
+ * Store AI decision for specific wallet
+ * @param {string} model - Model name
+ * @param {string} decision - Model decision
+ * @param {number} price - Current ETH price
+ * @param {string} walletAddress - Connected wallet address
+ * @returns {Promise<void>}
+ */
+async function storeAIDecisionForWallet(model, decision, price, walletAddress) {
+    try {
+        await fetch('/api/store-ai-decision', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: model,
+                decision: decision,
+                eth_price: price,
+                wallet_address: walletAddress
+            })
+        });
+        console.log(`Stored ${decision} decision for ${model} model linked to wallet ${walletAddress}`);
+    } catch (error) {
+        console.error('Error storing AI decision for wallet:', error);
+    }
+}
+
+/**
  * Check if there is consensus among models (2 out of 3 agree)
  * @param {Object} decisions - Object containing model decisions
  * @returns {string|null} - The consensus action or null if no consensus
@@ -296,6 +469,8 @@ function updateAccuracy(currentPrice) {
 // Make functions available globally
 window.getModelDecisions = getModelDecisions;
 window.getModelSellDecisions = getModelSellDecisions;
+window.updateModelDecisions = updateModelDecisions;
+window.storeAIDecisionForWallet = storeAIDecisionForWallet;
 window.checkLLMConsensus = checkLLMConsensus;
 window.calculateAccuracy = calculateAccuracy;
 window.calculateVolatility = calculateVolatility;
