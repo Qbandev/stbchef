@@ -97,7 +97,6 @@ function displayEmptyStats() {
             statsContainer.innerHTML = `
                 <div class="text-center py-2">
                     <p class="text-gray-400 mb-2">Connect your wallet to see model performance.</p>
-                    <button onclick="connectWallet()" class="cyber-btn text-xs px-3 py-1">Connect Wallet</button>
                 </div>
             `;
         }

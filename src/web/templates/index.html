@@ -100,6 +100,11 @@
 
         // Load persisted wallet connection on page load
         window.addEventListener('load', async () => {
+            // Initialize wallet card with default state first
+            if (window.updateWalletCard) {
+                window.updateWalletCard();
+            }
+            
             // Get persisted wallet connection from the server
             try {
                 // Try to load from localStorage first (more reliable)
@@ -490,6 +495,9 @@
             // Initialize UI with empty state first for model stats
             displayEmptyStats();
             
+            // Initialize wallet card with empty state
+            updateWalletCard();
+            
             // Initialize charts before any data loading
             window.initCharts();
             
@@ -548,23 +556,111 @@
             localStorage.setItem(window.STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
         }
     </script>
+
+    <!-- Info Panel Toggle Script -->
+    <script>
+        // Function to toggle info panel visibility
+        function toggleInfoPanel() {
+            // Target the info panel in the header
+            const infoPanel = document.getElementById('info-panel');
+            const toggleBtn = document.getElementById('info-collapse-btn').querySelector('i');
+            const showText = document.querySelector('.show-when-collapsed');
+            const hideText = document.querySelector('.hide-when-expanded');
+            
+            // Check if the panel is not displayed
+            if (infoPanel && infoPanel.style.display === 'none') {
+                // Show the panel
+                infoPanel.style.display = 'block';
+                // Update button icon
+                toggleBtn.classList.remove('fa-chevron-down');
+                toggleBtn.classList.add('fa-chevron-up');
+                // Update text
+                if (showText) showText.style.display = 'none';
+                if (hideText) hideText.style.display = 'inline';
+                // Save state
+                localStorage.setItem('infoPanelCollapsed', 'false');
+            } else {
+                // Hide the panel
+                if (infoPanel) infoPanel.style.display = 'none';
+                // Update button icon
+                toggleBtn.classList.remove('fa-chevron-up');
+                toggleBtn.classList.add('fa-chevron-down');
+                // Update text
+                if (showText) showText.style.display = 'inline';
+                if (hideText) hideText.style.display = 'none';
+                // Save state
+                localStorage.setItem('infoPanelCollapsed', 'true');
+            }
+        }
+        
+        // Check for panel state on page load - collapse by default
+        window.addEventListener('DOMContentLoaded', () => {
+            // By default, make the panel collapsed
+            localStorage.setItem('infoPanelCollapsed', 'true');
+            
+            // Make sure all elements exist before trying to manipulate them
+            const infoPanel = document.getElementById('info-panel');
+            const toggleBtn = document.getElementById('info-collapse-btn')?.querySelector('i');
+            const showText = document.querySelector('.show-when-collapsed');
+            const hideText = document.querySelector('.hide-when-expanded');
+            
+            // Hide by default
+            if (infoPanel) infoPanel.style.display = 'none';
+            if (toggleBtn) {
+                toggleBtn.classList.remove('fa-chevron-up');
+                toggleBtn.classList.add('fa-chevron-down');
+            }
+            // Show/hide appropriate text
+            if (showText) showText.style.display = 'inline';
+            if (hideText) hideText.style.display = 'none';
+        });
+    </script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
     <!-- Header -->
     <header class="cyber-header p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <div class="flex items-center">
-                <img src="static/robot.webp" alt="Trading Bot Chef Logo" class="header-logo">
-                <h1 class="cyber-title text-2xl">Simple Crypto Trading Bot Chef</h1>
+        <div class="container mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div class="flex items-center">
+                    <img src="static/robot.webp" alt="Trading Bot Chef Logo" class="header-logo">
+                    <div>
+                        <h1 class="cyber-title text-xl md:text-2xl">Simple Crypto Trading Bot Chef</h1>
+                        <div class="flex items-center">
+                            <span class="text-neon-blue text-sm mr-2">AI Crypto Trading Analyzer</span>
+                            <button id="info-collapse-btn" class="text-xs text-neon-blue hover:text-white bg-black bg-opacity-50 px-2 py-0.5 rounded-full flex items-center" onclick="toggleInfoPanel()">
+                                <span class="mr-1 show-when-collapsed">Show info</span>
+                                <span class="mr-1 hide-when-expanded">Hide info</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4 mt-2 md:mt-0">
+                    <button id="wallet-btn" onclick="connectWallet()" class="wallet-btn px-4 py-2 rounded">
+                        Connect Wallet
+                    </button>
+                    <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center">
+                        <i class="fab fa-github mr-2"></i>
+                        GitHub
+                    </a>
+                </div>
             </div>
-            <div class="flex items-center space-x-4">
-                <button id="wallet-btn" onclick="connectWallet()" class="wallet-btn px-4 py-2 rounded">
-                    Connect Wallet
-                </button>
-                <a href="https://github.com/Qbandev/stbchef" target="_blank" class="cyber-btn px-4 py-2 rounded flex items-center">
-                    <i class="fab fa-github mr-2"></i>
-                    GitHub
-                </a>
+            <div id="info-panel" class="mt-3 w-full bg-gradient-to-r from-cyber-dark to-black border border-neon-blue border-opacity-20 rounded-lg p-3 shadow">
+                <p class="text-sm text-white mb-3">This site compares how well different AI models predict Ethereum price movements in real-time, tracking which models make the most profitable decisions.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div class="cyber-panel p-3 rounded bg-black bg-opacity-50 border-l-2 border-neon-blue">
+                        <p class="mb-2 font-bold text-neon-blue">Dashboard Features:</p>
+                        <p class="mb-1 text-white"><span class="text-neon-blue mr-1">→</span> Live ETH price data feeds these AI models</p>
+                        <p class="mb-1 text-white"><span class="text-neon-blue mr-1">→</span> Each AI independently decides: BUY, SELL, or HOLD</p>
+                        <p class="text-white"><span class="text-neon-blue mr-1">→</span> Dashboard tracks AI performance accuracy</p>
+                    </div>
+                    <div class="cyber-panel p-3 rounded bg-black bg-opacity-50 border-l-2 border-neon-purple">
+                        <p class="mb-2 font-bold text-neon-purple">Wallet Connection:</p>
+                        <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> <strong>Connect a wallet</strong> to see personalized metrics</p>
+                        <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> View your portfolio allocation & suggestions</p>
+                        <p class="text-white"><span class="text-neon-purple mr-1">→</span> <em>No actual trading (Just notifications) - research only</em></p>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -634,14 +730,7 @@
             
             <!-- Wallet Status Card (Full Width) -->
             <div id="wallet-card" class="cyber-card rounded-lg shadow p-6 mb-6">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
-                </div>
-                <div class="flex items-center justify-center h-24">
-                    <div class="text-center">
-                        <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
-                    </div>
-                </div>
+                <!-- Content dynamically generated by JavaScript -->
             </div>
             
             <!-- AI Model Recommendations -->

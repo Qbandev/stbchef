@@ -289,15 +289,100 @@ function updateWalletCard() {
     
     console.log(`Updating wallet card for account: ${window.userAccount || 'none'}`);
     
-    if (!window.userAccount || !window.web3) {
+    if (!window.userAccount) {
         walletCard.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full">
-                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
+            <div class="p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- ETH Balance -->
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-blue">ETH Balance</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="text-gray-400">Balance:</span>
+                            <span class="font-bold text-xl cyber-value">0.0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-blue">Network Status</span>
+                        </div>
+                        <div class="bg-cyber-dark rounded p-3">
+                            <div class="text-center py-2">
+                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- USDC Balance -->
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark mb-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-purple">USDC Balance</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="text-gray-400">Balance:</span>
+                            <span class="font-bold text-xl cyber-value">0.0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-purple">Token Status</span>
+                        </div>
+                        <div class="bg-cyber-dark rounded p-3">
+                            <div class="text-center py-2">
+                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Portfolio Overview -->
+                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-neon-green">Portfolio Value</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="text-gray-400">Total Value:</span>
+                            <span class="font-bold text-xl cyber-value">$0.0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-1 mt-2">
+                            <span class="text-xs font-bold text-neon-green">Portfolio Status</span>
+                        </div>
+                        <div class="bg-cyber-dark rounded p-3">
+                            <div class="text-center py-2">
+                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
         return;
     }
     
+    if (!window.web3) {
+        console.log("No web3 instance available, but user account exists");
+        // Try to initialize web3 if ethereum is available
+        if (typeof window.ethereum !== 'undefined') {
+            window.web3 = new Web3(window.ethereum);
+        } else {
+            // If still no web3, show empty wallet card with error message
+            walletCard.innerHTML = `
+                <div class="p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
+                    </div>
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <p class="text-red-400 mb-2">Web3 provider not available</p>
+                        <p class="text-gray-400 text-sm mb-4">Please make sure MetaMask is installed and enabled</p>
+                        <button onclick="window.location.reload()" class="cyber-btn text-xs px-3 py-1">
+                            <i class="fas fa-sync-alt mr-1"></i> Refresh Page
+                        </button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+    }
+
     // Check if we have valid price data
     const hasValidPrice = window.walletBalances && window.walletBalances.ethusd && 
                          !isNaN(window.walletBalances.ethusd) && window.walletBalances.ethusd > 0;
