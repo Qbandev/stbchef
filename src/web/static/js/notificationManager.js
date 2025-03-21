@@ -41,7 +41,7 @@ async function sendWalletNotification(signalType, message) {
         }
         
         // Log that we're sending a wallet notification
-        console.log(`Sending wallet notification for ${signalType} signal to ${userAccount}`);
+        console.log(`Sending wallet notification for ${signalType} signal to ${window.userAccount}`);
         
         // Get current wallet balances and validate
         const ethBalance = window.walletBalances.eth || 0;
