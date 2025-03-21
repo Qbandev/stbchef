@@ -16,6 +16,8 @@
     <script src="static/js/utils.js"></script>
     <!-- Include market analysis JS -->
     <script src="static/js/marketAnalysis.js"></script>
+    <!-- Include chart handlers JS -->
+    <script src="static/js/chartHandlers.js"></script>
     <script>
         // Initialize a notification permission state variable
         let notificationPermissionGranted = false;
@@ -41,6 +43,12 @@
         let timeLabels = JSON.parse(localStorage.getItem(STORAGE_KEYS.TIME_LABELS) || '[]');
         let volumeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.VOLUME_DATA) || '[]');
         const tradingActions = [];
+
+        // Make chart data available globally
+        window.priceHistory = priceHistory;
+        window.timeLabels = timeLabels;
+        window.volumeHistory = volumeHistory;
+        window.STORAGE_KEYS = STORAGE_KEYS;
 
         // Initialize trade history for each model
         let tradeHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRADE_HISTORY) || JSON.stringify({
@@ -71,6 +79,9 @@
             mistral: null,
             price: null
         };
+
+        // Make lastDecisions available globally
+        window.lastDecisions = lastDecisions;
 
         // Load persisted wallet connection on page load
         window.addEventListener('load', async () => {
@@ -1782,144 +1793,9 @@
             });
         }
 
-        function initCharts() {
-            Chart.defaults.color = '#e2e8f0';
-            Chart.defaults.borderColor = 'rgba(0, 243, 255, 0.1)';
-
-            // Price Chart
-            const priceCtx = document.getElementById('price-chart').getContext('2d');
-            priceChart = new Chart(priceCtx, {
-                type: 'line',
-                data: {
-                    labels: timeLabels,
-                    datasets: [
-                        {
-                            label: 'ETH Price (USD)',
-                            data: priceHistory,
-                            borderColor: '#00f3ff',
-                            borderWidth: 2,
-                            tension: 0.1,
-                            yAxisID: 'y',
-                            order: 1
-                        },
-                        {
-                            label: 'Volume',
-                            data: volumeHistory,
-                            backgroundColor: 'rgba(157, 0, 255, 0.2)',
-                            borderColor: 'rgba(157, 0, 255, 0.2)',
-                            type: 'bar',
-                            yAxisID: 'volume',
-                            order: 2
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                color: '#e2e8f0'
-                            }
-                        },
-                        zoom: {
-                            zoom: {
-                                wheel: { enabled: true },
-                                pinch: { enabled: true },
-                                mode: 'x',
-                            },
-                            pan: {
-                                enabled: true,
-                                mode: 'x',
-                            }
-                        },
-                        annotation: {
-                            annotations: {}
-                        }
-                    },
-                    scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            grid: {
-                                color: 'rgba(0, 243, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#e2e8f0'
-                            },
-                            title: {
-                                display: true,
-                                text: 'Price (USD)',
-                                color: '#e2e8f0'
-                            }
-                        },
-                        volume: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            grid: {
-                                drawOnChartArea: false,
-                                color: 'rgba(157, 0, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#e2e8f0'
-                            },
-                            title: {
-                                display: true,
-                                text: 'Volume',
-                                color: '#e2e8f0'
-                            },
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateCharts(price, sentiment, geminiAction, groqAction, mistralAction, volume) {
-            const now = new Date().toLocaleTimeString();
-
-            // Update accuracy
-            updateAccuracy(price);
-
-            // Store current decisions for next accuracy calculation
-            lastDecisions = {
-                gemini: geminiAction,
-                groq: groqAction,
-                mistral: mistralAction,
-                price: price
-            };
-
-            // Keep last 100 data points
-            if (timeLabels.length > 100) {
-                timeLabels.shift();
-                priceHistory.shift();
-                volumeHistory.shift();
-            }
-
-            timeLabels.push(now);
-            priceHistory.push(price);
-            volumeHistory.push(volume);
-
-            // Update price chart without model annotations
-            priceChart.update();
-
-            // Persist chart data
-            try {
-                localStorage.setItem(STORAGE_KEYS.PRICE_DATA, JSON.stringify(priceHistory));
-                localStorage.setItem(STORAGE_KEYS.VOLUME_DATA, JSON.stringify(volumeHistory));
-                localStorage.setItem(STORAGE_KEYS.TIME_LABELS, JSON.stringify(timeLabels));
-            } catch (error) {
-                console.error('Error persisting chart data:', error);
-            }
-        }
+        // initCharts function has been moved to chartHandlers.js and is available globally via window.initCharts
+        
+        // updateCharts function has been moved to chartHandlers.js and is available globally via window.updateCharts
 
         function updateModelStats(stats) {
             // If no wallet is connected, don't update model stats
@@ -2238,7 +2114,7 @@
                     // Update charts with error handling
                     try {
                         if (hasValidPrice) {
-                            updateCharts(
+                            window.updateCharts(
                                 parseFloat(data.eth_price),
                                 data.market_sentiment?.fear_greed_value,
                                 data.gemini_action,
@@ -2624,7 +2500,7 @@
             displayEmptyStats();
             
             // Initialize charts before any data loading
-            initCharts();
+            window.initCharts();
             
             // Check for daily reset
             checkDailyReset(); 
@@ -3072,6 +2948,12 @@
             groq: { correct: 0, total: 0, accuracy: 0 },
             mistral: { correct: 0, total: 0, accuracy: 0 }
         }));
+
+        // Make aiRawAccuracy available globally
+        window.aiRawAccuracy = aiRawAccuracy;
+
+        // Make updateAccuracy available globally
+        window.updateAccuracy = updateAccuracy;
 
         // copyToClipboard function has been moved to utils.js
     </script>
