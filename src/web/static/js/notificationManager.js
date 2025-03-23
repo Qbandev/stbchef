@@ -44,9 +44,9 @@ async function sendWalletNotification(signalType, message) {
         console.log(`Sending wallet notification for ${signalType} signal to ${window.userAccount}`);
         
         // Get current wallet balances and validate
-        const ethBalance = window.walletBalances.eth || 0;
-        const usdcBalance = window.walletBalances.usdc || 0;
-        const currentPrice = window.walletBalances.ethusd || 0;
+        const ethBalance = window.walletBalances?.eth || 0;
+        const usdcBalance = window.walletBalances?.usdc || 0;
+        const currentPrice = window.walletBalances?.ethusd || 0;
         
         // Strictly validate price data is available - NEVER use default values
         if (currentPrice <= 0 || isNaN(currentPrice)) {
@@ -75,22 +75,34 @@ async function sendWalletNotification(signalType, message) {
             const usdMatch = message.match(/~\$([0-9.]+)/);
             if (usdMatch && usdMatch[1]) {
                 swapAmount = parseFloat(usdMatch[1]);
-                // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
-                ethAmount = currentPrice > 0 ? swapAmount / currentPrice : 0;
-                console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                // Make sure currentPrice is valid before dividing
+                if (currentPrice > 0) {
+                    // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
+                    ethAmount = swapAmount / currentPrice;
+                    console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                } else {
+                    console.log(`Cannot calculate ETH amount: currentPrice (${currentPrice}) is invalid`);
+                    ethAmount = 0;
+                }
             }
         } else if (signalType === 'SELL') {
             // Extract the ETH amount from the message string (e.g., "Suggested Swap: ~0.0123 ETH → $25.67 USDC")
             const ethMatch = message.match(/~([0-9.]+) ETH/);
             if (ethMatch && ethMatch[1]) {
                 ethAmount = parseFloat(ethMatch[1]);
-                // Calculate USD equivalent using the currentPrice from wallet balances
-                swapAmount = currentPrice > 0 ? ethAmount * currentPrice : 0;
-                console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                // Make sure currentPrice is valid before multiplying
+                if (currentPrice > 0) {
+                    // Calculate USD equivalent using the currentPrice from wallet balances
+                    swapAmount = ethAmount * currentPrice;
+                    console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                } else {
+                    console.log(`Cannot calculate USD amount: currentPrice (${currentPrice}) is invalid`);
+                    swapAmount = 0;
+                }
             }
         }
         
-        // Validate the extracted amounts
+        // Validate the extracted amounts - extra safety check
         if (swapAmount <= 0 || ethAmount <= 0) {
             console.log("Failed to parse valid swap amounts from message:", message);
             return;
@@ -202,7 +214,7 @@ async function sendWalletNotification(signalType, message) {
     } catch (error) {
         console.error("Error in sendWalletNotification:", error);
         // Show a fallback notification
-        showNotification(`Error processing ${signalType} signal`, 'error');
+        showNotification(`Error processing ${signalType} signal: ${error.message}`, 'error');
     }
 }
 

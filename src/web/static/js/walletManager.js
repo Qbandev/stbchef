@@ -939,12 +939,16 @@ async function getWalletBalances() {
     try {
         console.log("Fetching wallet balances for", window.userAccount);
         
+        // Store the current ETH price before resetting other values
+        // This helps prevent "currentPrice is not defined" errors during transitions
+        const currentEthPrice = window.walletBalances ? window.walletBalances.ethusd : 0;
+        
         // Reset wallet balances to zero first to ensure we don't display stale data
         // This is crucial when switching between accounts
         window.walletBalances = {
             eth: 0,
             usdc: 0,
-            ethusd: 0,
+            ethusd: currentEthPrice, // Preserve the current ETH price during reset
             totalValueUSD: 0
         };
         
@@ -1018,8 +1022,13 @@ async function getWalletBalances() {
         // Update loading state to show price data retrieval
         showLoadingWalletState("Retrieving ETH price data...");
         
-        // Get ETH price from the UI - NEVER use a default price
+        // Get ETH price using a robust three-step approach:
+        // 1. Try UI element
+        // 2. Try API endpoint
+        // 3. Use preserved price if everything else fails
         let validPriceFound = false;
+        
+        // Step 1: Try getting price from UI first
         try {
             const priceText = document.getElementById('eth-price').textContent;
             if (priceText && priceText !== 'Error' && priceText !== 'Waiting for data...') {
@@ -1030,9 +1039,13 @@ async function getWalletBalances() {
                     validPriceFound = true;
                 }
             }
-            
-            // If UI price failed, try the API directly
-            if (!validPriceFound) {
+        } catch (uiError) {
+            console.log("Error getting ETH price from UI:", uiError.message);
+        }
+        
+        // Step 2: If UI price failed, try the API directly
+        if (!validPriceFound) {
+            try {
                 const response = await fetch('/api/trading-data');
                 const data = await response.json();
                 if (data && data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0) {
@@ -1040,17 +1053,26 @@ async function getWalletBalances() {
                     console.log("ETH/USD price from API:", window.walletBalances.ethusd);
                     validPriceFound = true;
                 }
+            } catch (apiError) {
+                console.log("Error getting ETH price from API:", apiError.message);
             }
-        } catch (priceError) {
-            console.log("Error getting ETH price:", priceError.message);
-            validPriceFound = false;
+        }
+        
+        // Step 3: If we still don't have a valid price, keep the preserved price
+        // if it exists, otherwise set to 0
+        if (!validPriceFound) {
+            if (currentEthPrice > 0) {
+                console.log("Using preserved ETH price:", currentEthPrice);
+                // Keep existing price (already set above)
+                validPriceFound = true;
+            } else {
+                console.log("No valid ETH price available - cannot calculate wallet value");
+                window.walletBalances.ethusd = 0;
+                window.walletBalances.totalValueUSD = 0;
+            }
         }
         
         if (!validPriceFound) {
-            console.log("No valid ETH price available - cannot calculate wallet value");
-            window.walletBalances.ethusd = 0;
-            window.walletBalances.totalValueUSD = 0;
-            
             // Show specific message about missing price data
             const walletCard = document.getElementById('wallet-card');
             if (walletCard) {
@@ -2053,9 +2075,19 @@ function handleAccountsChanged(accounts) {
     
     console.log(`Account changed from ${window.userAccount || 'none'} to ${newAccount}`);
     
+    // IMPORTANT: Preserve the current ETH price before making any changes
+    // This prevents the "currentPrice is not defined" error during transition
+    const currentEthPrice = window.walletBalances ? window.walletBalances.ethusd : 0;
+    console.log(`Preserving current ETH price during account change: $${currentEthPrice}`);
+    
     // Update the last known account
     window.lastKnownAccount = window.userAccount;
+    
+    // Update the user account
     window.userAccount = accounts[0];
+    
+    // Display loading state in wallet card
+    showLoadingWalletState(`Loading data for account ${formatWalletAddress(accounts[0])}...`);
     
     // Clear old raw accuracy data since we're connecting to a new wallet
     localStorage.removeItem('stbchef_raw_accuracy');
@@ -2067,11 +2099,14 @@ function handleAccountsChanged(accounts) {
         mistral: { correct: 0, total: 0, accuracy: 0 }
     };
     
-    // Reset wallet UI and balances to clear data from previous account
-    resetWalletBalances();
-    
-    // Display loading state in wallet card
-    showLoadingWalletState(`Loading data for account ${formatWalletAddress(accounts[0])}...`);
+    // Reset wallet balances BUT PRESERVE THE ETH PRICE
+    // This is crucial to prevent the "currentPrice is not defined" error
+    window.walletBalances = {
+        eth: 0,
+        usdc: 0,
+        ethusd: currentEthPrice, // Keep the current ETH price
+        totalValueUSD: 0
+    };
     
     // Save to localStorage
     localStorage.setItem(window.STORAGE_KEYS.WALLET, window.userAccount);
@@ -2082,27 +2117,43 @@ function handleAccountsChanged(accounts) {
     // Update UI
     updateWalletUI();
     
-    // Update wallet data with small delay to ensure previous data is cleared
-    setTimeout(() => {
-        getWalletBalances()
-            .then(() => {
-                console.log('Successfully fetched balances for new account');
-            })
-            .catch(error => {
-                console.error('Error fetching wallet balances after account change:', error);
-            });
+    // Create a sequential promise chain to ensure proper loading order
+    // First, ensure we get fresh trading data to update ETH price if needed
+    fetch('/api/trading-data')
+        .then(res => res.json())
+        .then(data => {
+            // Update ETH price if available from the API
+            if (data && data.eth_price && !isNaN(parseFloat(data.eth_price))) {
+                window.walletBalances.ethusd = parseFloat(data.eth_price);
+                console.log(`Updated ETH price from API: $${window.walletBalances.ethusd}`);
+            }
             
-        // Update model stats and LLM decisions on account change
-        window.fetchWalletStats()
-            .catch(error => console.error('Error fetching wallet stats after account change:', error));
-        
-        fetch('/api/trading-data')
-            .then(res => res.json())
-            .then(data => window.updateModelDecisions(data, window.userAccount))
-            .catch(error => console.error('Error updating model decisions:', error));
-    }, 100);
+            // Now that we have a valid ETH price, get wallet balances
+            return getWalletBalances();
+        })
+        .then(() => {
+            console.log('Successfully fetched balances for new account');
+            return window.fetchWalletStats();
+        })
+        .then(() => {
+            return fetch('/api/trading-data');
+        })
+        .then(res => res.json())
+        .then(data => {
+            window.updateModelDecisions(data, window.userAccount);
+            console.log('Account change complete - all data updated successfully');
+        })
+        .catch(error => {
+            console.error('Error updating account data:', error);
+            // If there was an error, try to recover by updating the wallet card
+            try {
+                updateWalletCard();
+            } catch (cardError) {
+                console.error('Error updating wallet card during recovery:', cardError);
+            }
+        });
     
-    // Request permission for new account
+    // Request notification permission for new account
     window.requestNotificationPermission()
         .catch(error => console.error('Error requesting notification permission:', error));
     
