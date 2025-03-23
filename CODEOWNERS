@@ -1,0 +1,6 @@
+# This file defines ownership for files in this repository
+# For more information on CODEOWNERS file format, see:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @qbandev 
