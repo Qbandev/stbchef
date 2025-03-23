@@ -58,18 +58,38 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ## Quick Start
 
-1. **Setup Environment**
+1. **Prerequisites**
+   - Python 3.10+ (recommended version: 3.10.4)
+   - [Poetry](https://python-poetry.org/docs/#installation) for dependency management
+
+2. **Setup Environment**
    ```bash
-   git clone https://github.com/yourusername/stbchef.git
+   # Install Python 3.10+ if not installed
+   # macOS (using Homebrew):
+   brew install python@3.10
+   
+   # Linux (Ubuntu/Debian):
+   sudo apt update
+   sudo apt install python3.10 python3.10-venv python3.10-dev
+   
+   # Install Poetry if not installed
+   curl -sSL https://install.python-poetry.org | python3 -
+   
+   # Clone and set up the project
+   git clone https://github.com/qbandev/stbchef.git
    cd stbchef
    poetry install
    ```
 
-2. **Configure API Keys**
+3. **Configure API Keys**
    - Copy `.env.example` to `.env`
-   - Add your API keys for Etherscan, Gemini, Groq, and Mistral
+   - Add your API keys for:
+     - Etherscan
+     - Google Gemini
+     - Groq
+     - Mistral
 
-3. **Launch Application**
+4. **Launch Application**
    ```bash
    poetry run python -m src.web.app
    # Access at http://localhost:8080
@@ -79,47 +99,31 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ```mermaid
 graph TD
-    A[Market Data APIs] --> B[Web API Layer]
-    M[Fear & Greed API] --> B
-    B --> C[Background Scheduler]
-    C --> P[State Management]
-    P --> D[Database/SQLite]
+    A[Market Data APIs] --> B[AI Trading Decisions]
     
-    C --> E1[Gemini LLM]
-    C --> E2[Groq LLM]
-    C --> E3[Mistral LLM]
+    B --> C[Analysis Engine]
+    D[User Wallet] --> E[Portfolio Analysis]
     
-    E1 --> F[Trading Decisions]
-    E2 --> F
-    E3 --> F
+    E --> F[Recommendation Engine]
+    C --> F
     
-    F --> G[Performance Analysis]
-    F --> K[Model Comparison]
-    G --> K
+    F --> G[Dashboard]
+    C --> G
+    E --> G
     
-    H[User Wallet] --> I[Portfolio Analysis]
-    H --> J[Session Management]
-    I --> L[Recommendation Engine]
-    F --> L
-    
-    L --> N[User Dashboard]
-    K --> N
-    J --> N
-    
-    D -.-> |Data Retrieval| N
-    D -.-> |Historical Data| K
+    H[(Database)] -.-> C
+    H -.-> G
 ```
 
-The architecture follows a modular design with distinct components:
+The architecture consists of five core components:
 
-- **Data Sources**: External APIs provide market data and sentiment indicators
-- **Core Processing**: Background scheduler manages the data flow and model interactions
-- **AI Layer**: Multiple LLM models analyze market data independently
-- **Analysis Engine**: Compares model performance and generates recommendations
-- **Persistence**: SQLite database stores historical data and user interactions
-- **User Interface**: Interactive dashboard with real-time updates and wallet integration
+- **Data Collection**: APIs provide market data and sentiment indicators
+- **AI Processing**: Multiple LLMs analyze market data and generate trading decisions
+- **Analysis**: Models are compared and performance metrics are generated
+- **User Interface**: Interactive dashboard presents the analysis results
+- **Persistence**: SQLite database stores model performance and user settings
 
-This design ensures separation of concerns while maintaining data flow through the system.
+This modular design ensures separation of concerns while maintaining efficient data flow.
 
 ## Important Disclaimer
 
