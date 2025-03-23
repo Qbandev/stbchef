@@ -575,7 +575,7 @@ function updateWalletCard() {
                 recommendedAction = 'BUY';
                 const targetEthValue = (totalValue * targetEthMin / 100);
                 swapAmount = targetEthValue - ethValueUSD;
-                console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
+                logBuySignal(targetEthValue, ethValueUSD, swapAmount);
                 swapDirection = 'USDC → ETH';
             } else if (currentEthAllocation > targetEthMax + severeImbalanceThreshold) {
                 // Severe imbalance - too much ETH regardless of consensus
