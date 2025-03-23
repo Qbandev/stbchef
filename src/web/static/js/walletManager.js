@@ -295,61 +295,57 @@ function updateWalletCard() {
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-lg font-semibold cyber-title">Wallet Status</h3>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- ETH Balance -->
-                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-neon-blue">ETH Balance</h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <div class="text-gray-400">ETH Balance:</div>
+                        <div class="font-bold text-cyber-text">0.0000 ETH</div>
+                        <div class="text-xs text-gray-400">$0.00</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">USDC Balance:</div>
+                        <div class="font-bold text-cyber-text">0.00 USDC</div>
+                    </div>
+                    <div class="col-span-2 mt-2">
+                        <div class="text-gray-400">Portfolio Allocation:</div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1 relative">
+                            <div class="bg-gray-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            <!-- Target range indicators for empty portfolio -->
+                            <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: 20%; height: 100%;"></div>
+                            <div class="absolute top-0 bottom-0 border-l border-white opacity-50" style="left: 40%; height: 100%;"></div>
                         </div>
-                        <div class="flex justify-between items-center mt-3">
-                            <span class="text-gray-400">Balance:</span>
-                            <span class="font-bold text-xl cyber-value">0.0</span>
-                        </div>
-                        <div class="flex justify-between items-center mb-1 mt-2">
-                            <span class="text-xs font-bold text-neon-blue">Network Status</span>
-                        </div>
-                        <div class="bg-cyber-dark rounded p-3">
-                            <div class="text-center py-2">
-                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
-                            </div>
+                        <div class="flex justify-center text-xs mt-1">
+                            <span class="text-gray-400">ETH: 0.0% | USDC: 0.0%</span>
                         </div>
                     </div>
                     
-                    <!-- USDC Balance -->
-                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-black to-cyber-dark mb-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-neon-purple">USDC Balance</h3>
-                        </div>
-                        <div class="flex justify-between items-center mt-3">
-                            <span class="text-gray-400">Balance:</span>
-                            <span class="font-bold text-xl cyber-value">0.0</span>
-                        </div>
-                        <div class="flex justify-between items-center mb-1 mt-2">
-                            <span class="text-xs font-bold text-neon-purple">Token Status</span>
-                        </div>
-                        <div class="bg-cyber-dark rounded p-3">
-                            <div class="text-center py-2">
-                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
+                    <div class="col-span-2 mt-3 flex justify-center space-x-4">
+                        <button class="network-btn opacity-50 cursor-not-allowed flex items-center">
+                            <div class="network-icon eth-icon">
+                                <svg class="w-4 h-4" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM15.9963 5.33333L15.8 5.88333V20.2L15.9963 20.3967L22.6599 16.405L15.9963 5.33333Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 5.33333L9.33333 16.405L16 20.3967V13.4183V5.33333Z" fill="#627EEA"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 21.93L15.8917 22.0633V26.4117L16 26.6633L22.6667 17.94L16 21.93Z" fill="#627EEA" fill-opacity="0.7"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 26.6633V21.93L9.33333 17.94L16 26.6633Z" fill="#627EEA"/>
+                                </svg>
                             </div>
-                        </div>
+                            <span>Ethereum</span>
+                        </button>
+                        <button class="network-btn opacity-50 cursor-not-allowed flex items-center">
+                            <div class="network-icon linea-icon">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#121212"/>
+                                    <path d="M18.75 6.75H5.25V8.25H18.75V6.75Z" fill="#00ABFF"/>
+                                    <path d="M18.75 11.25H5.25V12.75H18.75V11.25Z" fill="#00ABFF"/>
+                                    <path d="M18.75 15.75H5.25V17.25H18.75V15.75Z" fill="#00ABFF"/>
+                                </svg>
+                            </div>
+                            <span>Linea</span>
+                        </button>
                     </div>
-                    
-                    <!-- Portfolio Overview -->
-                    <div class="cyber-card rounded-lg shadow p-6 bg-gradient-to-br from-cyber-dark to-black mb-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-neon-green">Portfolio Value</h3>
-                        </div>
-                        <div class="flex justify-between items-center mt-3">
-                            <span class="text-gray-400">Total Value:</span>
-                            <span class="font-bold text-xl cyber-value">$0.0</span>
-                        </div>
-                        <div class="flex justify-between items-center mb-1 mt-2">
-                            <span class="text-xs font-bold text-neon-green">Portfolio Status</span>
-                        </div>
-                        <div class="bg-cyber-dark rounded p-3">
-                            <div class="text-center py-2">
-                                <p class="text-gray-400 mb-2">Connect your wallet to see balances</p>
-                            </div>
+                    <div class="col-span-2 mt-3 mb-1 space-y-2">
+                        <div class="flex items-center">
+                            <span class="text-gray-400 w-40">Recommended Action:</span>
+                            <span class="font-bold text-blue-400">Connect your wallet to see</span>
                         </div>
                     </div>
                 </div>
@@ -357,7 +353,6 @@ function updateWalletCard() {
         `;
         return;
     }
-    
     if (!window.web3) {
         console.log("No web3 instance available, but user account exists");
         // Try to initialize web3 if ethereum is available
