@@ -360,9 +360,19 @@ function updateData() {
                     data.gas_prices.low !== undefined && 
                     data.gas_prices.standard !== undefined && 
                     data.gas_prices.fast !== undefined) {
-                    document.getElementById('gas-low').textContent = `${data.gas_prices.low} Gwei`;
-                    document.getElementById('gas-standard').textContent = `${data.gas_prices.standard} Gwei`;
-                    document.getElementById('gas-fast').textContent = `${data.gas_prices.fast} Gwei`;
+                    // Handle gas prices that might be strings or numbers
+                    const formatGasPrice = (value) => {
+                        // Convert to float if it's a string
+                        const floatValue = typeof value === 'string' ? parseFloat(value) : value;
+                        // Display with 3 decimal places, but remove trailing zeros after decimal point
+                        const formatted = floatValue.toFixed(3).replace(/\.?0+$/, '');
+                        // If it's a whole number, add decimal point
+                        return formatted.includes('.') ? formatted : formatted + '.0';
+                    };
+                    
+                    document.getElementById('gas-low').textContent = `${formatGasPrice(data.gas_prices.low)} Gwei`;
+                    document.getElementById('gas-standard').textContent = `${formatGasPrice(data.gas_prices.standard)} Gwei`;
+                    document.getElementById('gas-fast').textContent = `${formatGasPrice(data.gas_prices.fast)} Gwei`;
                 } else {
                     document.getElementById('gas-low').textContent = `Waiting for data...`;
                     document.getElementById('gas-standard').textContent = `Waiting for data...`;
