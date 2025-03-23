@@ -575,25 +575,57 @@ function updateWalletCard() {
                 recommendedAction = 'BUY';
                 const targetEthValue = (totalValue * targetEthMin / 100);
                 swapAmount = targetEthValue - ethValueUSD;
+                console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                 swapDirection = 'USDC → ETH';
             } else if (currentEthAllocation > targetEthMax + severeImbalanceThreshold) {
                 // Severe imbalance - too much ETH regardless of consensus
                 recommendedAction = 'SELL';
                 const targetEthValue = (totalValue * targetEthMax / 100);
                 swapAmount = ethValueUSD - targetEthValue;
+                console.log(`Portfolio rebalance (SELL): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                 swapDirection = 'ETH → USDC';
             } else if (aiConsensus) {
                 // For moderate imbalance, use consensus if available
                 recommendedAction = aiConsensus;
                 
                 // Calculate swap amount based on consensus
-                if (recommendedAction === 'BUY' && currentEthAllocation < targetEthMin) {
-                    const targetEthValue = (totalValue * targetEthMin / 100);
-                    swapAmount = targetEthValue - ethValueUSD;
+                if (recommendedAction === 'BUY') {
+                    // If already within range, make a balanced buy recommendation
+                    if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                        // Calculate a moderate buy that moves 1/3 of the way from current to target max
+                        const midPoint = (targetEthMax + currentEthAllocation) / 2;
+                        const targetEthValue = (totalValue * midPoint / 100);
+                        swapAmount = targetEthValue - ethValueUSD;
+                        console.log(`LLM Consensus BUY (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else if (currentEthAllocation < targetEthMin) {
+                        // If below range, bring to minimum target
+                        const targetEthValue = (totalValue * targetEthMin / 100);
+                        swapAmount = targetEthValue - ethValueUSD;
+                        console.log(`LLM Consensus BUY (below range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMin}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else {
+                        // If above range, no buy needed (this shouldn't happen for BUY)
+                        swapAmount = 0;
+                        console.log(`LLM Consensus BUY (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, above target range, no swap needed`);
+                    }
                     swapDirection = 'USDC → ETH';
-                } else if (recommendedAction === 'SELL' && currentEthAllocation > targetEthMax) {
-                    const targetEthValue = (totalValue * targetEthMax / 100);
-                    swapAmount = ethValueUSD - targetEthValue;
+                } else if (recommendedAction === 'SELL') {
+                    // If already within range, make a balanced sell recommendation
+                    if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                        // Calculate a moderate sell that moves 1/3 of the way from current to target min
+                        const midPoint = (targetEthMin + currentEthAllocation) / 2;
+                        const targetEthValue = (totalValue * midPoint / 100);
+                        swapAmount = ethValueUSD - targetEthValue;
+                        console.log(`LLM Consensus SELL (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else if (currentEthAllocation > targetEthMax) {
+                        // If above range, bring to maximum target
+                        const targetEthValue = (totalValue * targetEthMax / 100);
+                        swapAmount = ethValueUSD - targetEthValue;
+                        console.log(`LLM Consensus SELL (above range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMax}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else {
+                        // If below range, no sell needed (this shouldn't happen for SELL)
+                        swapAmount = 0;
+                        console.log(`LLM Consensus SELL (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, below target range, no swap needed`);
+                    }
                     swapDirection = 'ETH → USDC';
                 }
             } else {
@@ -603,14 +635,29 @@ function updateWalletCard() {
                     recommendedAction = 'BUY';
                     const targetEthValue = (totalValue * targetEthMin / 100);
                     swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                     swapDirection = 'USDC → ETH';
                 } else if (currentEthAllocation > targetEthMax) {
                     recommendedAction = 'SELL';
                     const targetEthValue = (totalValue * targetEthMax / 100);
                     swapAmount = ethValueUSD - targetEthValue;
+                    console.log(`Portfolio rebalance (SELL): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                     swapDirection = 'ETH → USDC';
                 }
             }
+        }
+        
+        // Ensure swap amount is always positive and meaningful
+        if (swapAmount < 0) {
+            console.log(`Correcting negative swap amount (${swapAmount.toFixed(2)}) to 0`);
+            swapAmount = 0;
+        }
+        
+        // Minimum significant swap amount (to avoid dust trades)
+        const MIN_SIGNIFICANT_SWAP = 0.10; // $0.10 minimum
+        if (swapAmount > 0 && swapAmount < MIN_SIGNIFICANT_SWAP) {
+            console.log(`Increasing tiny swap amount from ${swapAmount.toFixed(2)} to minimum ${MIN_SIGNIFICANT_SWAP}`);
+            swapAmount = MIN_SIGNIFICANT_SWAP;
         }
         
         // Get recommending models
@@ -660,9 +707,7 @@ function updateWalletCard() {
             // Only send notification if:
             // - Portfolio is outside target range (for rebalancing) OR
             // - We have LLM consensus from at least 2 models
-            // - AND not if portfolio is already within range (unless we have LLM consensus)
-            if ((isPortfolioOutOfRange || hasLLMConsensus) && 
-                !(currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax && !hasLLMConsensus)) {
+            if (isPortfolioOutOfRange || hasLLMConsensus) {
                 
                 // Check if enough time has passed since last notification (5 minutes minimum)
                 const now = Date.now();
@@ -678,10 +723,12 @@ function updateWalletCard() {
                     let notificationMessage = '';
                     if (recommendedAction === 'BUY') {
                         notificationMessage = `Suggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
+                        console.log(`Notification message for BUY: ${notificationMessage} (swapAmount: ${swapAmount})`);
                     } else if (recommendedAction === 'SELL') {
                         // For SELL, we need to convert the USD amount to ETH
                         const ethAmount = swapAmount / currentPrice;
                         notificationMessage = `Suggested Swap: ~${ethAmount.toFixed(4)} ${swapDirection}`;
+                        console.log(`Notification message for SELL: ${notificationMessage} (ethAmount: ${ethAmount}, swapAmount: ${swapAmount})`);
                     }
                     
                     // Trigger the notification
@@ -718,7 +765,9 @@ function updateWalletCard() {
                 ${swapAmount > 0 ? `
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Suggested Swap:</span>
-                    <span class="text-gray-300" data-suggested-swap="~$${swapAmount.toFixed(2)} ${swapDirection}">~$${swapAmount.toFixed(2)} ${swapDirection}</span>
+                    <span class="text-gray-300" data-suggested-swap="${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}">
+                        ${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}
+                    </span>
                 </div>
                 ` : ''}
                 ${totalValue > 0 ? `
@@ -736,7 +785,7 @@ function updateWalletCard() {
                 ${swapAmount > 0 ? `
                 <div class="mt-3 border-t border-gray-700 pt-3">
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-400">Actionable Recommendations:</span>
+                        <span class="text-gray-400">Enable MetaMask Test Notifications:</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer" ${window.enableSwapRecommendations ? 'checked' : ''}>
                             <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
@@ -744,8 +793,8 @@ function updateWalletCard() {
                     </div>
                     <p class="text-xs text-gray-400 mt-1">
                         ${window.enableSwapRecommendations ? 
-                            'Receive executable swap recommendations in MetaMask' : 
-                            'Enable to receive executable swap recommendations in MetaMask'}
+                            'You will receive test notifications in MetaMask but will not send any transactions' : 
+                            'Enable to receive test notifications in MetaMask'}
                     </p>
                     <div class="mt-2 text-center">
                         <button id="test-notification-btn" class="text-xs bg-blue-800 hover:bg-blue-700 text-gray-200 px-2 py-1 rounded transition-colors">
@@ -1559,7 +1608,6 @@ async function connectWallet() {
 async function switchNetwork(chainId) {
     // Show feedback to user that we're switching networks
     const walletBtn = document.getElementById('wallet-btn');
-    const originalText = walletBtn.textContent;
     walletBtn.textContent = 'Switching Network...';
     
     // Also show switching state in the wallet card
@@ -1639,17 +1687,18 @@ async function switchNetwork(chainId) {
                 } else {
                     console.log(`Network mismatch: wanted ${chainId}, got ${currentChainId}`);
                 }
-    } catch (error) {
+            } catch (error) {
                 console.log(`Error after network switch: ${error.message}`);
             } finally {
-                // Restore button text regardless of outcome
-                walletBtn.textContent = originalText;
+                // Properly restore the wallet button including disconnect icon
+                updateWalletUI();
             }
         }, 2000); // Give time for network switch to stabilize
     } catch (error) {
         console.log(`Network switch error: ${error.message}`);
         window.showNotification('error', `Network switch failed: ${error.message}`);
-        walletBtn.textContent = originalText;
+        // Properly restore the wallet button including disconnect icon
+        updateWalletUI();
     }
 }
 
@@ -1787,9 +1836,9 @@ function setupMetaMaskEventListeners() {
             
             // Show notification about the change
             if (window.enableSwapRecommendations) {
-                showNotification('Actionable swap recommendations enabled. You will now receive executable recommendations in MetaMask.', 'info');
+                showNotification('MetaMask Test Notifications enabled. You will receive test notifications in MetaMask but will not send any transactions.', 'info');
             } else {
-                showNotification('Actionable swap recommendations disabled. You will only receive notifications in the browser.', 'info');
+                showNotification('MetaMask Test Notifications disabled. You will only receive notifications in the browser.', 'info');
             }
         }
     });
@@ -1809,7 +1858,7 @@ function setupMetaMaskEventListeners() {
                 
                 if (action && swapMessage && window.sendWalletNotification) {
                     window.sendWalletNotification(action, swapMessage);
-                    showNotification('Test notification sent!', 'info');
+                    // Removed duplicate notification since sendWalletNotification already shows one
                 }
             } else {
                 // Fallback if we can't find the elements with data attributes
@@ -1822,7 +1871,7 @@ function setupMetaMaskEventListeners() {
                     
                     if ((action === 'BUY' || action === 'SELL') && swapMessage && window.sendWalletNotification) {
                         window.sendWalletNotification(action, `Suggested Swap: ${swapMessage}`);
-                        showNotification('Test notification sent!', 'info');
+                        // Removed duplicate notification
                     }
                 } else {
                     // Last resort: just try to parse directly from the wallet card
@@ -1835,7 +1884,7 @@ function setupMetaMaskEventListeners() {
                         
                         if ((action === 'BUY' || action === 'SELL') && swapMessage) {
                             window.sendWalletNotification(action, swapMessage);
-                            showNotification('Test notification sent!', 'info');
+                            // Removed duplicate notification
                         } else {
                             showNotification('No valid recommendation found to test', 'warning');
                         }

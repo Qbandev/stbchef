@@ -63,269 +63,143 @@ async function sendWalletNotification(signalType, message) {
         // Record this wallet action in the database
         await recordWalletAction(signalType);
         
-        // Lower minimum transaction amount for micro-balances
-        // Set minimum to the lower of 0.001 ETH or 25% of available balance (with safety check)
-        const MIN_ETH_TRANSACTION = ethBalance > 0 ? Math.min(0.001, ethBalance * 0.25) : 0;
-        const MIN_USDC_TRANSACTION = usdcBalance > 0 ? Math.min(0.5, usdcBalance * 0.25) : 0;
+        // Show the notification with the exact message passed from walletManager
+        showNotification(message, 'info');
         
-        console.log(`Processing ${signalType} signal with balances: ${ethBalance} ETH, ${usdcBalance} USDC`);
-        console.log(`Minimum transactions: ${MIN_ETH_TRANSACTION} ETH, ${MIN_USDC_TRANSACTION} USDC`);
+        // Parse the swap amount from the message parameter
+        let swapAmount = 0;
+        let ethAmount = 0;
         
-        // Create notification messages based on the signal type
-        if (signalType === 'BUY' && usdcBalance > 0) {
-            // For BUY signal, suggest using USDC to buy ETH
-            const usdcToUse = usdcBalance > 0.5 ? Math.max(usdcBalance * 0.05, MIN_USDC_TRANSACTION) : usdcBalance * 0.9;
-            
-            // Safety check: ensure values are valid
-            if (usdcToUse <= 0 || currentPrice <= 0) {
-                console.log("Invalid USDC or price values for BUY calculation");
-                showNotification(`BUY signal received - Unable to calculate conversion amounts`, 'warning');
-                return;
+        if (signalType === 'BUY') {
+            // Extract the USD amount from the message string (e.g., "Suggested Swap: ~$1.42 USDC → ETH")
+            const usdMatch = message.match(/~\$([0-9.]+)/);
+            if (usdMatch && usdMatch[1]) {
+                swapAmount = parseFloat(usdMatch[1]);
+                // Calculate the ETH equivalent for the transaction
+                ethAmount = swapAmount / currentPrice;
             }
-            
-            const ethEquivalent = usdcToUse / currentPrice;
-            
-            // Show a notification about the suggested swap
-            const notificationMessage = `Suggested Swap: ~$${usdcToUse.toFixed(2)} USDC → ETH`;
-            showNotification(notificationMessage, 'info');
-            
-            // Check if user has enabled actionable swap recommendations
-            if (window.enableSwapRecommendations === true) {
-                console.log("User has enabled actionable swap recommendations, preparing transaction");
-                
-                // Get gas price data for the transaction
-                let gasPrice;
-                let maxFeePerGas;
-                let maxPriorityFeePerGas;
-                let gasLimit = '0x5208'; // 21000 gas for standard transfer
-                
-                try {
-                    // Fetch current gas prices from backend
-                    const gasDataResponse = await fetch('/api/trading-data');
-                    const gasData = await gasDataResponse.json();
-                    
-                    if (gasData && gasData.gas_prices) {
-                        // Use the standard gas price (convert from Gwei to Wei)
-                        const standardGasPriceGwei = gasData.gas_prices.standard;
-                        gasPrice = window.web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
-                        
-                        // For EIP-1559 compatible networks
-                        if (gasData.gas_prices.base_fee) {
-                            const baseFeeGwei = gasData.gas_prices.base_fee;
-                            // maxFeePerGas = 2 * baseFee + priorityFee
-                            const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
-                            maxPriorityFeePerGas = window.web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
-                            maxFeePerGas = window.web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
-                        }
-                    }
-                } catch (gasError) {
-                    console.warn("Error fetching gas data:", gasError);
-                    // Fallback gas values based on network
-                    if (isEthereum) {
-                        gasPrice = window.web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
-                        maxPriorityFeePerGas = window.web3.utils.toWei('1.5', 'gwei');
-                        maxFeePerGas = window.web3.utils.toWei('100', 'gwei');
-                    } else if (isLinea) {
-                        gasPrice = window.web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
-                        maxPriorityFeePerGas = window.web3.utils.toWei('0.05', 'gwei');
-                        maxFeePerGas = window.web3.utils.toWei('0.2', 'gwei');
-                    } else {
-                        // Use a reasonable default for other networks
-                        gasPrice = window.web3.utils.toWei('30', 'gwei');
-                    }
-                }
-                
-                // Create and send a transaction to the wallet (this will just prompt the user, not execute automatically)
-                try {
-                    // Prepare transaction parameters based on network support for EIP-1559
-                    let txParams = {
-                        from: window.userAccount,
-                        to: window.userAccount,
-                        value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                        data: window.web3.utils.toHex(notificationMessage),
-                        gas: gasLimit,
-                    };
-                    
-                    // Add appropriate gas parameters based on the network
-                    if (isEthereum) {
-                        // Ethereum mainnet uses EIP-1559
-                        if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
-                        } else {
-                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                        }
-                    } else if (isLinea) {
-                        // Linea uses EIP-1559
-                        if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
-                        } else {
-                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                        }
-                    } else {
-                        // Fallback for other networks
-                        txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                    }
-                    
-                    await window.ethereum.request({
-                        method: 'eth_sendTransaction',
-                        params: [txParams],
-                    });
-                    
-                    console.log("Wallet notification transaction sent successfully");
-                } catch (txError) {
-                    // User may have rejected the transaction, which is fine
-                    console.log("User declined the wallet notification transaction", txError);
-                }
-            } else {
-                // When Actionable Recommendations is disabled, we don't need to do anything extra
-                // The browser notification has already been shown above
-                console.log("Only browser notification shown (actionable recommendations not enabled)");
+        } else if (signalType === 'SELL') {
+            // Extract the ETH amount from the message string (e.g., "Suggested Swap: ~0.0123 ETH → $25.67 USDC")
+            const ethMatch = message.match(/~([0-9.]+) ETH/);
+            if (ethMatch && ethMatch[1]) {
+                ethAmount = parseFloat(ethMatch[1]);
+                swapAmount = ethAmount * currentPrice;
             }
-            
-            // Update model stats after notification
-            updateModelStatsForWallet();
-            // Fetch updated wallet stats
-            fetchWalletStats();
-            
-            return;
-        } else if (signalType === 'SELL' && ethBalance > 0) {
-            // For SELL signal, suggest selling ETH for USDC
-            const ethToSell = ethBalance > 0.01 ? Math.max(ethBalance * 0.05, MIN_ETH_TRANSACTION) : ethBalance * 0.9;
-            
-            // Safety check: ensure values are valid
-            if (ethToSell <= 0 || currentPrice <= 0) {
-                console.log("Invalid ETH or price values for SELL calculation");
-                showNotification(`SELL signal received - Unable to calculate conversion amounts`, 'warning');
-                return;
-            }
-            
-            const usdcEquivalent = ethToSell * currentPrice;
-            
-            // Show a notification about the suggested swap
-            const notificationMessage = `Suggested Swap: ~${ethToSell.toFixed(4)} ETH → $${usdcEquivalent.toFixed(2)} USDC`;
-            showNotification(notificationMessage, 'info');
-            
-            // Check if user has enabled actionable swap recommendations
-            if (window.enableSwapRecommendations === true) {
-                console.log("User has enabled actionable swap recommendations, preparing transaction");
-                
-                // Get gas price data for the transaction
-                let gasPrice;
-                let maxFeePerGas;
-                let maxPriorityFeePerGas;
-                let gasLimit = '0x5208'; // 21000 gas for standard transfer
-                
-                try {
-                    // Fetch current gas prices from backend
-                    const gasDataResponse = await fetch('/api/trading-data');
-                    const gasData = await gasDataResponse.json();
-                    
-                    if (gasData && gasData.gas_prices) {
-                        // Use the standard gas price (convert from Gwei to Wei)
-                        const standardGasPriceGwei = gasData.gas_prices.standard;
-                        gasPrice = window.web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
-                        
-                        // For EIP-1559 compatible networks
-                        if (gasData.gas_prices.base_fee) {
-                            const baseFeeGwei = gasData.gas_prices.base_fee;
-                            // maxFeePerGas = 2 * baseFee + priorityFee
-                            const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
-                            maxPriorityFeePerGas = window.web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
-                            maxFeePerGas = window.web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
-                        }
-                    }
-                } catch (gasError) {
-                    console.warn("Error fetching gas data:", gasError);
-                    // Fallback gas values based on network
-                    if (isEthereum) {
-                        gasPrice = window.web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
-                        maxPriorityFeePerGas = window.web3.utils.toWei('1.5', 'gwei');
-                        maxFeePerGas = window.web3.utils.toWei('100', 'gwei');
-                    } else if (isLinea) {
-                        gasPrice = window.web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
-                        maxPriorityFeePerGas = window.web3.utils.toWei('0.05', 'gwei');
-                        maxFeePerGas = window.web3.utils.toWei('0.2', 'gwei');
-                    } else {
-                        // Use a reasonable default for other networks
-                        gasPrice = window.web3.utils.toWei('30', 'gwei');
-                    }
-                }
-                
-                // Create and send a transaction to the wallet (this will just prompt the user, not execute automatically)
-                try {
-                    // Prepare transaction parameters based on network support for EIP-1559
-                    let txParams = {
-                        from: window.userAccount,
-                        to: window.userAccount,
-                        value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                        data: window.web3.utils.toHex(notificationMessage),
-                        gas: gasLimit,
-                    };
-                    
-                    // Add appropriate gas parameters based on the network
-                    if (isEthereum) {
-                        // Ethereum mainnet uses EIP-1559
-                        if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
-                        } else {
-                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                        }
-                    } else if (isLinea) {
-                        // Linea uses EIP-1559
-                        if (maxFeePerGas && maxPriorityFeePerGas) {
-                            txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
-                            txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
-                        } else {
-                            txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                        }
-                    } else {
-                        // Fallback for other networks
-                        txParams.gasPrice = window.web3.utils.toHex(gasPrice);
-                    }
-                    
-                    await window.ethereum.request({
-                        method: 'eth_sendTransaction',
-                        params: [txParams],
-                    });
-                    
-                    console.log("Wallet notification transaction sent successfully");
-                } catch (txError) {
-                    // User may have rejected the transaction, which is fine
-                    console.log("User declined the wallet notification transaction", txError);
-                }
-            } else {
-                // When Actionable Recommendations is disabled, we don't need to do anything extra
-                // The browser notification has already been shown above
-                console.log("Only browser notification shown (actionable recommendations not enabled)");
-            }
-            
-            // Update model stats after notification
-            updateModelStatsForWallet();
-            // Fetch updated wallet stats
-            fetchWalletStats();
-            
+        }
+        
+        // Validate the extracted amounts
+        if (swapAmount <= 0 || ethAmount <= 0) {
+            console.log("Failed to parse valid swap amounts from message:", message);
             return;
         }
         
-        // If we reached here, either not enough balance or just notification
-        console.log(`Signal received (${signalType}), but no transaction suggestion created`);
-        const notificationMessage = `${signalType} signal received - Check your portfolio allocation`;
-        showNotification(notificationMessage, 'info');
+        console.log(`Parsed amounts from message: ${swapAmount.toFixed(2)} USD, ${ethAmount.toFixed(4)} ETH`);
         
-        // We don't need to show additional browser notifications here
-        // The notification has already been shown via showNotification above
+        // Check if user has enabled actionable swap recommendations
+        if (window.enableSwapRecommendations === true) {
+            console.log("User has enabled actionable swap recommendations, preparing transaction");
+            
+            // Get gas price data for the transaction
+            let gasPrice;
+            let maxFeePerGas;
+            let maxPriorityFeePerGas;
+            let gasLimit = '0x5208'; // 21000 gas for standard transfer
+            
+            try {
+                // Fetch current gas prices from backend
+                const gasDataResponse = await fetch('/api/trading-data');
+                const gasData = await gasDataResponse.json();
+                
+                if (gasData && gasData.gas_prices) {
+                    // Use the standard gas price (convert from Gwei to Wei)
+                    const standardGasPriceGwei = gasData.gas_prices.standard;
+                    gasPrice = window.web3.utils.toWei(standardGasPriceGwei.toString(), 'gwei');
+                    
+                    // For EIP-1559 compatible networks
+                    if (gasData.gas_prices.base_fee) {
+                        const baseFeeGwei = gasData.gas_prices.base_fee;
+                        // maxFeePerGas = 2 * baseFee + priorityFee
+                        const priorityFeeGwei = 1.5; // 1.5 Gwei as priority fee
+                        maxPriorityFeePerGas = window.web3.utils.toWei(priorityFeeGwei.toString(), 'gwei');
+                        maxFeePerGas = window.web3.utils.toWei((2 * baseFeeGwei + priorityFeeGwei).toString(), 'gwei');
+                    }
+                }
+            } catch (gasError) {
+                console.warn("Error fetching gas data:", gasError);
+                // Fallback gas values based on network
+                if (isEthereum) {
+                    gasPrice = window.web3.utils.toWei('50', 'gwei'); // 50 Gwei fallback for Ethereum
+                    maxPriorityFeePerGas = window.web3.utils.toWei('1.5', 'gwei');
+                    maxFeePerGas = window.web3.utils.toWei('100', 'gwei');
+                } else if (isLinea) {
+                    gasPrice = window.web3.utils.toWei('0.1', 'gwei'); // 0.1 Gwei fallback for Linea
+                    maxPriorityFeePerGas = window.web3.utils.toWei('0.05', 'gwei');
+                    maxFeePerGas = window.web3.utils.toWei('0.2', 'gwei');
+                } else {
+                    // Use a reasonable default for other networks
+                    gasPrice = window.web3.utils.toWei('30', 'gwei');
+                }
+            }
+            
+            // Create and send a transaction to the wallet (this will just prompt the user, not execute automatically)
+            try {
+                // Prepare transaction parameters based on network support for EIP-1559
+                let txParams = {
+                    from: window.userAccount,
+                    to: window.userAccount,
+                    value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
+                    data: window.web3.utils.toHex(message), // Use the entire message for better clarity
+                    gas: gasLimit,
+                };
+                
+                // Add appropriate gas parameters based on the network
+                if (isEthereum) {
+                    // Ethereum mainnet uses EIP-1559
+                    if (maxFeePerGas && maxPriorityFeePerGas) {
+                        txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                        txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
+                    } else {
+                        txParams.gasPrice = window.web3.utils.toHex(gasPrice);
+                    }
+                } else if (isLinea) {
+                    // Linea uses EIP-1559
+                    if (maxFeePerGas && maxPriorityFeePerGas) {
+                        txParams.maxFeePerGas = window.web3.utils.toHex(maxFeePerGas);
+                        txParams.maxPriorityFeePerGas = window.web3.utils.toHex(maxPriorityFeePerGas);
+                    } else {
+                        txParams.gasPrice = window.web3.utils.toHex(gasPrice);
+                    }
+                } else {
+                    // Fallback for other networks
+                    txParams.gasPrice = window.web3.utils.toHex(gasPrice);
+                }
+                
+                await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [txParams],
+                });
+                
+                console.log("Wallet notification transaction sent successfully");
+            } catch (txError) {
+                // User may have rejected the transaction, which is fine
+                console.log("User declined the wallet notification transaction", txError);
+            }
+        } else {
+            // When Actionable Recommendations is disabled, we don't need to do anything extra
+            // The browser notification has already been shown above
+            console.log("Only browser notification shown (actionable recommendations not enabled)");
+        }
         
         // Update model stats after notification
         updateModelStatsForWallet();
         // Fetch updated wallet stats
         fetchWalletStats();
         
+        return;
     } catch (error) {
-        logToServer('error', 'Error processing wallet notification', error);
-        showNotification(`Error processing ${signalType} signal: ${error.message}`, 'error');
+        console.error("Error in sendWalletNotification:", error);
+        // Show a fallback notification
+        showNotification(`Error processing ${signalType} signal`, 'error');
     }
 }
 
