@@ -558,6 +558,35 @@
             // Also save timestamp of last update
             localStorage.setItem(window.STORAGE_KEYS.LAST_UPDATE, Date.now().toString());
         }
+
+        // Add this to update the analytics link visibility based on wallet connection status
+        function updateAnalyticsLinkVisibility() {
+            const isWalletConnected = window.userAccount && window.userAccount !== '';
+            const analyticsLink = document.getElementById('view-analytics-link');
+            const analyticsDisabled = document.getElementById('view-analytics-disabled');
+            
+            if (isWalletConnected) {
+                analyticsLink.classList.remove('hidden');
+                analyticsDisabled.classList.add('hidden');
+            } else {
+                analyticsLink.classList.add('hidden');
+                analyticsDisabled.classList.remove('hidden');
+            }
+        }
+        
+        // Call this when document loads and whenever wallet connection status changes
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAnalyticsLinkVisibility();
+            
+            // Add to the existing wallet connection/disconnection handlers
+            const originalUpdateWalletUI = window.updateWalletUI;
+            if (originalUpdateWalletUI) {
+                window.updateWalletUI = function() {
+                    originalUpdateWalletUI.apply(this, arguments);
+                    updateAnalyticsLinkVisibility();
+                };
+            }
+        });
     </script>
 
     <!-- Info Panel Toggle Script -->
@@ -794,9 +823,14 @@
             <div class="cyber-card rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4 cyber-title flex items-center justify-between">
                     Model Performance
-                    <a href="/stats-test" class="text-sm text-blue-400 hover:text-blue-300 hover:underline flex items-center">
-                        <i class="fas fa-flask mr-1"></i> View Test Analytics
-                    </a>
+                    <span id="view-analytics-container">
+                        <a href="/stats-test" id="view-analytics-link" class="text-sm text-blue-400 hover:text-blue-300 hover:underline flex items-center hidden">
+                            <i class="fas fa-flask mr-1"></i> View Test Analytics
+                        </a>
+                        <span id="view-analytics-disabled" class="text-sm text-gray-500 flex items-center cursor-not-allowed">
+                            <i class="fas fa-flask mr-1"></i> Connect Wallet to View Analytics
+                        </span>
+                    </span>
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Gemini Performance -->
