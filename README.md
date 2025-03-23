@@ -103,21 +103,24 @@ graph TD
     C[Market Data APIs] --> D[AI Trading Decisions]
     D --> E[Analysis Engine]
     E --> H[Recommendation Engine]
-    B --> G
+    B --> G[Dashboard]
     B --> H
     F[(Database)]  -.->|Historical Data| E
-    F -.->|User Settings| G[Dashboard]
+    F -.->|User Settings| G
     H --> G
-    E --> G 
+    E --> G
 ```
 
 The architecture consists of five core components:
 
-- **Data Collection**: APIs provide market data and sentiment indicators
-- **AI Processing**: Multiple LLMs analyze market data and generate trading decisions
-- **Analysis**: Models are compared and performance metrics are generated
-- **User Interface**: Interactive dashboard presents the analysis results
-- **Persistence**: SQLite database stores model performance and user settings
+- **Market Data APIs**: Provide real-time cryptocurrency data and sentiment indicators
+- **AI Trading Decisions**: Multiple LLMs analyze market data and generate buy/sell/hold signals
+- **Analysis Engine**: Compares model performance and generates accuracy metrics
+- **User Wallet**: Connects to MetaMask for portfolio data and network selection
+- **Portfolio Analysis**: Evaluates current holdings and suggests allocation adjustments
+- **Recommendation Engine**: Combines AI consensus with portfolio status for actionable insights
+- **Dashboard**: Interactive user interface presenting all analysis results
+- **Database**: Stores historical model performance and user preferences
 
 This modular design ensures separation of concerns while maintaining efficient data flow.
 
