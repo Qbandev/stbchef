@@ -719,19 +719,22 @@ function updateWalletCard() {
                         isPortfolioOutOfRange ? 'portfolio imbalance' : 'LLM consensus'
                     }`);
                     
+                    // Get current ETH price with safety check
+                    const ethPrice = window.walletBalances.ethusd || 0;
+                    
                     // Create appropriate message for the notification
                     let notificationMessage = '';
                     if (recommendedAction === 'BUY') {
                         notificationMessage = `Suggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
                         console.log(`Notification message for BUY: ${notificationMessage} (swapAmount: ${swapAmount})`);
-                    } else if (recommendedAction === 'SELL') {
+                    } else if (recommendedAction === 'SELL' && ethPrice > 0) {
                         // For SELL, we need to convert the USD amount to ETH
-                        const ethAmount = swapAmount / currentPrice;
+                        const ethAmount = swapAmount / ethPrice;
                         notificationMessage = `Suggested Swap: ~${ethAmount.toFixed(4)} ${swapDirection}`;
                         console.log(`Notification message for SELL: ${notificationMessage} (ethAmount: ${ethAmount}, swapAmount: ${swapAmount})`);
                     }
                     
-                    // Trigger the notification
+                    // Trigger the notification only if we have a valid message
                     if (notificationMessage && window.sendWalletNotification) {
                         window.sendWalletNotification(recommendedAction, notificationMessage);
                         // Update the timestamp
@@ -762,11 +765,11 @@ function updateWalletCard() {
                     <span class="text-gray-300">${recommendingModels.join(', ')}</span>
                 </div>
                 ` : ''}
-                ${swapAmount > 0 ? `
+                ${swapAmount > 0 && ethPrice > 0 ? `
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Suggested Swap:</span>
-                    <span class="text-gray-300" data-suggested-swap="${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}">
-                        ${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}
+                    <span class="text-gray-300" data-suggested-swap="${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / ethPrice).toFixed(4)} ${swapDirection}`}">
+                        ${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / ethPrice).toFixed(4)} ${swapDirection}`}
                     </span>
                 </div>
                 ` : ''}
@@ -1870,6 +1873,13 @@ function setupMetaMaskEventListeners() {
     // Event listener for testing notifications
     document.addEventListener('click', function(event) {
         if (event.target && event.target.id === 'test-notification-btn') {
+            // Get current ETH price with safety check
+            const ethPrice = window.walletBalances.ethusd || 0;
+            if (ethPrice <= 0 && document.querySelector('[data-recommended-action="SELL"]')) {
+                showNotification('Cannot test SELL notification: ETH price data not available', 'warning');
+                return;
+            }
+            
             // Find current recommended action and swap details from the UI
             const actionElement = document.querySelector('[data-recommended-action]');
             const swapElement = document.querySelector('[data-suggested-swap]');
