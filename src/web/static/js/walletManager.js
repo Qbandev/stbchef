@@ -750,10 +750,10 @@ function updateWalletCard() {
             <div class="col-span-2 mt-3 mb-1 space-y-2">
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Recommended Action:</span>
-                    <span class="font-bold ${
-                        recommendedAction === 'BUY' ? 'text-green-400' :
-                        recommendedAction === 'SELL' ? 'text-red-400' :
-                        'text-blue-400'
+                    <span class="${
+                        recommendedAction === 'BUY' ? 'text-white' :
+                        recommendedAction === 'SELL' ? 'text-gray-300' :
+                        'text-white'
                     }" data-recommended-action="${recommendedAction}">${recommendedAction}</span>
                 </div>
                 ${recommendingModels.length > 0 ? `
@@ -1897,7 +1897,7 @@ function setupMetaMaskEventListeners() {
                     }
                 } else {
                     // Last resort: just try to parse directly from the wallet card
-                    const actionText = document.querySelector('span.text-green-400, span.text-red-400');
+                    const actionText = document.querySelector('span.text-white, span.text-gray-300');
                     const swapText = document.querySelector('span.text-gray-300:not(.text-xs)');
                     
                     if (actionText && swapText && window.sendWalletNotification) {

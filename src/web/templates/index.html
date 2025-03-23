@@ -707,11 +707,11 @@
                     <div class="flex items-center space-x-4 mt-2 md:mt-0">
                         <div>
                             <span class="text-gray-400 text-sm">Current Price:</span>
-                            <span id="eth-price" class="text-2xl font-bold ml-2 cyber-value animate-pulse">-</span>
+                            <span id="eth-price" class="text-2xl font-bold ml-2 cyber-value animate-pulse text-white">-</span>
                         </div>
                         <div>
                             <span class="text-gray-400 text-sm">24h Vol:</span>
-                            <span id="eth-volume" class="text-sm font-bold ml-2 cyber-value">-</span>
+                            <span id="eth-volume" class="text-sm font-bold ml-2 cyber-value text-white">-</span>
                         </div>
                     </div>
                 </div>
@@ -725,15 +725,15 @@
                     <div class="flex justify-between items-center">
                         <div>
                             <span class="text-gray-400">24h High:</span>
-                            <span id="eth-high" class="font-bold ml-1 cyber-value">-</span>
+                            <span id="eth-high" class="font-bold ml-1 cyber-value text-white">-</span>
                         </div>
                         <div>
                             <span class="text-gray-400">24h Low:</span>
-                            <span id="eth-low" class="font-bold ml-1 cyber-value">-</span>
+                            <span id="eth-low" class="font-bold ml-1 cyber-value text-white">-</span>
                         </div>
                         <div>
                             <span class="text-gray-400">Sentiment:</span>
-                            <span id="sentiment" class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-700 text-gray-300">-</span>
+                            <span id="sentiment" class="semi-bold cyber-value">-</span>
                         </div>
                     </div>
                     <!-- Gas Prices (Linea) -->
@@ -743,16 +743,16 @@
                             <span class="text-gray-400">Gas Prices:</span>
                             <div class="flex space-x-4">
                                 <div class="text-center">
-                                    <span class="text-green-400 text-sm mr-1">Low:</span>
-                                    <span id="gas-low" class="text-sm font-bold cyber-value">-</span>
+                                    <span class="text-gray-300">Low:</span>
+                                    <span id="gas-low" class="text-gray-300 cyber-value">-</span>
                                 </div>
                                 <div class="text-center">
-                                    <span class="text-yellow-400 text-sm mr-1">Medium:</span>
-                                    <span id="gas-standard" class="text-sm font-bold cyber-value">-</span>
+                                    <span class="text-gray-300">Medium:</span>
+                                    <span id="gas-standard" class="text-gray-300 cyber-value">-</span>
                                 </div>
                                 <div class="text-center">
-                                    <span class="text-red-400 text-sm mr-1">High:</span>
-                                    <span id="gas-fast" class="text-sm font-bold cyber-value">-</span>
+                                    <span class="text-gray-300">High:</span>
+                                    <span id="gas-fast" class="text-gray-300 cyber-value">-</span>
                                 </div>
                             </div>
                         </div>
@@ -777,7 +777,7 @@
                     </div>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Decision:</span>
+                            <span class="text-gray-400">Decision (every 10 minutes):</span>
                             <span id="gemini-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
                         </div>
                         <div class="text-xs text-gray-400 text-right">Powered by Gemini 1.5 Flash</div>
@@ -794,7 +794,7 @@
                     </div>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Decision:</span>
+                            <span class="text-gray-400">Decision (every 10 minutes):</span>
                             <span id="groq-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
                         </div>
                         <div class="text-xs text-gray-400 text-right">Powered by DeepSeek-R1-Distill-Llama-70B</div>
@@ -811,7 +811,7 @@
                     </div>
                     <div class="space-y-4">
                         <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Decision:</span>
+                            <span class="text-gray-400">Decision (every 10 minutes):</span>
                             <span id="mistral-decision" class="font-bold text-xl cyber-value animate-pulse">-</span>
                         </div>
                         <div class="text-xs text-gray-400 text-right">Powered by Mistral Large</div>
@@ -824,7 +824,7 @@
                 <h2 class="text-xl font-semibold mb-4 cyber-title flex items-center justify-between">
                     Model Performance
                     <span id="view-analytics-container">
-                        <a href="/stats-test" id="view-analytics-link" class="text-sm text-blue-400 hover:text-blue-300 hover:underline flex items-center hidden">
+                        <a href="/stats-test" id="view-analytics-link" class="text-sm text-gray-300 hover:text-white hover:underline flex items-center hidden">
                             <i class="fas fa-flask mr-1"></i> View Test Analytics
                         </a>
                         <span id="view-analytics-disabled" class="text-sm text-gray-500 flex items-center cursor-not-allowed">

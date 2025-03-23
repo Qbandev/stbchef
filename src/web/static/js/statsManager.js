@@ -41,24 +41,24 @@ function updateModelStats(stats) {
                     </div>
                     <div>
                         <div class="text-gray-400">Correct Trades:</div>
-                        <div class="font-bold text-green-400">${correctTrades}</div>
+                        <div class="font-bold text-white">${correctTrades}</div>
                     </div>
                     <div>
                         <div class="text-gray-400">Incorrect Trades:</div>
-                        <div class="font-bold text-red-400">${incorrectTrades}</div>
+                        <div class="font-bold text-gray-300">${incorrectTrades}</div>
                     </div>
                     <div>
                         <div class="text-gray-400">Avg Profit Trades:</div>
-                        <div class="font-bold ${parseFloat(correctTradesAvgChange) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                        <div class="font-bold text-white">
                             ${correctTradesAvgChange}%
                         </div>
                     </div>
                     <div class="col-span-2">
                         <div class="text-gray-400">Decision Distribution:</div>
                         <div class="flex justify-between mt-1">
-                            <span class="text-green-400">Buy: ${decisions.buy}</span>
-                            <span class="text-red-400">Sell: ${decisions.sell}</span>
-                            <span class="text-blue-400">Hold: ${decisions.hold}</span>
+                            <span class="text-white">Buy: ${decisions.buy}</span>
+                            <span class="text-gray-300">Sell: ${decisions.sell}</span>
+                            <span class="text-white">Hold: ${decisions.hold}</span>
                         </div>
                     </div>
                 </div>
@@ -143,7 +143,7 @@ function fetchWalletStats() {
                 if (statsContainer) {
                     statsContainer.innerHTML = `
                         <div class="text-center py-2">
-                            <p class="text-red-400">Error loading stats: ${error.message}</p>
+                            <p class="text-gray-400">Error loading stats: ${error.message}</p>
                         </div>
                     `;
                 }
@@ -195,24 +195,24 @@ function updateWalletModelStats(walletData) {
                         </div>
                         <div>
                             <div class="text-gray-400">Correct Decisions:</div>
-                            <div class="font-bold text-green-400">${modelStat.correct_decisions}</div>
+                            <div class="font-bold text-white">${modelStat.correct_decisions}</div>
                         </div>
                         <div>
                             <div class="text-gray-400">Incorrect Decisions:</div>
-                            <div class="font-bold text-red-400">${modelStat.total_decisions - modelStat.correct_decisions}</div>
+                            <div class="font-bold text-gray-300">${modelStat.total_decisions - modelStat.correct_decisions}</div>
                         </div>
                         <div>
                             <div class="text-gray-400">Raw Accuracy:</div>
-                            <div class="font-bold ${modelStat.raw_accuracy >= 65 ? 'text-green-400' : modelStat.raw_accuracy >= 45 ? 'text-yellow-400' : 'text-red-400'}">
+                            <div class="font-bold text-white">
                                 ${modelStat.raw_accuracy.toFixed(1)}%
                             </div>
                         </div>
                         <div class="col-span-2">
                             <div class="text-gray-400">Decision Distribution:</div>
                             <div class="flex justify-between mt-1">
-                                <span class="text-green-400">Buy: ${modelStat.decision_counts.BUY}</span>
-                                <span class="text-red-400">Sell: ${modelStat.decision_counts.SELL}</span>
-                                <span class="text-blue-400">Hold: ${modelStat.decision_counts.HOLD}</span>
+                                <span class="text-white">Buy: ${modelStat.decision_counts.BUY}</span>
+                                <span class="text-gray-300">Sell: ${modelStat.decision_counts.SELL}</span>
+                                <span class="text-white">Hold: ${modelStat.decision_counts.HOLD}</span>
                             </div>
                         </div>
                     </div>
@@ -228,20 +228,12 @@ function updateWalletModelStats(walletData) {
         
         if (accuracyElement) {
             accuracyElement.textContent = `${modelStat.accuracy.toFixed(1)}%`;
-            accuracyElement.className = `font-bold ${
-                modelStat.accuracy >= 65 ? 'text-green-400' :
-                modelStat.accuracy >= 45 ? 'text-yellow-400' :
-                'text-red-400'
-            }`;
+            accuracyElement.className = 'font-bold text-white';
         }
         
         if (rawAccuracyElement) {
             rawAccuracyElement.textContent = `${modelStat.raw_accuracy.toFixed(1)}%`;
-            rawAccuracyElement.className = `font-bold text-xs ${
-                modelStat.raw_accuracy >= 65 ? 'text-green-400' :
-                modelStat.raw_accuracy >= 45 ? 'text-yellow-400' :
-                'text-red-400'
-            }`;
+            rawAccuracyElement.className = 'font-bold text-xs text-white';
         }
     });
 }
@@ -391,20 +383,20 @@ function updateData() {
                     data.market_sentiment.fear_greed_sentiment) {
                     sentimentText.textContent = `${data.market_sentiment.fear_greed_value} (${data.market_sentiment.fear_greed_sentiment})`;
                     const sentimentClass = data.market_sentiment.fear_greed_sentiment === 'bullish'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800';
+                        ? 'text-green-800'
+                        : 'text-red-800';
 
-                    sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold ${sentimentClass}`;
+                    sentimentText.className = `semi-bold cyber-value ${sentimentClass}`;
                 } else if (sentimentText) {
                     sentimentText.textContent = `-`;
-                    sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800`;
+                    sentimentText.className = `semi-bold cyber-value text-gray-800`;
                 }
             } catch (error) {
                 console.error('Error updating market sentiment:', error);
                 const sentimentText = document.getElementById('sentiment');
                 if (sentimentText) {
                     sentimentText.textContent = `Error`;
-                    sentimentText.className = `px-2 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800`;
+                    sentimentText.className = `semi-bold cyber-value text-red-800`;
                 }
             }
 

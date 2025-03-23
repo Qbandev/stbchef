@@ -60,7 +60,7 @@ function updateModelDecisions(data, walletAddress) {
         // If ETH price is invalid, show error message
         if (!hasValidPrice) {
             decisionElement.innerHTML = `<span class="text-sm">Waiting for price data</span>`;
-            decisionElement.classList.add('text-yellow-400');
+            decisionElement.classList.add('text-gray-400');
             return;
         }
 
@@ -70,7 +70,7 @@ function updateModelDecisions(data, walletAddress) {
         // If no action yet (null, undefined, empty string), show "Decision in progress"
         if (!action || action === '') {
             decisionElement.innerHTML = `<span>Decision in progress</span>`;
-            decisionElement.classList.add('text-yellow-400');
+            decisionElement.classList.add('text-gray-400');
             return;
         }
         
@@ -79,13 +79,13 @@ function updateModelDecisions(data, walletAddress) {
         
         switch (action) {
             case 'BUY':
-                actionClass = 'text-green-400';
+                actionClass = 'text-white';
                 break;
             case 'SELL':
-                actionClass = 'text-red-400';
+                actionClass = 'text-gray-300';
                 break;
             case 'HOLD':
-                actionClass = 'text-blue-400';
+                actionClass = 'text-white';
                 break;
             default:
                 actionClass = 'text-gray-400';
@@ -419,49 +419,22 @@ function updateAccuracy(currentPrice) {
         });
     }
 
-    // Update accuracy display with weighted metrics
+    // Update accuracy values in the UI
     ['gemini', 'groq', 'mistral'].forEach(model => {
+        const accuracy = calculateAccuracy(model);
+        const rawAccuracy = (window.aiRawAccuracy[model].accuracy).toFixed(1);
+        
         const accuracyElement = document.getElementById(`${model}-accuracy`);
         const rawAccuracyElement = document.getElementById(`${model}-raw-accuracy`);
         
         if (accuracyElement) {
-            const trades = window.tradeHistory[model];
-            if (trades.length > 0) {
-                // Calculate weighted average score
-                const recentTrades = trades.slice(-20); // Last 20 trades
-                const weights = recentTrades.map((_, i) => 1 + (i / recentTrades.length));
-                const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-                const weightedScore = recentTrades.reduce((sum, trade, i) => 
-                    sum + (trade.score * weights[i]), 0) / totalWeight;
-
-                const accuracy = (weightedScore * 100).toFixed(1);
-                accuracyElement.textContent = `${accuracy}%`;
-                accuracyElement.className = `font-bold ${
-                    parseFloat(accuracy) >= 65 ? 'text-green-400' :
-                    parseFloat(accuracy) >= 45 ? 'text-yellow-400' :
-                    'text-red-400'
-                }`;
-            } else {
-                // No trades yet, show 0%
-                accuracyElement.textContent = '0.0%';
-                accuracyElement.className = 'font-bold text-gray-400';
-            }
+            accuracyElement.textContent = `${accuracy}%`;
+            accuracyElement.className = `font-bold text-white`;
         }
         
-        // Update raw accuracy display if available - ONLY if wallet is connected
-        if (rawAccuracyElement && window.userAccount && window.aiRawAccuracy[model].total > 0) {
-            const rawAccuracy = window.aiRawAccuracy[model].accuracy.toFixed(1);
+        if (rawAccuracyElement) {
             rawAccuracyElement.textContent = `${rawAccuracy}%`;
-            rawAccuracyElement.className = `font-bold ${
-                parseFloat(rawAccuracy) >= 65 ? 'text-green-400' :
-                parseFloat(rawAccuracy) >= 45 ? 'text-yellow-400' :
-                'text-red-400'
-            }`;
-        } else if (rawAccuracyElement && !window.userAccount) {
-            // If wallet is not connected, don't show any accuracy data
-            rawAccuracyElement.textContent = '0.0%';
-            rawAccuracyElement.className = 'font-bold text-xs text-gray-400';
+            rawAccuracyElement.className = `font-bold text-xs text-white`;
         }
     });
 }
