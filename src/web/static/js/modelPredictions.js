@@ -52,7 +52,7 @@ function updateModelDecisions(data, walletAddress) {
         
         if (!walletAddress) {
             // No wallet connected - show connect wallet message
-            decisionElement.innerHTML = `<span class="text-sm">Connect wallet first</span>`;
+            decisionElement.innerHTML = `<span class="text-sm">Connect your wallet first</span>`;
             decisionElement.classList.add('text-gray-400');
             return;
         }

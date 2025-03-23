@@ -345,7 +345,7 @@ function updateWalletCard() {
                     <div class="col-span-2 mt-3 mb-1 space-y-2">
                         <div class="flex items-center">
                             <span class="text-gray-400 w-40">Recommended Action:</span>
-                            <span class="font-bold text-blue-400">Connect your wallet to see</span>
+                            <span class="font-bold text-xl cyber-value animate-pulse text-gray-400">Connect your wallet first</span>
                         </div>
                     </div>
                 </div>
@@ -1225,7 +1225,7 @@ async function connectWallet() {
         // Clear model performance when disconnecting
         window.displayEmptyStats();
         
-        // Update LLM decision cards to show "Connect wallet first"
+        // Update LLM decision cards to show "Connect your wallet first"
         try {
             const tradingData = await fetch('/api/trading-data').then(res => res.json());
             window.updateModelDecisions(tradingData, null);
