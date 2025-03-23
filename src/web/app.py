@@ -22,6 +22,7 @@ from src.state import TradingState
 from src.tools.gemini_api import GeminiClient
 from src.tools.groq_api import GroqClient
 from src.tools.mistral_api import MistralClient
+from src.tools.etherscan_api import EtherscanClient
 
 # Load environment variables
 load_dotenv()
@@ -303,16 +304,41 @@ def start_background_scheduler():
         # Initial update
         update_trading_data()
 
+        # Counter for selective updates (gas prices update more frequently than full data)
+        update_count = 0
+
         while True:
-            # Wait for 10 minutes
-            time.sleep(600)
-            # Update the trading data
-            update_trading_data()
+            # Wait for 2 minutes
+            time.sleep(120)
+
+            update_count += 1
+
+            # Full update every 10 minutes (5 cycles)
+            if update_count >= 5:
+                update_trading_data()
+                update_count = 0
+            else:
+                # Only update gas prices on intermediate cycles
+                try:
+                    # Update just gas prices for more real-time data
+                    with trading_data_lock:
+                        if latest_trading_data:
+                            # Get fresh gas prices
+                            gas_prices = EtherscanClient().get_gas_prices()
+                            if gas_prices:
+                                latest_trading_data['gas_prices'] = gas_prices
+                                logging.debug(
+                                    f"Updated gas prices: {gas_prices}")
+                                print(
+                                    f"DEBUG: Updated gas prices in latest_trading_data: {gas_prices}")
+                except Exception as e:
+                    logging.error(f"Error updating gas prices: {str(e)}")
+                    print(f"ERROR: Failed to update gas prices: {str(e)}")
 
     # Create and start the background thread
     background_thread = threading.Thread(target=scheduler_thread, daemon=True)
     background_thread.start()
-    print("Background scheduler started for trading data updates every 10 minutes")
+    print("Background scheduler started: Full data updates every 10 minutes, gas prices every 2 minutes")
 
 
 @app.route("/")

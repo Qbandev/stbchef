@@ -29,8 +29,10 @@ class EtherscanClient:
         self._gas_cache = {"timestamp": 0, "data": None}
 
         # Cache duration in seconds
-        self.price_cache_duration = int(os.getenv("MARKET_DATA_CACHE_DURATION", "10"))
-        self.gas_cache_duration = int(os.getenv("GAS_PRICE_CACHE_DURATION", "30"))
+        self.price_cache_duration = int(
+            os.getenv("MARKET_DATA_CACHE_DURATION", "10"))
+        self.gas_cache_duration = int(
+            os.getenv("GAS_PRICE_CACHE_DURATION", "30"))
 
     def get_eth_price(self) -> Tuple[float, float, float, float]:
         """
@@ -61,7 +63,8 @@ class EtherscanClient:
                 error_msg = data.get('message', 'Unknown error')
                 print(f"Etherscan API error: {error_msg}")
                 print(f"Full response: {data}")
-                raise ValueError(f"Invalid response from Etherscan: {error_msg}")
+                raise ValueError(
+                    f"Invalid response from Etherscan: {error_msg}")
 
             result = data["result"]
             if not result or "ethusd" not in result:
@@ -105,9 +108,8 @@ class EtherscanClient:
         """
         current_time = time.time()
 
-        # Return cached data if still valid
-        if current_time - self._gas_cache["timestamp"] < self.gas_cache_duration and self._gas_cache["data"]:
-            return self._gas_cache["data"]
+        # Force refresh of data since we want accurate real-time gas prices
+        # We'll only use cache in case of API errors
 
         try:
             params = {
@@ -124,26 +126,62 @@ class EtherscanClient:
                 error_msg = data.get('message', 'Unknown error')
                 print(f"Etherscan API error: {error_msg}")
                 print(f"Full response: {data}")
-                raise ValueError(f"Invalid response from Etherscan: {error_msg}")
+                raise ValueError(
+                    f"Invalid response from Etherscan: {error_msg}")
 
             result = data["result"]
             if not result or not all(key in result for key in ["SafeGasPrice", "ProposeGasPrice", "FastGasPrice"]):
                 print(f"Unexpected response format: {result}")
                 raise ValueError("Missing gas price data in response")
 
+            # Parse values carefully, properly handling edge cases like "0" or "<1"
+            def parse_gas_price(price_str):
+                try:
+                    # Handle "<1" or similar text values
+                    if isinstance(price_str, str) and not price_str.isdigit():
+                        if "<" in price_str:
+                            # Return actual value for values less than 1
+                            return float(price_str.replace("<", ""))
+                        # Try to extract numeric part if possible
+                        numeric_part = ''.join(
+                            c for c in price_str if c.isdigit() or c == '.')
+                        if numeric_part:
+                            return float(numeric_part)
+                        return 0  # Fallback to 0 if extraction fails
+
+                    # Normal numeric processing - preserve decimal precision
+                    return float(price_str)  # Preserve decimal values
+                except (ValueError, TypeError):
+                    return 0  # Default to 0 Gwei if parsing fails
+
+            # Store as floats with 3 decimal places precision
             gas_prices = {
-                "low": round(float(result["SafeGasPrice"])),
-                "standard": round(float(result["ProposeGasPrice"])),
-                "fast": round(float(result["FastGasPrice"]))
+                "low": round(parse_gas_price(result["SafeGasPrice"]), 3),
+                "standard": round(parse_gas_price(result["ProposeGasPrice"]), 3),
+                "fast": round(parse_gas_price(result["FastGasPrice"]), 3)
             }
 
-            # Cache the results
+            # Log the raw and processed values for debugging
+            print(
+                f"DEBUG: Raw Etherscan gas prices - SafeGasPrice: {result['SafeGasPrice']}, ProposeGasPrice: {result['ProposeGasPrice']}, FastGasPrice: {result['FastGasPrice']}")
+            print(
+                f"DEBUG: Processed gas prices - low: {gas_prices['low']}, standard: {gas_prices['standard']}, fast: {gas_prices['fast']}")
+
+            # Ensure values are all strings to preserve decimal precision when serialized to JSON
+            # This prevents JSON serialization from converting small floats to scientific notation
+            gas_prices_serializable = {
+                "low": str(gas_prices["low"]),
+                "standard": str(gas_prices["standard"]),
+                "fast": str(gas_prices["fast"])
+            }
+
+            # Cache the results for fallback
             self._gas_cache = {
                 "timestamp": current_time,
-                "data": gas_prices
+                "data": gas_prices_serializable
             }
 
-            return gas_prices
+            return gas_prices_serializable
 
         except requests.exceptions.RequestException as e:
             print(f"Network error while fetching gas prices: {str(e)}")
