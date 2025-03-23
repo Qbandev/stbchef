@@ -765,7 +765,7 @@ function updateWalletCard() {
                     <span class="text-gray-300">${recommendingModels.join(', ')}</span>
                 </div>
                 ` : ''}
-                ${swapAmount > 0 && ethPrice > 0 ? `
+                ${swapAmount > 0 && (recommendedAction === 'BUY' || (recommendedAction === 'SELL' && ethPrice > 0)) ? `
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Suggested Swap:</span>
                     <span class="text-gray-300" data-suggested-swap="${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / ethPrice).toFixed(4)} ${swapDirection}`}">
