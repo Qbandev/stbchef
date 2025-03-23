@@ -61,7 +61,12 @@ async function sendWalletNotification(signalType, message) {
         const isEthereum = chainId === 1;
         
         // Record this wallet action in the database
-        await recordWalletAction(signalType);
+        try {
+            await recordWalletAction(signalType);
+        } catch (recordError) {
+            console.error("Failed to record wallet action, continuing with notification:", recordError);
+            // Non-blocking - continue with notification processing
+        }
         
         // Show the notification with the exact message passed from walletManager
         showNotification(message, 'info');
