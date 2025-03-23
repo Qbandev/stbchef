@@ -575,7 +575,7 @@ function updateWalletCard() {
                 recommendedAction = 'BUY';
                 const targetEthValue = (totalValue * targetEthMin / 100);
                 swapAmount = targetEthValue - ethValueUSD;
-                logBuySignal(targetEthValue, ethValueUSD, swapAmount);
+                console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                 swapDirection = 'USDC → ETH';
             } else if (currentEthAllocation > targetEthMax + severeImbalanceThreshold) {
                 // Severe imbalance - too much ETH regardless of consensus
@@ -590,7 +590,7 @@ function updateWalletCard() {
                 
                 // Calculate swap amount based on consensus
                 if (recommendedAction === 'BUY' && currentEthAllocation < targetEthMin) {
-                    // If below range, bring to minimum target
+                    // Below range - bring to minimum target
                     const targetEthValue = (totalValue * targetEthMin / 100);
                     swapAmount = targetEthValue - ethValueUSD;
                     console.log(`LLM Consensus BUY (below range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMin}%, Swap Amount: $${swapAmount.toFixed(2)}`);
