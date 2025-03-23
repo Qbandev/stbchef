@@ -589,24 +589,24 @@ function updateWalletCard() {
                 recommendedAction = aiConsensus;
                 
                 // Calculate swap amount based on consensus
-                if (recommendedAction === 'BUY') {
+                if (recommendedAction === 'BUY' && currentEthAllocation < targetEthMin) {
+                    // If below range, bring to minimum target
+                    const targetEthValue = (totalValue * targetEthMin / 100);
+                    swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`LLM Consensus BUY (below range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMin}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    swapDirection = 'USDC → ETH';
+                } else if (recommendedAction === 'BUY' && currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
                     // If already within range, make a balanced buy recommendation
-                    if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
-                        // Calculate a moderate buy that moves 1/3 of the way from current to target max
-                        const midPoint = (targetEthMax + currentEthAllocation) / 2;
-                        const targetEthValue = (totalValue * midPoint / 100);
-                        swapAmount = targetEthValue - ethValueUSD;
-                        console.log(`LLM Consensus BUY (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
-                    } else if (currentEthAllocation < targetEthMin) {
-                        // If below range, bring to minimum target
-                        const targetEthValue = (totalValue * targetEthMin / 100);
-                        swapAmount = targetEthValue - ethValueUSD;
-                        console.log(`LLM Consensus BUY (below range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMin}%, Swap Amount: $${swapAmount.toFixed(2)}`);
-                    } else {
-                        // If above range, no buy needed (this shouldn't happen for BUY)
-                        swapAmount = 0;
-                        console.log(`LLM Consensus BUY (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, above target range, no swap needed`);
-                    }
+                    // Calculate a moderate buy that moves halfway from current to target max
+                    const midPoint = (targetEthMax + currentEthAllocation) / 2;
+                    const targetEthValue = (totalValue * midPoint / 100);
+                    swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`LLM Consensus BUY (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    swapDirection = 'USDC → ETH';
+                } else if (recommendedAction === 'BUY') {
+                    // If above range, no buy needed
+                    swapAmount = 0;
+                    console.log(`LLM Consensus BUY (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, above target range, no swap needed`);
                     swapDirection = 'USDC → ETH';
                 } else if (recommendedAction === 'SELL') {
                     // If already within range, make a balanced sell recommendation

@@ -75,15 +75,18 @@ async function sendWalletNotification(signalType, message) {
             const usdMatch = message.match(/~\$([0-9.]+)/);
             if (usdMatch && usdMatch[1]) {
                 swapAmount = parseFloat(usdMatch[1]);
-                // Calculate the ETH equivalent for the transaction
-                ethAmount = swapAmount / currentPrice;
+                // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
+                ethAmount = currentPrice > 0 ? swapAmount / currentPrice : 0;
+                console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
             }
         } else if (signalType === 'SELL') {
             // Extract the ETH amount from the message string (e.g., "Suggested Swap: ~0.0123 ETH → $25.67 USDC")
             const ethMatch = message.match(/~([0-9.]+) ETH/);
             if (ethMatch && ethMatch[1]) {
                 ethAmount = parseFloat(ethMatch[1]);
-                swapAmount = ethAmount * currentPrice;
+                // Calculate USD equivalent using the currentPrice from wallet balances
+                swapAmount = currentPrice > 0 ? ethAmount * currentPrice : 0;
+                console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
             }
         }
         
