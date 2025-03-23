@@ -647,6 +647,57 @@ function updateWalletCard() {
                 <span class="text-gray-400">(Empty Portfolio)</span>
               </div>`;
         
+        // Only trigger notifications if we have a valid recommendation and sufficient imbalance
+        if (recommendedAction !== 'HOLD' && swapAmount > 0) {
+            // Check conditions based on specified rules:
+            // 1. Portfolio is outside target range (trigger notification for rebalancing)
+            const isPortfolioOutOfRange = (currentEthAllocation < targetEthMin || currentEthAllocation > targetEthMax);
+            
+            // 2. At least 2 LLMs agree on a BUY/SELL action
+            const consensusModels = recommendingModels.length;
+            const hasLLMConsensus = consensusModels >= 2;
+            
+            // Only send notification if:
+            // - Portfolio is outside target range (for rebalancing) OR
+            // - We have LLM consensus from at least 2 models
+            // - AND not if portfolio is already within range (unless we have LLM consensus)
+            if ((isPortfolioOutOfRange || hasLLMConsensus) && 
+                !(currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax && !hasLLMConsensus)) {
+                
+                // Check if enough time has passed since last notification (5 minutes minimum)
+                const now = Date.now();
+                const timeSinceLastNotification = now - (window.lastNotificationTimestamps[recommendedAction] || 0);
+                const minimumInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+                
+                if (timeSinceLastNotification >= minimumInterval) {
+                    console.log(`Triggering notification for ${recommendedAction} based on ${
+                        isPortfolioOutOfRange ? 'portfolio imbalance' : 'LLM consensus'
+                    }`);
+                    
+                    // Create appropriate message for the notification
+                    let notificationMessage = '';
+                    if (recommendedAction === 'BUY') {
+                        notificationMessage = `Suggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
+                    } else if (recommendedAction === 'SELL') {
+                        // For SELL, we need to convert the USD amount to ETH
+                        const ethAmount = swapAmount / currentPrice;
+                        notificationMessage = `Suggested Swap: ~${ethAmount.toFixed(4)} ${swapDirection}`;
+                    }
+                    
+                    // Trigger the notification
+                    if (notificationMessage && window.sendWalletNotification) {
+                        window.sendWalletNotification(recommendedAction, notificationMessage);
+                        // Update the timestamp
+                        window.lastNotificationTimestamps[recommendedAction] = now;
+                    }
+                } else {
+                    console.log(`Skipping ${recommendedAction} notification - too soon since last one (${Math.floor(timeSinceLastNotification/1000)}s ago)`);
+                }
+            } else {
+                console.log(`Not sending notification: portfolio in range=${currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax}, consensus=${hasLLMConsensus}`);
+            }
+        }
+        
         // Recommendation section based on whether we have balances and AI decisions
         const recommendationSection = `
             <div class="col-span-2 mt-3 mb-1 space-y-2">
@@ -656,7 +707,7 @@ function updateWalletCard() {
                         recommendedAction === 'BUY' ? 'text-green-400' :
                         recommendedAction === 'SELL' ? 'text-red-400' :
                         'text-blue-400'
-                    }">${recommendedAction}</span>
+                    }" data-recommended-action="${recommendedAction}">${recommendedAction}</span>
                 </div>
                 ${recommendingModels.length > 0 ? `
                 <div class="flex items-center">
@@ -667,7 +718,7 @@ function updateWalletCard() {
                 ${swapAmount > 0 ? `
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Suggested Swap:</span>
-                    <span class="text-gray-300">~$${swapAmount.toFixed(2)} ${swapDirection}</span>
+                    <span class="text-gray-300" data-suggested-swap="~$${swapAmount.toFixed(2)} ${swapDirection}">~$${swapAmount.toFixed(2)} ${swapDirection}</span>
                 </div>
                 ` : ''}
                 ${totalValue > 0 ? `
@@ -680,6 +731,27 @@ function updateWalletCard() {
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Warning:</span>
                     <span class="text-yellow-400">Portfolio significantly ${currentEthAllocation < targetEthMin ? 'below' : 'above'} target range</span>
+                </div>
+                ` : ''}
+                ${swapAmount > 0 ? `
+                <div class="mt-3 border-t border-gray-700 pt-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-400">Actionable Recommendations:</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer" ${window.enableSwapRecommendations ? 'checked' : ''}>
+                            <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">
+                        ${window.enableSwapRecommendations ? 
+                            'Receive executable swap recommendations in MetaMask' : 
+                            'Enable to receive executable swap recommendations in MetaMask'}
+                    </p>
+                    <div class="mt-2 text-center">
+                        <button id="test-notification-btn" class="text-xs bg-blue-800 hover:bg-blue-700 text-gray-200 px-2 py-1 rounded transition-colors">
+                            Test Notification Now
+                        </button>
+                    </div>
                 </div>
                 ` : ''}
             </div>
@@ -1703,6 +1775,77 @@ function setupMetaMaskEventListeners() {
         // Reset flag after setting up event listeners
         window.isSettingUpMetaMaskEvents = false;
     }
+    
+    // Additional event listener for the enable swap recommendations toggle
+    document.addEventListener('click', function(event) {
+        if (event.target && event.target.id === 'enable-swap-recommendations') {
+            window.enableSwapRecommendations = event.target.checked;
+            // Store preference in localStorage
+            localStorage.setItem('stbchef_enable_swap_recommendations', window.enableSwapRecommendations);
+            // Update the UI to reflect the change
+            updateWalletCard();
+            
+            // Show notification about the change
+            if (window.enableSwapRecommendations) {
+                showNotification('Actionable swap recommendations enabled. You will now receive executable recommendations in MetaMask.', 'info');
+            } else {
+                showNotification('Actionable swap recommendations disabled. You will only receive notifications in the browser.', 'info');
+            }
+        }
+    });
+
+    // Add this code to the setupMetaMaskEventListeners function, after the enable swap recommendations event listener
+
+    // Event listener for testing notifications
+    document.addEventListener('click', function(event) {
+        if (event.target && event.target.id === 'test-notification-btn') {
+            // Find current recommended action and swap details from the UI
+            const actionElement = document.querySelector('[data-recommended-action]');
+            const swapElement = document.querySelector('[data-suggested-swap]');
+            
+            if (actionElement && swapElement) {
+                const action = actionElement.getAttribute('data-recommended-action');
+                const swapMessage = swapElement.getAttribute('data-suggested-swap');
+                
+                if (action && swapMessage && window.sendWalletNotification) {
+                    window.sendWalletNotification(action, swapMessage);
+                    showNotification('Test notification sent!', 'info');
+                }
+            } else {
+                // Fallback if we can't find the elements with data attributes
+                const recommendedAction = document.querySelector('.recommended-action');
+                const suggestedSwap = document.querySelector('.suggested-swap');
+                
+                if (recommendedAction && suggestedSwap) {
+                    const action = recommendedAction.textContent.trim();
+                    const swapMessage = suggestedSwap.textContent.trim();
+                    
+                    if ((action === 'BUY' || action === 'SELL') && swapMessage && window.sendWalletNotification) {
+                        window.sendWalletNotification(action, `Suggested Swap: ${swapMessage}`);
+                        showNotification('Test notification sent!', 'info');
+                    }
+                } else {
+                    // Last resort: just try to parse directly from the wallet card
+                    const actionText = document.querySelector('span.text-green-400, span.text-red-400');
+                    const swapText = document.querySelector('span.text-gray-300:not(.text-xs)');
+                    
+                    if (actionText && swapText && window.sendWalletNotification) {
+                        const action = actionText.textContent.trim();
+                        const swapMessage = swapText.textContent.trim();
+                        
+                        if ((action === 'BUY' || action === 'SELL') && swapMessage) {
+                            window.sendWalletNotification(action, swapMessage);
+                            showNotification('Test notification sent!', 'info');
+                        } else {
+                            showNotification('No valid recommendation found to test', 'warning');
+                        }
+                    } else {
+                        showNotification('No recommendation available to test', 'warning');
+                    }
+                }
+            }
+        }
+    });
 }
 
 /**
@@ -2199,3 +2342,12 @@ window.setupMetaMaskEventListeners = setupMetaMaskEventListeners;
 window.handleAccountsChanged = handleAccountsChanged;
 window.formatWalletAddress = formatWalletAddress;
 window.saveDisconnectedAccounts = saveDisconnectedAccounts;
+
+// At the beginning of the file, after the initial variables, add:
+
+// Timestamp tracking for notifications to prevent spam
+window.lastNotificationTimestamps = {
+    BUY: 0,
+    SELL: 0,
+    HOLD: 0
+};

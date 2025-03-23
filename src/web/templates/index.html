@@ -105,6 +105,9 @@
                 window.updateWalletCard();
             }
             
+            // Initialize enableSwapRecommendations from localStorage
+            window.enableSwapRecommendations = localStorage.getItem('stbchef_enable_swap_recommendations') === 'true';
+            
             // Get persisted wallet connection from the server
             try {
                 // Try to load from localStorage first (more reliable)
