@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Model Performance Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body {
             background-color: #1a1a2e;
@@ -56,15 +57,46 @@
         .poor {
             color: #f87171;
         }
+        .cyber-btn {
+            background-color: rgba(0, 243, 255, 0.2);
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.7);
+        }
+        .cyber-btn:hover {
+            background-color: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
+        }
+        .nav-link {
+            color: #00f3ff;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            display: inline-block;
+            border-radius: 0.25rem;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            background-color: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold mb-6">Model Performance Testing</h1>
+        <header class="mb-6 flex justify-between items-center border-b border-blue-400 pb-3">
+            <h1 class="text-3xl font-bold">Model Performance Testing</h1>
+            <nav>
+                <a href="/" class="nav-link"><i class="fas fa-home mr-2"></i>Back to Dashboard</a>
+            </nav>
+        </header>
         
         <div class="card">
             <h2 class="text-xl mb-4">Performance Scoring Analysis</h2>
-            <p class="mb-4">This page demonstrates the comparison between raw accuracy and weighted performance scores.</p>
+            <p class="mb-4">This page demonstrates the comparison between raw accuracy and weighted performance scores for LLM trading models.</p>
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div class="model-card">
@@ -192,8 +224,8 @@
                     <td>Slightly Below Target</td>
                     <td>15%</td>
                     <td>20-40%</td>
-                    <td>HOLD</td>
-                    <td>HOLD (Use Consensus)</td>
+                    <td>BUY</td>
+                    <td>BUY (Use Consensus)</td>
                     <td id="scenario2">-</td>
                 </tr>
                 <tr>
@@ -203,6 +235,14 @@
                     <td>BUY</td>
                     <td>BUY (Use Consensus)</td>
                     <td id="scenario3">-</td>
+                </tr>
+                <tr>
+                    <td>Within Target</td>
+                    <td>30%</td>
+                    <td>20-40%</td>
+                    <td>SELL</td>
+                    <td>SELL (Use Consensus)</td>
+                    <td id="scenario6">-</td>
                 </tr>
                 <tr>
                     <td>Slightly Above Target</td>
@@ -222,9 +262,63 @@
                 </tr>
             </table>
             
-            <button id="test-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                Run Test Scenarios
-            </button>
+            <h3 class="text-lg font-bold mb-2">LLM Consensus Swap Amount Tests</h3>
+            <table class="mb-4">
+                <tr>
+                    <th>Scenario</th>
+                    <th>Portfolio Value</th>
+                    <th>ETH Allocation</th>
+                    <th>Target Range</th>
+                    <th>LLM Consensus</th>
+                    <th>Expected Swap Amount</th>
+                    <th>Result</th>
+                </tr>
+                <tr>
+                    <td>BUY Within Range</td>
+                    <td>$1000</td>
+                    <td>30%</td>
+                    <td>20-40%</td>
+                    <td>BUY</td>
+                    <td>~$150 (Move to 35%)</td>
+                    <td id="swap-test1">-</td>
+                </tr>
+                <tr>
+                    <td>SELL Within Range</td>
+                    <td>$1000</td>
+                    <td>30%</td>
+                    <td>20-40%</td>
+                    <td>SELL</td>
+                    <td>~$50 (Move to 25%)</td>
+                    <td id="swap-test2">-</td>
+                </tr>
+                <tr>
+                    <td>BUY Below Range</td>
+                    <td>$1000</td>
+                    <td>15%</td>
+                    <td>20-40%</td>
+                    <td>BUY</td>
+                    <td>$50 (Move to min 20%)</td>
+                    <td id="swap-test3">-</td>
+                </tr>
+                <tr>
+                    <td>SELL Above Range</td>
+                    <td>$1000</td>
+                    <td>50%</td>
+                    <td>20-40%</td>
+                    <td>SELL</td>
+                    <td>$100 (Move to max 40%)</td>
+                    <td id="swap-test4">-</td>
+                </tr>
+            </table>
+            
+            <div class="flex justify-between">
+                <button id="test-btn" class="cyber-btn">
+                    <i class="fas fa-vial mr-2"></i>Run Test Scenarios
+                </button>
+                <button id="swap-test-btn" class="cyber-btn">
+                    <i class="fas fa-exchange-alt mr-2"></i>Test Swap Calculations
+                </button>
+            </div>
         </div>
     </div>
     
@@ -235,6 +329,7 @@
             
             // Add event listener for test button
             document.getElementById('test-btn').addEventListener('click', testScenarios);
+            document.getElementById('swap-test-btn').addEventListener('click', testSwapCalculations);
         });
         
         async function fetchWalletStats() {
@@ -306,10 +401,13 @@
             testRecommendation(5, 20, 40, 'HOLD', severeImbalanceThreshold, 'scenario1');
             
             // Scenario 2: Slightly Below Target (should use consensus)
-            testRecommendation(15, 20, 40, 'HOLD', severeImbalanceThreshold, 'scenario2');
+            testRecommendation(15, 20, 40, 'BUY', severeImbalanceThreshold, 'scenario2');
             
             // Scenario 3: Within Target (should use consensus)
             testRecommendation(30, 20, 40, 'BUY', severeImbalanceThreshold, 'scenario3');
+            
+            // Scenario 6: Within Target (should use consensus)
+            testRecommendation(30, 20, 40, 'SELL', severeImbalanceThreshold, 'scenario6');
             
             // Scenario 4: Slightly Above Target (should use consensus)
             testRecommendation(45, 20, 40, 'SELL', severeImbalanceThreshold, 'scenario4');
@@ -326,7 +424,7 @@
                 recommendation = 'BUY';
             } else if (allocation > targetMax + threshold) {
                 recommendation = 'SELL';
-            } else if (consensus) {
+            } else if (consensus === 'BUY' || consensus === 'SELL') {
                 recommendation = consensus;
             } else {
                 if (allocation < targetMin) {
@@ -345,13 +443,104 @@
             let expectedResult;
             switch (resultId) {
                 case 'scenario1': expectedResult = 'BUY'; break;
-                case 'scenario2': expectedResult = 'HOLD'; break;
+                case 'scenario2': expectedResult = 'BUY'; break;
                 case 'scenario3': expectedResult = 'BUY'; break;
                 case 'scenario4': expectedResult = 'SELL'; break;
                 case 'scenario5': expectedResult = 'SELL'; break;
+                case 'scenario6': expectedResult = 'SELL'; break;
             }
             
             resultElement.className = recommendation === expectedResult ? 'good' : 'poor';
+        }
+        
+        function testSwapCalculations() {
+            const portfolioValue = 1000; // $1000 portfolio for tests
+            const ethPrice = 3000; // Assume $3000 ETH price for simplicity
+            
+            // Test 1: BUY within range - should move halfway to max
+            const test1 = testSwapAmount(300, 1000, 20, 40, 'BUY', ethPrice, 'swap-test1');
+            
+            // Test 2: SELL within range - should move halfway to min
+            const test2 = testSwapAmount(300, 1000, 20, 40, 'SELL', ethPrice, 'swap-test2');
+            
+            // Test 3: BUY below range - should move to min
+            const test3 = testSwapAmount(150, 1000, 20, 40, 'BUY', ethPrice, 'swap-test3');
+            
+            // Test 4: SELL above range - should move to max
+            const test4 = testSwapAmount(500, 1000, 20, 40, 'SELL', ethPrice, 'swap-test4');
+        }
+        
+        function testSwapAmount(ethValueUSD, totalValue, targetMin, targetMax, action, ethPrice, resultId) {
+            let swapAmount = 0;
+            let description = '';
+            const currentEthAllocation = (ethValueUSD / totalValue) * 100;
+            
+            if (action === 'BUY') {
+                if (currentEthAllocation >= targetMin && currentEthAllocation <= targetMax) {
+                    // Within range - move halfway to max
+                    const midPoint = (targetMax + currentEthAllocation) / 2;
+                    const targetEthValue = (totalValue * midPoint / 100);
+                    swapAmount = targetEthValue - ethValueUSD;
+                    description = `$${swapAmount.toFixed(2)} (${currentEthAllocation.toFixed(1)}% → ${midPoint.toFixed(1)}%)`;
+                } else if (currentEthAllocation < targetMin) {
+                    // Below range - move to min
+                    const targetEthValue = (totalValue * targetMin / 100);
+                    swapAmount = targetEthValue - ethValueUSD;
+                    description = `$${swapAmount.toFixed(2)} (${currentEthAllocation.toFixed(1)}% → ${targetMin}%)`;
+                } else {
+                    // Above range - no buy needed
+                    swapAmount = 0;
+                    description = `$0 (Already above target)`;
+                }
+            } else if (action === 'SELL') {
+                if (currentEthAllocation >= targetMin && currentEthAllocation <= targetMax) {
+                    // Within range - move halfway to min
+                    const midPoint = (targetMin + currentEthAllocation) / 2;
+                    const targetEthValue = (totalValue * midPoint / 100);
+                    swapAmount = ethValueUSD - targetEthValue;
+                    description = `$${swapAmount.toFixed(2)} (${currentEthAllocation.toFixed(1)}% → ${midPoint.toFixed(1)}%)`;
+                } else if (currentEthAllocation > targetMax) {
+                    // Above range - move to max
+                    const targetEthValue = (totalValue * targetMax / 100);
+                    swapAmount = ethValueUSD - targetEthValue;
+                    description = `$${swapAmount.toFixed(2)} (${currentEthAllocation.toFixed(1)}% → ${targetMax}%)`;
+                } else {
+                    // Below range - no sell needed
+                    swapAmount = 0;
+                    description = `$0 (Already below target)`;
+                }
+            }
+            
+            const resultElement = document.getElementById(resultId);
+            resultElement.textContent = description;
+            
+            // Calculate expected values
+            let expectedSwapAmount = 0;
+            let expectedDescription = '';
+            
+            if (resultId === 'swap-test1') {
+                // BUY within range (30% → ~35%)
+                expectedSwapAmount = 50; // Move from 30% to 35%
+                expectedDescription = `$${expectedSwapAmount.toFixed(2)} (30.0% → 35.0%)`;
+            } else if (resultId === 'swap-test2') {
+                // SELL within range (30% → ~25%)
+                expectedSwapAmount = 50; // Move from 30% to 25%
+                expectedDescription = `$${expectedSwapAmount.toFixed(2)} (30.0% → 25.0%)`;
+            } else if (resultId === 'swap-test3') {
+                // BUY below range (15% → 20%)
+                expectedSwapAmount = 50; // Move from 15% to 20%
+                expectedDescription = `$${expectedSwapAmount.toFixed(2)} (15.0% → 20.0%)`;
+            } else if (resultId === 'swap-test4') {
+                // SELL above range (50% → 40%)
+                expectedSwapAmount = 100; // Move from 50% to 40%
+                expectedDescription = `$${expectedSwapAmount.toFixed(2)} (50.0% → 40.0%)`;
+            }
+            
+            // Tolerance for floating point comparison
+            const isClose = Math.abs(swapAmount - expectedSwapAmount) < 5;
+            resultElement.className = isClose ? 'good' : 'poor';
+            
+            return swapAmount;
         }
     </script>
 </body>

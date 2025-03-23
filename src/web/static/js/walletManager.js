@@ -1825,25 +1825,19 @@ function setupMetaMaskEventListeners() {
         window.isSettingUpMetaMaskEvents = false;
     }
     
-    // Additional event listener for the enable swap recommendations toggle
-    document.addEventListener('click', function(event) {
-        if (event.target && event.target.id === 'enable-swap-recommendations') {
-            window.enableSwapRecommendations = event.target.checked;
-            // Store preference in localStorage
-            localStorage.setItem('stbchef_enable_swap_recommendations', window.enableSwapRecommendations);
-            // Update the UI to reflect the change
-            updateWalletCard();
+    // Event listener for the enable swap recommendations checkbox
+    const enableSwapCheckbox = document.getElementById('enable-swap-recommendations');
+    if (enableSwapCheckbox) {
+        enableSwapCheckbox.addEventListener('change', function(event) {
+            // Store user preference for swap recommendations
+            window.enableSwapRecommendations = this.checked;
+            localStorage.setItem('stbchef_enable_swap_recommendations', this.checked);
+            console.log(`Swap recommendations ${this.checked ? 'enabled' : 'disabled'}`);
             
-            // Show notification about the change
-            if (window.enableSwapRecommendations) {
-                showNotification('MetaMask Test Notifications enabled. You will receive test notifications in MetaMask but will not send any transactions.', 'info');
-            } else {
-                showNotification('MetaMask Test Notifications disabled. You will only receive notifications in the browser.', 'info');
-            }
-        }
-    });
-
-    // Add this code to the setupMetaMaskEventListeners function, after the enable swap recommendations event listener
+            // Show feedback to user
+            showNotification(`Swap recommendations ${this.checked ? 'enabled' : 'disabled'}`, 'info');
+        });
+    }
 
     // Event listener for testing notifications
     document.addEventListener('click', function(event) {
