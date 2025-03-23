@@ -575,12 +575,14 @@ function updateWalletCard() {
                 recommendedAction = 'BUY';
                 const targetEthValue = (totalValue * targetEthMin / 100);
                 swapAmount = targetEthValue - ethValueUSD;
+                console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                 swapDirection = 'USDC → ETH';
             } else if (currentEthAllocation > targetEthMax + severeImbalanceThreshold) {
                 // Severe imbalance - too much ETH regardless of consensus
                 recommendedAction = 'SELL';
                 const targetEthValue = (totalValue * targetEthMax / 100);
                 swapAmount = ethValueUSD - targetEthValue;
+                console.log(`Portfolio rebalance (SELL): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                 swapDirection = 'ETH → USDC';
             } else if (aiConsensus) {
                 // For moderate imbalance, use consensus if available
@@ -588,12 +590,42 @@ function updateWalletCard() {
                 
                 // Calculate swap amount based on consensus
                 if (recommendedAction === 'BUY' && currentEthAllocation < targetEthMin) {
+                    // Below range - bring to minimum target
                     const targetEthValue = (totalValue * targetEthMin / 100);
                     swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`LLM Consensus BUY (below range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMin}%, Swap Amount: $${swapAmount.toFixed(2)}`);
                     swapDirection = 'USDC → ETH';
-                } else if (recommendedAction === 'SELL' && currentEthAllocation > targetEthMax) {
-                    const targetEthValue = (totalValue * targetEthMax / 100);
-                    swapAmount = ethValueUSD - targetEthValue;
+                } else if (recommendedAction === 'BUY' && currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                    // If already within range, make a balanced buy recommendation
+                    // Calculate a moderate buy that moves halfway from current to target max
+                    const midPoint = (targetEthMax + currentEthAllocation) / 2;
+                    const targetEthValue = (totalValue * midPoint / 100);
+                    swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`LLM Consensus BUY (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    swapDirection = 'USDC → ETH';
+                } else if (recommendedAction === 'BUY') {
+                    // If above range, no buy needed
+                    swapAmount = 0;
+                    console.log(`LLM Consensus BUY (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, above target range, no swap needed`);
+                    swapDirection = 'USDC → ETH';
+                } else if (recommendedAction === 'SELL') {
+                    // If already within range, make a balanced sell recommendation
+                    if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                        // Calculate a moderate sell that moves 1/3 of the way from current to target min
+                        const midPoint = (targetEthMin + currentEthAllocation) / 2;
+                        const targetEthValue = (totalValue * midPoint / 100);
+                        swapAmount = ethValueUSD - targetEthValue;
+                        console.log(`LLM Consensus SELL (within range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${midPoint.toFixed(1)}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else if (currentEthAllocation > targetEthMax) {
+                        // If above range, bring to maximum target
+                        const targetEthValue = (totalValue * targetEthMax / 100);
+                        swapAmount = ethValueUSD - targetEthValue;
+                        console.log(`LLM Consensus SELL (above range): Current: ${currentEthAllocation.toFixed(1)}%, Target: ${targetEthMax}%, Swap Amount: $${swapAmount.toFixed(2)}`);
+                    } else {
+                        // If below range, no sell needed (this shouldn't happen for SELL)
+                        swapAmount = 0;
+                        console.log(`LLM Consensus SELL (unusual scenario): Current: ${currentEthAllocation.toFixed(1)}%, below target range, no swap needed`);
+                    }
                     swapDirection = 'ETH → USDC';
                 }
             } else {
@@ -603,14 +635,29 @@ function updateWalletCard() {
                     recommendedAction = 'BUY';
                     const targetEthValue = (totalValue * targetEthMin / 100);
                     swapAmount = targetEthValue - ethValueUSD;
+                    console.log(`Portfolio rebalance (BUY): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                     swapDirection = 'USDC → ETH';
                 } else if (currentEthAllocation > targetEthMax) {
                     recommendedAction = 'SELL';
                     const targetEthValue = (totalValue * targetEthMax / 100);
                     swapAmount = ethValueUSD - targetEthValue;
+                    console.log(`Portfolio rebalance (SELL): Target ETH Value: $${targetEthValue.toFixed(2)}, Current ETH Value: $${ethValueUSD.toFixed(2)}, Swap Amount: $${swapAmount.toFixed(2)}`);
                     swapDirection = 'ETH → USDC';
                 }
             }
+        }
+        
+        // Ensure swap amount is always positive and meaningful
+        if (swapAmount < 0) {
+            console.log(`Correcting negative swap amount (${swapAmount.toFixed(2)}) to 0`);
+            swapAmount = 0;
+        }
+        
+        // Minimum significant swap amount (to avoid dust trades)
+        const MIN_SIGNIFICANT_SWAP = 0.10; // $0.10 minimum
+        if (swapAmount > 0 && swapAmount < MIN_SIGNIFICANT_SWAP) {
+            console.log(`Increasing tiny swap amount from ${swapAmount.toFixed(2)} to minimum ${MIN_SIGNIFICANT_SWAP}`);
+            swapAmount = MIN_SIGNIFICANT_SWAP;
         }
         
         // Get recommending models
@@ -647,6 +694,57 @@ function updateWalletCard() {
                 <span class="text-gray-400">(Empty Portfolio)</span>
               </div>`;
         
+        // Only trigger notifications if we have a valid recommendation and sufficient imbalance
+        if (recommendedAction !== 'HOLD' && swapAmount > 0) {
+            // Check conditions based on specified rules:
+            // 1. Portfolio is outside target range (trigger notification for rebalancing)
+            const isPortfolioOutOfRange = (currentEthAllocation < targetEthMin || currentEthAllocation > targetEthMax);
+            
+            // 2. At least 2 LLMs agree on a BUY/SELL action
+            const consensusModels = recommendingModels.length;
+            const hasLLMConsensus = consensusModels >= 2;
+            
+            // Only send notification if:
+            // - Portfolio is outside target range (for rebalancing) OR
+            // - We have LLM consensus from at least 2 models
+            if (isPortfolioOutOfRange || hasLLMConsensus) {
+                
+                // Check if enough time has passed since last notification (5 minutes minimum)
+                const now = Date.now();
+                const timeSinceLastNotification = now - (window.lastNotificationTimestamps[recommendedAction] || 0);
+                const minimumInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+                
+                if (timeSinceLastNotification >= minimumInterval) {
+                    console.log(`Triggering notification for ${recommendedAction} based on ${
+                        isPortfolioOutOfRange ? 'portfolio imbalance' : 'LLM consensus'
+                    }`);
+                    
+                    // Create appropriate message for the notification
+                    let notificationMessage = '';
+                    if (recommendedAction === 'BUY') {
+                        notificationMessage = `Suggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
+                        console.log(`Notification message for BUY: ${notificationMessage} (swapAmount: ${swapAmount})`);
+                    } else if (recommendedAction === 'SELL') {
+                        // For SELL, we need to convert the USD amount to ETH
+                        const ethAmount = swapAmount / currentPrice;
+                        notificationMessage = `Suggested Swap: ~${ethAmount.toFixed(4)} ${swapDirection}`;
+                        console.log(`Notification message for SELL: ${notificationMessage} (ethAmount: ${ethAmount}, swapAmount: ${swapAmount})`);
+                    }
+                    
+                    // Trigger the notification
+                    if (notificationMessage && window.sendWalletNotification) {
+                        window.sendWalletNotification(recommendedAction, notificationMessage);
+                        // Update the timestamp
+                        window.lastNotificationTimestamps[recommendedAction] = now;
+                    }
+                } else {
+                    console.log(`Skipping ${recommendedAction} notification - too soon since last one (${Math.floor(timeSinceLastNotification/1000)}s ago)`);
+                }
+            } else {
+                console.log(`Not sending notification: portfolio in range=${currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax}, consensus=${hasLLMConsensus}`);
+            }
+        }
+        
         // Recommendation section based on whether we have balances and AI decisions
         const recommendationSection = `
             <div class="col-span-2 mt-3 mb-1 space-y-2">
@@ -656,7 +754,7 @@ function updateWalletCard() {
                         recommendedAction === 'BUY' ? 'text-green-400' :
                         recommendedAction === 'SELL' ? 'text-red-400' :
                         'text-blue-400'
-                    }">${recommendedAction}</span>
+                    }" data-recommended-action="${recommendedAction}">${recommendedAction}</span>
                 </div>
                 ${recommendingModels.length > 0 ? `
                 <div class="flex items-center">
@@ -667,7 +765,9 @@ function updateWalletCard() {
                 ${swapAmount > 0 ? `
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Suggested Swap:</span>
-                    <span class="text-gray-300">~$${swapAmount.toFixed(2)} ${swapDirection}</span>
+                    <span class="text-gray-300" data-suggested-swap="${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}">
+                        ${recommendedAction === 'BUY' ? `~$${swapAmount.toFixed(2)} ${swapDirection}` : `~${(swapAmount / currentPrice).toFixed(4)} ${swapDirection}`}
+                    </span>
                 </div>
                 ` : ''}
                 ${totalValue > 0 ? `
@@ -680,6 +780,27 @@ function updateWalletCard() {
                 <div class="flex items-center">
                     <span class="text-gray-400 w-40">Warning:</span>
                     <span class="text-yellow-400">Portfolio significantly ${currentEthAllocation < targetEthMin ? 'below' : 'above'} target range</span>
+                </div>
+                ` : ''}
+                ${swapAmount > 0 ? `
+                <div class="mt-3 border-t border-gray-700 pt-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-400">Enable MetaMask Test Notifications:</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer" ${window.enableSwapRecommendations ? 'checked' : ''}>
+                            <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">
+                        ${window.enableSwapRecommendations ? 
+                            'You will receive test notifications in MetaMask but will not send any transactions' : 
+                            'Enable to receive test notifications in MetaMask'}
+                    </p>
+                    <div class="mt-2 text-center">
+                        <button id="test-notification-btn" class="text-xs bg-blue-800 hover:bg-blue-700 text-gray-200 px-2 py-1 rounded transition-colors">
+                            Test Notification Now
+                        </button>
+                    </div>
                 </div>
                 ` : ''}
             </div>
@@ -818,12 +939,16 @@ async function getWalletBalances() {
     try {
         console.log("Fetching wallet balances for", window.userAccount);
         
+        // Store the current ETH price before resetting other values
+        // This helps prevent "currentPrice is not defined" errors during transitions
+        const currentEthPrice = window.walletBalances ? window.walletBalances.ethusd : 0;
+        
         // Reset wallet balances to zero first to ensure we don't display stale data
         // This is crucial when switching between accounts
         window.walletBalances = {
             eth: 0,
             usdc: 0,
-            ethusd: 0,
+            ethusd: currentEthPrice, // Preserve the current ETH price during reset
             totalValueUSD: 0
         };
         
@@ -897,8 +1022,13 @@ async function getWalletBalances() {
         // Update loading state to show price data retrieval
         showLoadingWalletState("Retrieving ETH price data...");
         
-        // Get ETH price from the UI - NEVER use a default price
+        // Get ETH price using a robust three-step approach:
+        // 1. Try UI element
+        // 2. Try API endpoint
+        // 3. Use preserved price if everything else fails
         let validPriceFound = false;
+        
+        // Step 1: Try getting price from UI first
         try {
             const priceText = document.getElementById('eth-price').textContent;
             if (priceText && priceText !== 'Error' && priceText !== 'Waiting for data...') {
@@ -909,9 +1039,13 @@ async function getWalletBalances() {
                     validPriceFound = true;
                 }
             }
-            
-            // If UI price failed, try the API directly
-            if (!validPriceFound) {
+        } catch (uiError) {
+            console.log("Error getting ETH price from UI:", uiError.message);
+        }
+        
+        // Step 2: If UI price failed, try the API directly
+        if (!validPriceFound) {
+            try {
                 const response = await fetch('/api/trading-data');
                 const data = await response.json();
                 if (data && data.eth_price && !isNaN(parseFloat(data.eth_price)) && parseFloat(data.eth_price) > 0) {
@@ -919,17 +1053,26 @@ async function getWalletBalances() {
                     console.log("ETH/USD price from API:", window.walletBalances.ethusd);
                     validPriceFound = true;
                 }
+            } catch (apiError) {
+                console.log("Error getting ETH price from API:", apiError.message);
             }
-        } catch (priceError) {
-            console.log("Error getting ETH price:", priceError.message);
-            validPriceFound = false;
+        }
+        
+        // Step 3: If we still don't have a valid price, keep the preserved price
+        // if it exists, otherwise set to 0
+        if (!validPriceFound) {
+            if (currentEthPrice > 0) {
+                console.log("Using preserved ETH price:", currentEthPrice);
+                // Keep existing price (already set above)
+                validPriceFound = true;
+            } else {
+                console.log("No valid ETH price available - cannot calculate wallet value");
+                window.walletBalances.ethusd = 0;
+                window.walletBalances.totalValueUSD = 0;
+            }
         }
         
         if (!validPriceFound) {
-            console.log("No valid ETH price available - cannot calculate wallet value");
-            window.walletBalances.ethusd = 0;
-            window.walletBalances.totalValueUSD = 0;
-            
             // Show specific message about missing price data
             const walletCard = document.getElementById('wallet-card');
             if (walletCard) {
@@ -1487,7 +1630,6 @@ async function connectWallet() {
 async function switchNetwork(chainId) {
     // Show feedback to user that we're switching networks
     const walletBtn = document.getElementById('wallet-btn');
-    const originalText = walletBtn.textContent;
     walletBtn.textContent = 'Switching Network...';
     
     // Also show switching state in the wallet card
@@ -1567,17 +1709,18 @@ async function switchNetwork(chainId) {
                 } else {
                     console.log(`Network mismatch: wanted ${chainId}, got ${currentChainId}`);
                 }
-    } catch (error) {
+            } catch (error) {
                 console.log(`Error after network switch: ${error.message}`);
             } finally {
-                // Restore button text regardless of outcome
-                walletBtn.textContent = originalText;
+                // Properly restore the wallet button including disconnect icon
+                updateWalletUI();
             }
         }, 2000); // Give time for network switch to stabilize
     } catch (error) {
         console.log(`Network switch error: ${error.message}`);
         window.showNotification('error', `Network switch failed: ${error.message}`);
-        walletBtn.textContent = originalText;
+        // Properly restore the wallet button including disconnect icon
+        updateWalletUI();
     }
 }
 
@@ -1703,6 +1846,77 @@ function setupMetaMaskEventListeners() {
         // Reset flag after setting up event listeners
         window.isSettingUpMetaMaskEvents = false;
     }
+    
+    // Additional event listener for the enable swap recommendations toggle
+    document.addEventListener('click', function(event) {
+        if (event.target && event.target.id === 'enable-swap-recommendations') {
+            window.enableSwapRecommendations = event.target.checked;
+            // Store preference in localStorage
+            localStorage.setItem('stbchef_enable_swap_recommendations', window.enableSwapRecommendations);
+            // Update the UI to reflect the change
+            updateWalletCard();
+            
+            // Show notification about the change
+            if (window.enableSwapRecommendations) {
+                showNotification('MetaMask Test Notifications enabled. You will receive test notifications in MetaMask but will not send any transactions.', 'info');
+            } else {
+                showNotification('MetaMask Test Notifications disabled. You will only receive notifications in the browser.', 'info');
+            }
+        }
+    });
+
+    // Add this code to the setupMetaMaskEventListeners function, after the enable swap recommendations event listener
+
+    // Event listener for testing notifications
+    document.addEventListener('click', function(event) {
+        if (event.target && event.target.id === 'test-notification-btn') {
+            // Find current recommended action and swap details from the UI
+            const actionElement = document.querySelector('[data-recommended-action]');
+            const swapElement = document.querySelector('[data-suggested-swap]');
+            
+            if (actionElement && swapElement) {
+                const action = actionElement.getAttribute('data-recommended-action');
+                const swapMessage = swapElement.getAttribute('data-suggested-swap');
+                
+                if (action && swapMessage && window.sendWalletNotification) {
+                    window.sendWalletNotification(action, swapMessage);
+                    // Removed duplicate notification since sendWalletNotification already shows one
+                }
+            } else {
+                // Fallback if we can't find the elements with data attributes
+                const recommendedAction = document.querySelector('.recommended-action');
+                const suggestedSwap = document.querySelector('.suggested-swap');
+                
+                if (recommendedAction && suggestedSwap) {
+                    const action = recommendedAction.textContent.trim();
+                    const swapMessage = suggestedSwap.textContent.trim();
+                    
+                    if ((action === 'BUY' || action === 'SELL') && swapMessage && window.sendWalletNotification) {
+                        window.sendWalletNotification(action, `Suggested Swap: ${swapMessage}`);
+                        // Removed duplicate notification
+                    }
+                } else {
+                    // Last resort: just try to parse directly from the wallet card
+                    const actionText = document.querySelector('span.text-green-400, span.text-red-400');
+                    const swapText = document.querySelector('span.text-gray-300:not(.text-xs)');
+                    
+                    if (actionText && swapText && window.sendWalletNotification) {
+                        const action = actionText.textContent.trim();
+                        const swapMessage = swapText.textContent.trim();
+                        
+                        if ((action === 'BUY' || action === 'SELL') && swapMessage) {
+                            window.sendWalletNotification(action, swapMessage);
+                            // Removed duplicate notification
+                        } else {
+                            showNotification('No valid recommendation found to test', 'warning');
+                        }
+                    } else {
+                        showNotification('No recommendation available to test', 'warning');
+                    }
+                }
+            }
+        }
+    });
 }
 
 /**
@@ -1861,9 +2075,19 @@ function handleAccountsChanged(accounts) {
     
     console.log(`Account changed from ${window.userAccount || 'none'} to ${newAccount}`);
     
+    // IMPORTANT: Preserve the current ETH price before making any changes
+    // This prevents the "currentPrice is not defined" error during transition
+    const currentEthPrice = window.walletBalances ? window.walletBalances.ethusd : 0;
+    console.log(`Preserving current ETH price during account change: $${currentEthPrice}`);
+    
     // Update the last known account
     window.lastKnownAccount = window.userAccount;
+    
+    // Update the user account
     window.userAccount = accounts[0];
+    
+    // Display loading state in wallet card
+    showLoadingWalletState(`Loading data for account ${formatWalletAddress(accounts[0])}...`);
     
     // Clear old raw accuracy data since we're connecting to a new wallet
     localStorage.removeItem('stbchef_raw_accuracy');
@@ -1875,11 +2099,14 @@ function handleAccountsChanged(accounts) {
         mistral: { correct: 0, total: 0, accuracy: 0 }
     };
     
-    // Reset wallet UI and balances to clear data from previous account
-    resetWalletBalances();
-    
-    // Display loading state in wallet card
-    showLoadingWalletState(`Loading data for account ${formatWalletAddress(accounts[0])}...`);
+    // Reset wallet balances BUT PRESERVE THE ETH PRICE
+    // This is crucial to prevent the "currentPrice is not defined" error
+    window.walletBalances = {
+        eth: 0,
+        usdc: 0,
+        ethusd: currentEthPrice, // Keep the current ETH price
+        totalValueUSD: 0
+    };
     
     // Save to localStorage
     localStorage.setItem(window.STORAGE_KEYS.WALLET, window.userAccount);
@@ -1890,27 +2117,43 @@ function handleAccountsChanged(accounts) {
     // Update UI
     updateWalletUI();
     
-    // Update wallet data with small delay to ensure previous data is cleared
-    setTimeout(() => {
-        getWalletBalances()
-            .then(() => {
-                console.log('Successfully fetched balances for new account');
-            })
-            .catch(error => {
-                console.error('Error fetching wallet balances after account change:', error);
-            });
+    // Create a sequential promise chain to ensure proper loading order
+    // First, ensure we get fresh trading data to update ETH price if needed
+    fetch('/api/trading-data')
+        .then(res => res.json())
+        .then(data => {
+            // Update ETH price if available from the API
+            if (data && data.eth_price && !isNaN(parseFloat(data.eth_price))) {
+                window.walletBalances.ethusd = parseFloat(data.eth_price);
+                console.log(`Updated ETH price from API: $${window.walletBalances.ethusd}`);
+            }
             
-        // Update model stats and LLM decisions on account change
-        window.fetchWalletStats()
-            .catch(error => console.error('Error fetching wallet stats after account change:', error));
-        
-        fetch('/api/trading-data')
-            .then(res => res.json())
-            .then(data => window.updateModelDecisions(data, window.userAccount))
-            .catch(error => console.error('Error updating model decisions:', error));
-    }, 100);
+            // Now that we have a valid ETH price, get wallet balances
+            return getWalletBalances();
+        })
+        .then(() => {
+            console.log('Successfully fetched balances for new account');
+            return window.fetchWalletStats();
+        })
+        .then(() => {
+            return fetch('/api/trading-data');
+        })
+        .then(res => res.json())
+        .then(data => {
+            window.updateModelDecisions(data, window.userAccount);
+            console.log('Account change complete - all data updated successfully');
+        })
+        .catch(error => {
+            console.error('Error updating account data:', error);
+            // If there was an error, try to recover by updating the wallet card
+            try {
+                updateWalletCard();
+            } catch (cardError) {
+                console.error('Error updating wallet card during recovery:', cardError);
+            }
+        });
     
-    // Request permission for new account
+    // Request notification permission for new account
     window.requestNotificationPermission()
         .catch(error => console.error('Error requesting notification permission:', error));
     
@@ -2199,3 +2442,12 @@ window.setupMetaMaskEventListeners = setupMetaMaskEventListeners;
 window.handleAccountsChanged = handleAccountsChanged;
 window.formatWalletAddress = formatWalletAddress;
 window.saveDisconnectedAccounts = saveDisconnectedAccounts;
+
+// At the beginning of the file, after the initial variables, add:
+
+// Timestamp tracking for notifications to prevent spam
+window.lastNotificationTimestamps = {
+    BUY: 0,
+    SELL: 0,
+    HOLD: 0
+};
