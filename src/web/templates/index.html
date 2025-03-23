@@ -145,7 +145,7 @@
                         showNotification(`Account ${formatWalletAddress(persistedWallet)} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
                     }, 1000);
                     
-                    // Ensure model decisions show "Connect wallet first"
+                    // Ensure model decisions show "Connect your wallet first"
                     fetch('/api/trading-data')
                         .then(response => response.json())
                         .then(data => {
@@ -195,7 +195,7 @@
                             // Show a notification
                             showNotification(`Account ${formatWalletAddress(accounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
                             
-                            // Ensure model decisions show "Connect wallet first"
+                            // Ensure model decisions show "Connect your wallet first"
                             fetch('/api/trading-data')
                                 .then(response => response.json())
                                 .then(data => {
@@ -226,7 +226,7 @@
                                     // Show a notification
                                     showNotification(`Account ${formatWalletAddress(requestedAccounts[0])} is disconnected. Click 'Connect Wallet' to reconnect.`, 'info');
                                     
-                                    // Ensure model decisions show "Connect wallet first"
+                                    // Ensure model decisions show "Connect your wallet first"
                                     fetch('/api/trading-data')
                                         .then(response => response.json())
                                         .then(data => {
@@ -325,7 +325,7 @@
                         updateWalletUI();
                     }
                 } else {
-                    // Ensure model decisions show "Connect wallet first"
+                    // Ensure model decisions show "Connect your wallet first"
                     fetch('/api/trading-data')
                         .then(response => response.json())
                         .then(data => {

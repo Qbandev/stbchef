@@ -96,7 +96,7 @@ function displayEmptyStats() {
         if (statsContainer) {
             statsContainer.innerHTML = `
                 <div class="text-center py-2">
-                    <p class="text-gray-400 mb-2">Connect your wallet to see model performance.</p>
+                    <p class="font-bold text-xl cyber-value animate-pulse text-gray-400">Connect your wallet first</p>
                 </div>
             `;
         }
