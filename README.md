@@ -58,11 +58,11 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ## Quick Start
 
-1. **Prerequisites**
+1. **Prerequisites** (Install these before proceeding)
    - Python 3.10+ (recommended version: 3.10.4)
    - [Poetry](https://python-poetry.org/docs/#installation) for dependency management
 
-2. **Setup Environment**
+2. **Setup Environment** (After prerequisites are installed)
    ```bash
    # Install Python 3.10+ if not installed
    # macOS (using Homebrew):
@@ -99,20 +99,16 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 ```mermaid
 graph TD
-    A[Market Data APIs] --> B[AI Trading Decisions]
-    
-    B --> C[Analysis Engine]
-    D[User Wallet] --> E[Portfolio Analysis]
-    
-    E --> F[Recommendation Engine]
-    C --> F
-    
-    F --> G[Dashboard]
-    C --> G
-    E --> G
-    
-    H[(Database)] -.-> C
-    H -.-> G
+    A[User Wallet] --> B[Portfolio Analysis]
+    C[Market Data APIs] --> D[AI Trading Decisions]
+    D --> E[Analysis Engine]
+    E --> H[Recommendation Engine]
+    B --> G
+    B --> H
+    F[(Database)]  -.->|Historical Data| E
+    F -.->|User Settings| G[Dashboard]
+    H --> G
+    E --> G 
 ```
 
 The architecture consists of five core components:
