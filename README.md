@@ -111,8 +111,7 @@ graph TD
     E --> G
 ```
 
-The architecture consists of five core components:
-
+The architecture consists of eight core components:
 - **Market Data APIs**: Provide real-time cryptocurrency data and sentiment indicators
 - **AI Trading Decisions**: Multiple LLMs analyze market data and generate buy/sell/hold signals
 - **Analysis Engine**: Compares model performance and generates accuracy metrics
