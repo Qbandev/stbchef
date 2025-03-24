@@ -128,7 +128,7 @@ async function sendWalletNotification(signalType, message) {
                         console.log(`BUY calculation: $${swapAmount.toFixed(2)} / $${currentPrice} = ${ethAmount} ETH (after rounding)`);
                         
                         // Validate the ETH amount format is valid for toWei
-                        const ethAmountString = ethAmount.toString();
+                        let ethAmountString = ethAmount.toString();
                         if (!/^\d*\.?\d*$/.test(ethAmountString) || isNaN(ethAmount) || !isFinite(ethAmount)) {
                             console.log(`Invalid ETH amount calculated: ${ethAmountString}. Using fallback.`);
                             ethAmount = 0;
@@ -272,7 +272,7 @@ async function sendWalletNotification(signalType, message) {
                             // For BUY notifications, we're simulating a token swap
                             // Since we can't actually send USDC in a native transaction,
                             // we'll create a "representative" transaction with the ETH equivalent
-                            const ethAmountString = ethAmount.toString();
+                            let ethAmountString = ethAmount.toString();
                             console.log(`BUY DEBUG - ethAmount: ${ethAmount}, ethAmountString: "${ethAmountString}"`);
                             
                             // Ensure the value is valid for toWei
@@ -339,7 +339,7 @@ async function sendWalletNotification(signalType, message) {
                     // This gives a more realistic preview of what would be sent
                     if (ethAmount > 0) {
                         try {
-                            const ethAmountString = ethAmount.toString();
+                            let ethAmountString = ethAmount.toString();
                             // Ensure the value is valid for toWei
                             if (!/^\d*\.?\d*$/.test(ethAmountString)) {
                                 throw new Error("Invalid ETH amount format");
