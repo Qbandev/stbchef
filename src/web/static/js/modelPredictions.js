@@ -125,13 +125,105 @@ function updateModelDecisions(data, walletAddress) {
                 const sellModels = getModelSellDecisions(decisions);
                 const currentPrice = data.eth_price.toFixed(2);
 
+                // Calculate swap amount based on wallet balances and price
+                let swapAmount = 0;
+                let swapDirection = '';
                 let message = '';
+                
+                // Get wallet balances for calculations
+                const ethBalance = window.walletBalances?.eth || 0;
+                const usdcBalance = window.walletBalances?.usdc || 0;
+                const ethPrice = parseFloat(data.eth_price);
+                
+                // Total value in USD
+                const ethValueUSD = ethBalance * ethPrice;
+                const totalValue = ethValueUSD + usdcBalance;
+                
+                // Current allocation percentages
+                const currentEthAllocation = totalValue > 0 ? (ethValueUSD / totalValue * 100) : 0;
+                
+                // Target allocation ranges (matching walletManager.js logic)
+                // These values should match those in walletManager.js
+                const isBullish = window.marketCondition === 'bullish';
+                const targetEthMin = isBullish ? 30 : 10; // 10-30% allocation in bearish, 30-60% in bullish
+                const targetEthMax = isBullish ? 60 : 30;
+                
                 if (consensus === 'BUY') {
+                    // Calculate BUY amount - similar to walletManager.js logic
+                    if (totalValue > 0) {
+                        if (currentEthAllocation < targetEthMin) {
+                            // Below range - bring to minimum target
+                            const targetEthValue = (totalValue * targetEthMin / 100);
+                            swapAmount = targetEthValue - ethValueUSD;
+                        } else if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                            // Within range - moderate buy to midpoint
+                            const midPoint = (targetEthMax + currentEthAllocation) / 2;
+                            const targetEthValue = (totalValue * midPoint / 100);
+                            swapAmount = targetEthValue - ethValueUSD;
+                        } else {
+                            // Above range - minimal buy amount for notification
+                            swapAmount = Math.min(10, usdcBalance * 0.05); // 5% of USDC or $10, whichever is smaller
+                        }
+                    } else {
+                        // No balance - use default small amount
+                        swapAmount = 10;
+                    }
+                    
+                    // Limit to available USDC balance
+                    if (usdcBalance > 0) {
+                        swapAmount = Math.min(swapAmount, usdcBalance * 0.95); // Limit to 95% of USDC balance
+                    }
+                    
+                    swapDirection = 'USDC → ETH';
                     message = `🟢 BUY Signal at $${currentPrice}\n`;
                     message += `Recommended by: ${buyModels.join(', ')}`;
+                    
+                    // Only add swap details if swapAmount is significant
+                    if (swapAmount >= 0.10) { // $0.10 minimum for meaningful swaps
+                        message += `\nSuggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
+                    }
                 } else if (consensus === 'SELL') {
+                    // Calculate SELL amount - similar to walletManager.js logic
+                    if (totalValue > 0) {
+                        if (currentEthAllocation > targetEthMax) {
+                            // Above range - bring to maximum target
+                            const targetEthValue = (totalValue * targetEthMax / 100);
+                            swapAmount = ethValueUSD - targetEthValue;
+                        } else if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
+                            // Within range - moderate sell to midpoint
+                            const midPoint = (targetEthMin + currentEthAllocation) / 2;
+                            const targetEthValue = (totalValue * midPoint / 100);
+                            swapAmount = ethValueUSD - targetEthValue;
+                        } else {
+                            // Below range - minimal sell amount for notification
+                            swapAmount = Math.min(ethValueUSD * 0.05, 10); // 5% of ETH value or $10, whichever is smaller
+                        }
+                    } else {
+                        // No balance - use default small amount 
+                        swapAmount = 10;
+                    }
+                    
+                    // Convert USD swap amount to ETH amount
+                    const ethAmount = ethPrice > 0 ? swapAmount / ethPrice : 0;
+                    
+                    // Limit to available ETH balance
+                    if (ethBalance > 0) {
+                        const maxEthToSell = ethBalance * 0.95; // Limit to 95% of ETH balance
+                        const maxEthSwapAmount = ethPrice * maxEthToSell;
+                        if (swapAmount > maxEthSwapAmount) {
+                            swapAmount = maxEthSwapAmount;
+                        }
+                    }
+                    
+                    swapDirection = 'ETH → USDC';
                     message = `🔴 SELL Signal at $${currentPrice}\n`;
                     message += `Recommended by: ${sellModels.join(', ')}`;
+                    
+                    // Only add swap details if swapAmount is significant
+                    if (swapAmount >= 0.10) { // $0.10 minimum for meaningful swaps
+                        const ethAmountToSell = ethPrice > 0 ? swapAmount / ethPrice : 0;
+                        message += `\nSuggested Swap: ~${ethAmountToSell.toFixed(4)} ${swapDirection}`;
+                    }
                 }
 
                 // Show browser notification for BUY and SELL signals only
@@ -147,6 +239,7 @@ function updateModelDecisions(data, walletAddress) {
                 setTimeout(() => {
                     getWalletBalances().then(() => {
                         // Send wallet notification after balances are refreshed - only for BUY and SELL
+                        // Pass the already calculated message with swap amount to avoid recalculation
                         console.log(`Calling sendWalletNotification(${consensus}, "${message}")`);
                         sendWalletNotification(consensus, message);
                     });
