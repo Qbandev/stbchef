@@ -87,7 +87,7 @@ async function sendWalletNotification(signalType, message) {
                 // Enhanced LLM signal format with pre-calculated swap amount
                 swapAmount = parseFloat(enhancedSignalMatch[1]);
                 if (!isNaN(swapAmount) && swapAmount > 0) {
-                    // Calculate ETH amount using the currentPrice
+                    // Calculate ETH amount using the currentPrice from wallet balances (defined above)
                     if (currentPrice > 0) {
                         ethAmount = swapAmount / currentPrice;
                         ethAmount = parseFloat(ethAmount.toFixed(8));
@@ -178,7 +178,7 @@ async function sendWalletNotification(signalType, message) {
                 // Enhanced LLM signal format with pre-calculated ETH amount
                 ethAmount = parseFloat(enhancedSignalMatch[1]);
                 if (!isNaN(ethAmount) && ethAmount > 0) {
-                    // Calculate USD amount using the currentPrice
+                    // Calculate USD amount using the currentPrice from wallet balances (defined above)
                     if (currentPrice > 0) {
                         swapAmount = ethAmount * currentPrice;
                         console.log(`Enhanced SELL Signal: Using provided ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
