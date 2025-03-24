@@ -320,8 +320,9 @@ class TradingDatabase:
                         older_prices = sum(recent_prices[3:6]) / 3
                         # Average of recent 3 prices
                         newer_prices = sum(recent_prices[0:3]) / 3
+                        # Add safety check for zero division
                         trend_change = (
-                            (newer_prices - older_prices) / older_prices) * 100
+                            (newer_prices - older_prices) / older_prices * 100) if older_prices != 0 else 0
 
                         # If we detect a strong trend (>2% movement), increase threshold
                         if abs(trend_change) > 2.0:
