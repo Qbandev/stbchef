@@ -83,8 +83,21 @@ async function sendWalletNotification(signalType, message) {
                 // Make sure currentPrice is valid before dividing
                 if (currentPrice > 0) {
                     // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
+                    // This calculates how much ETH the user would receive when swapping USDC
                     ethAmount = swapAmount / currentPrice;
-                    console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                    
+                    // Make sure we have a reasonable value that's not subject to floating point errors
+                    ethAmount = parseFloat(ethAmount.toFixed(8));
+                    console.log(`BUY calculation: $${swapAmount.toFixed(2)} / $${currentPrice} = ${ethAmount} ETH (after rounding)`);
+                    
+                    // Validate the ETH amount format is valid for toWei
+                    const ethAmountString = ethAmount.toString();
+                    if (!/^\d*\.?\d*$/.test(ethAmountString) || isNaN(ethAmount) || !isFinite(ethAmount)) {
+                        console.log(`Invalid ETH amount calculated: ${ethAmountString}. Using fallback.`);
+                        ethAmount = 0;
+                    } else {
+                        console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                    }
                 } else {
                     console.log(`Cannot calculate ETH amount: currentPrice (${currentPrice}) is invalid`);
                     ethAmount = 0;
@@ -94,26 +107,35 @@ async function sendWalletNotification(signalType, message) {
             // Extract the ETH amount from the message string (e.g., "Suggested Swap: ~0.0123 ETH → $25.67 USDC")
             const ethMatch = message.match(/~([0-9.]+) ETH/);
             if (ethMatch && ethMatch[1]) {
-                ethAmount = parseFloat(ethMatch[1]);
-                // Make sure currentPrice is valid before multiplying
-                if (currentPrice > 0) {
-                    // Calculate USD equivalent using the currentPrice from wallet balances
-                    swapAmount = ethAmount * currentPrice;
-                    console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                // Validate the ETH amount format is valid before parsing
+                const rawEthAmount = ethMatch[1];
+                if (!/^\d*\.?\d*$/.test(rawEthAmount) || isNaN(parseFloat(rawEthAmount)) || !isFinite(parseFloat(rawEthAmount))) {
+                    console.log(`Invalid ETH amount format in message: ${rawEthAmount}. Using fallback.`);
+                    ethAmount = 0;
                 } else {
-                    console.log(`Cannot calculate USD amount: currentPrice (${currentPrice}) is invalid`);
-                    swapAmount = 0;
+                    ethAmount = parseFloat(rawEthAmount);
+                    
+                    // Make sure currentPrice is valid before multiplying
+                    if (currentPrice > 0) {
+                        // Calculate USD equivalent using the currentPrice from wallet balances
+                        swapAmount = ethAmount * currentPrice;
+                        console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                    } else {
+                        console.log(`Cannot calculate USD amount: currentPrice (${currentPrice}) is invalid`);
+                        swapAmount = 0;
+                    }
                 }
             }
         }
         
         // Validate the extracted amounts - extra safety check
         if (swapAmount <= 0 || ethAmount <= 0) {
-            console.log("Failed to parse valid swap amounts from message:", message);
+            console.log(`Failed to parse valid swap amounts from message: "${message}"`);
+            console.log(`DEBUG - signalType: ${signalType}, swapAmount: ${swapAmount}, ethAmount: ${ethAmount}, currentPrice: ${currentPrice}`);
             return;
         }
         
-        console.log(`Parsed amounts from message: ${swapAmount.toFixed(2)} USD, ${ethAmount.toFixed(4)} ETH`);
+        console.log(`Parsed amounts from message: ${swapAmount.toFixed(2)} USD, ${ethAmount.toFixed(8)} ETH`);
         
         // Check if user has enabled actionable swap recommendations
         if (window.enableSwapRecommendations === true) {
@@ -167,10 +189,126 @@ async function sendWalletNotification(signalType, message) {
                 let txParams = {
                     from: window.userAccount,
                     to: window.userAccount,
-                    value: window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether')), // Small amount for visibility
-                    data: window.web3.utils.toHex(message), // Use the entire message for better clarity
                     gas: gasLimit,
+                    data: window.web3.utils.toHex(message), // Use the entire message for better clarity
                 };
+                
+                // Set the appropriate value based on the signal type
+                if (signalType === 'BUY') {
+                    // For BUY signals, we need to use a proper ETH value that represents the swap
+                    if (ethAmount > 0 && swapAmount > 0) {
+                        try {
+                            // For BUY notifications, we're simulating a token swap
+                            // Since we can't actually send USDC in a native transaction,
+                            // we'll create a "representative" transaction with the ETH equivalent
+                            const ethAmountString = ethAmount.toString();
+                            console.log(`BUY DEBUG - ethAmount: ${ethAmount}, ethAmountString: "${ethAmountString}"`);
+                            
+                            // Ensure the value is valid for toWei
+                            if (!/^\d*\.?\d*$/.test(ethAmountString)) {
+                                throw new Error("Invalid ETH amount format");
+                            }
+                            
+                            // Check if amount is too large for safe conversion
+                            if (ethAmount > 1000000) {
+                                console.warn("ETH amount too large, limiting to 1,000,000 ETH for safety");
+                                ethAmount = 1000000;
+                                ethAmountString = ethAmount.toString();
+                            }
+                            
+                            // For BUY signals, we should send the ETH amount that would be received
+                            // This represents what the user would get when swapping USDC for ETH
+                            const weiAmount = window.web3.utils.toWei(ethAmountString, 'ether');
+                            console.log(`BUY DEBUG - Wei amount: ${weiAmount}`);
+                            txParams.value = window.web3.utils.toHex(weiAmount);
+                            
+                            // Double-check the hex value
+                            console.log(`BUY DEBUG - Final hex value: ${txParams.value}`);
+                            
+                            // Make sure this matches what we expect
+                            const ethFromHex = window.web3.utils.fromWei(window.web3.utils.hexToNumberString(txParams.value), 'ether');
+                            console.log(`BUY DEBUG - Converting hex back to ETH: ${ethFromHex}`);
+                            
+                            console.log(`Using equivalent ETH amount for BUY notification: ${ethAmountString} ETH (USDC value: $${swapAmount.toFixed(2)})`);
+                            
+                            // Update data to show it's a test transaction representing a BUY
+                            const additionalData = ` [THIS IS A TEST - Would swap $${swapAmount.toFixed(2)} USDC to receive ~${ethAmount.toFixed(6)} ETH]`;
+                            txParams.data = window.web3.utils.toHex(message + additionalData);
+                        } catch (valueError) {
+                            console.error("Error setting ETH value for BUY:", valueError);
+                            // Try to create a reasonable fallback based on the current price
+                            if (currentPrice > 0) {
+                                try {
+                                    // Use 0.0005 ETH as a minimum value
+                                    const minimalEth = 0.0005;
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(minimalEth.toString(), 'ether'));
+                                    console.log(`Using minimal ETH amount for BUY notification: ${minimalEth} ETH`);
+                                } catch (fallbackError) {
+                                    // If even that fails, use absolute minimum
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    console.log(`Falling back to absolute minimum for BUY notification due to error: ${fallbackError.message}`);
+                                }
+                            } else {
+                                // Default fallback
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                console.log(`Falling back to test amount for BUY notification due to error: ${valueError.message}`);
+                            }
+                        }
+                    } else {
+                        // Fallback if parsing failed
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        console.log(`Falling back to test amount for BUY notification`);
+                    }
+                } else if (signalType === 'SELL') {
+                    // For SELL signals, we use the actual ETH amount from the parsed message
+                    // This gives a more realistic preview of what would be sent
+                    if (ethAmount > 0) {
+                        try {
+                            const ethAmountString = ethAmount.toString();
+                            // Ensure the value is valid for toWei
+                            if (!/^\d*\.?\d*$/.test(ethAmountString)) {
+                                throw new Error("Invalid ETH amount format");
+                            }
+                            
+                            // Check if amount is too large for safe conversion
+                            if (ethAmount > 1000000) {
+                                console.warn("ETH amount too large, limiting to 1,000,000 ETH for safety");
+                                ethAmount = 1000000;
+                                ethAmountString = ethAmount.toString();
+                            }
+                            
+                            txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(ethAmountString, 'ether'));
+                            console.log(`Using actual ETH amount for SELL notification: ${ethAmountString} ETH`);
+                            
+                            // Update data to show it's a test transaction
+                            const additionalData = ` [THIS IS A TEST - Would swap ${ethAmount.toFixed(6)} ETH to receive ~$${swapAmount.toFixed(2)} USDC]`;
+                            txParams.data = window.web3.utils.toHex(message + additionalData);
+                        } catch (valueError) {
+                            console.error("Error setting ETH value:", valueError);
+                            // Try to create a reasonable fallback based on the current price
+                            if (currentPrice > 0 && swapAmount > 0) {
+                                try {
+                                    // Recalculate from the swap amount if available
+                                    const fallbackEth = Math.min(0.001, swapAmount / currentPrice);
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(fallbackEth.toString(), 'ether'));
+                                    console.log(`Using calculated fallback ETH amount for SELL notification: ${fallbackEth} ETH`);
+                                } catch (fallbackError) {
+                                    // If even that fails, use absolute minimum
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    console.log(`Falling back to absolute minimum for SELL notification: ${fallbackError.message}`);
+                                }
+                            } else {
+                                // Default fallback
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                console.log(`Falling back to test amount for SELL notification: ${valueError.message}`);
+                            }
+                        }
+                    } else {
+                        // Fallback if parsing failed
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        console.log(`Falling back to test amount for SELL notification`);
+                    }
+                }
                 
                 // Add appropriate gas parameters based on the network
                 if (isEthereum) {

@@ -19,7 +19,7 @@ class FearGreedClient:
         self.base_url = "https://api.alternative.me/fng/"
         self.session = requests.Session()
         self._cache = {"timestamp": 0, "data": None}
-        self.cache_duration = int(time.time())
+        self.cache_duration = 12 * 3600  # Cache for 12 hours
 
     def get_fear_greed_index(self) -> Dict[str, str]:
         """
@@ -68,31 +68,4 @@ class FearGreedClient:
             return {
                 "fear_greed_value": "50",  # Neutral value
                 "fear_greed_sentiment": "neutral"
-            }
-
-    def get_index(self) -> Dict[str, str]:
-        """
-        Get current Fear & Greed Index value and classification.
-
-        Returns:
-            Dictionary containing value and value_classification
-        """
-        try:
-            response = self.session.get(f"{self.base_url}?limit=1")
-            response.raise_for_status()
-            data = response.json()
-
-            if "data" not in data or not data["data"]:
-                raise ValueError("Invalid response from Fear & Greed API")
-
-            return {
-                "value": data["data"][0]["value"],
-                "value_classification": data["data"][0]["value_classification"]
-            }
-
-        except Exception as e:
-            print(f"Error fetching Fear & Greed Index: {str(e)}")
-            return {
-                "value": "50",  # Neutral value
-                "value_classification": "Neutral"
             }
