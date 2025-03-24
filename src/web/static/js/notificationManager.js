@@ -1,5 +1,9 @@
 // Notification management functions for Simple Crypto Trading Bot Chef
 
+// Initialize global variables
+window.llmSellAdditionalData = null;
+window.llmBuyAdditionalData = null;
+
 /**
  * Request permission to send browser notifications
  * @returns {Promise<string>} - Promise resolving to the permission state
@@ -76,53 +80,120 @@ async function sendWalletNotification(signalType, message) {
         let ethAmount = 0;
         
         if (signalType === 'BUY') {
-            // Extract the USD amount from the message string (e.g., "Suggested Swap: ~$1.42 USDC → ETH")
-            const usdMatch = message.match(/~\$([0-9.]+)/);
-            if (usdMatch && usdMatch[1]) {
-                swapAmount = parseFloat(usdMatch[1]);
-                // Make sure currentPrice is valid before dividing
-                if (currentPrice > 0) {
-                    // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
-                    // This calculates how much ETH the user would receive when swapping USDC
-                    ethAmount = swapAmount / currentPrice;
+            // First check for the LLM signal format: "BUY Signal at $2085.28"
+            const llmSignalMatch = message.match(/BUY Signal at \$([0-9.]+)/);
+            
+            if (llmSignalMatch && llmSignalMatch[1]) {
+                // LLM signal format - extract the price directly
+                const price = parseFloat(llmSignalMatch[1]);
+                if (!isNaN(price) && price > 0) {
+                    // Extract which models recommended this trade
+                    const recommendedBy = message.match(/Recommended by: (.*)/);
+                    const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
-                    // Make sure we have a reasonable value that's not subject to floating point errors
-                    ethAmount = parseFloat(ethAmount.toFixed(8));
-                    console.log(`BUY calculation: $${swapAmount.toFixed(2)} / $${currentPrice} = ${ethAmount} ETH (after rounding)`);
-                    
-                    // Validate the ETH amount format is valid for toWei
-                    const ethAmountString = ethAmount.toString();
-                    if (!/^\d*\.?\d*$/.test(ethAmountString) || isNaN(ethAmount) || !isFinite(ethAmount)) {
-                        console.log(`Invalid ETH amount calculated: ${ethAmountString}. Using fallback.`);
-                        ethAmount = 0;
+                    // Since this is an LLM signal, we'll calculate a reasonable swap amount
+                    // Using a standard small amount like $10 for notifications
+                    swapAmount = 10.0;
+                    if (currentPrice > 0) {
+                        ethAmount = swapAmount / currentPrice;
+                        ethAmount = parseFloat(ethAmount.toFixed(8));
+                        console.log(`LLM BUY Signal: Using standard $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                        
+                        // Set additional data for the transaction
+                        message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
+                        
+                        // Prepare the additional data for the transaction
+                        const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap $${swapAmount.toFixed(2)} USDC for ~${ethAmount.toFixed(6)} ETH]`;
+                        
+                        // Store this for use in the transaction params later
+                        window.llmBuyAdditionalData = llmBuyAdditionalData;
                     } else {
-                        console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                        console.log(`LLM BUY Signal: Cannot calculate ETH amount: currentPrice is invalid`);
+                        ethAmount = 0;
                     }
-                } else {
-                    console.log(`Cannot calculate ETH amount: currentPrice (${currentPrice}) is invalid`);
-                    ethAmount = 0;
+                }
+            } else {
+                // Original "Suggested Swap" format: "Suggested Swap: ~$1.42 USDC → ETH"
+                const usdMatch = message.match(/~\$([0-9.]+)/);
+                if (usdMatch && usdMatch[1]) {
+                    swapAmount = parseFloat(usdMatch[1]);
+                    // Make sure currentPrice is valid before dividing
+                    if (currentPrice > 0) {
+                        // Calculate the ETH equivalent for the transaction using the currentPrice from wallet balances
+                        // This calculates how much ETH the user would receive when swapping USDC
+                        ethAmount = swapAmount / currentPrice;
+                        
+                        // Make sure we have a reasonable value that's not subject to floating point errors
+                        ethAmount = parseFloat(ethAmount.toFixed(8));
+                        console.log(`BUY calculation: $${swapAmount.toFixed(2)} / $${currentPrice} = ${ethAmount} ETH (after rounding)`);
+                        
+                        // Validate the ETH amount format is valid for toWei
+                        const ethAmountString = ethAmount.toString();
+                        if (!/^\d*\.?\d*$/.test(ethAmountString) || isNaN(ethAmount) || !isFinite(ethAmount)) {
+                            console.log(`Invalid ETH amount calculated: ${ethAmountString}. Using fallback.`);
+                            ethAmount = 0;
+                        } else {
+                            console.log(`Parsed BUY: $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                        }
+                    } else {
+                        console.log(`Cannot calculate ETH amount: currentPrice (${currentPrice}) is invalid`);
+                        ethAmount = 0;
+                    }
                 }
             }
         } else if (signalType === 'SELL') {
-            // Extract the ETH amount from the message string (e.g., "Suggested Swap: ~0.0123 ETH → $25.67 USDC")
-            const ethMatch = message.match(/~([0-9.]+) ETH/);
-            if (ethMatch && ethMatch[1]) {
-                // Validate the ETH amount format is valid before parsing
-                const rawEthAmount = ethMatch[1];
-                if (!/^\d*\.?\d*$/.test(rawEthAmount) || isNaN(parseFloat(rawEthAmount)) || !isFinite(parseFloat(rawEthAmount))) {
-                    console.log(`Invalid ETH amount format in message: ${rawEthAmount}. Using fallback.`);
-                    ethAmount = 0;
-                } else {
-                    ethAmount = parseFloat(rawEthAmount);
+            // First check for the LLM signal format: "SELL Signal at $2085.28"
+            const llmSignalMatch = message.match(/SELL Signal at \$([0-9.]+)/);
+            
+            if (llmSignalMatch && llmSignalMatch[1]) {
+                // LLM signal format - extract the price directly
+                const price = parseFloat(llmSignalMatch[1]);
+                if (!isNaN(price) && price > 0) {
+                    // Extract which models recommended this trade
+                    const recommendedBy = message.match(/Recommended by: (.*)/);
+                    const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
-                    // Make sure currentPrice is valid before multiplying
+                    // Since this is an LLM signal, we'll calculate a reasonable ETH amount
+                    // Using a standard small amount like 0.005 ETH for notifications
+                    ethAmount = 0.005;
                     if (currentPrice > 0) {
-                        // Calculate USD equivalent using the currentPrice from wallet balances
                         swapAmount = ethAmount * currentPrice;
-                        console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                        console.log(`LLM SELL Signal: Using standard ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                        
+                        // Set additional data for the transaction
+                        message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
+                        
+                        // Prepare the additional data for the transaction
+                        const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
+                        
+                        // Store this for use in the transaction params later
+                        window.llmSellAdditionalData = llmAdditionalData;
                     } else {
-                        console.log(`Cannot calculate USD amount: currentPrice (${currentPrice}) is invalid`);
+                        console.log(`LLM SELL Signal: Cannot calculate USDC amount: currentPrice is invalid`);
                         swapAmount = 0;
+                    }
+                }
+            } else {
+                // Original "Suggested Swap" format: "Suggested Swap: ~0.0123 ETH → $25.67 USDC"
+                const ethMatch = message.match(/~([0-9.]+) ETH/);
+                if (ethMatch && ethMatch[1]) {
+                    // Validate the ETH amount format is valid before parsing
+                    const rawEthAmount = ethMatch[1];
+                    if (!/^\d*\.?\d*$/.test(rawEthAmount) || isNaN(parseFloat(rawEthAmount)) || !isFinite(parseFloat(rawEthAmount))) {
+                        console.log(`Invalid ETH amount format in message: ${rawEthAmount}. Using fallback.`);
+                        ethAmount = 0;
+                    } else {
+                        ethAmount = parseFloat(rawEthAmount);
+                        
+                        // Make sure currentPrice is valid before multiplying
+                        if (currentPrice > 0) {
+                            // Calculate USD equivalent using the currentPrice from wallet balances
+                            swapAmount = ethAmount * currentPrice;
+                            console.log(`Parsed SELL: ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                        } else {
+                            console.log(`Cannot calculate USD amount: currentPrice (${currentPrice}) is invalid`);
+                            swapAmount = 0;
+                        }
                     }
                 }
             }
@@ -231,9 +302,13 @@ async function sendWalletNotification(signalType, message) {
                             
                             console.log(`Using equivalent ETH amount for BUY notification: ${ethAmountString} ETH (USDC value: $${swapAmount.toFixed(2)})`);
                             
-                            // Update data to show it's a test transaction representing a BUY
-                            const additionalData = ` [THIS IS A TEST - Would swap $${swapAmount.toFixed(2)} USDC to receive ~${ethAmount.toFixed(6)} ETH]`;
+                            // Update data to show it's a test transaction representing a BUY from LLM signals
+                            const additionalData = window.llmBuyAdditionalData || 
+                                ` [THIS IS A TEST - Would swap $${swapAmount.toFixed(2)} USDC to receive ~${ethAmount.toFixed(6)} ETH]`;
                             txParams.data = window.web3.utils.toHex(message + additionalData);
+                            
+                            // Clear the stored data after use
+                            window.llmBuyAdditionalData = null;
                         } catch (valueError) {
                             console.error("Error setting ETH value for BUY:", valueError);
                             // Try to create a reasonable fallback based on the current price
@@ -281,8 +356,12 @@ async function sendWalletNotification(signalType, message) {
                             console.log(`Using actual ETH amount for SELL notification: ${ethAmountString} ETH`);
                             
                             // Update data to show it's a test transaction
-                            const additionalData = ` [THIS IS A TEST - Would swap ${ethAmount.toFixed(6)} ETH to receive ~$${swapAmount.toFixed(2)} USDC]`;
+                            const additionalData = window.llmSellAdditionalData || 
+                                ` [THIS IS A TEST - Would swap ${ethAmount.toFixed(6)} ETH to receive ~$${swapAmount.toFixed(2)} USDC]`;
                             txParams.data = window.web3.utils.toHex(message + additionalData);
+                            
+                            // Clear the stored data after use
+                            window.llmSellAdditionalData = null;
                         } catch (valueError) {
                             console.error("Error setting ETH value:", valueError);
                             // Try to create a reasonable fallback based on the current price

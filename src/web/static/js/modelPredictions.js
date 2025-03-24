@@ -137,11 +137,17 @@ function updateModelDecisions(data, walletAddress) {
                 // Show browser notification for BUY and SELL signals only
                 showNotification(message, 'info');
 
+                // Log the notification being sent for debugging
+                console.log(`LLM CONSENSUS: ${consensus} signal detected from ${Object.keys(validDecisions).length} models`);
+                console.log(`Sending notification with message: "${message}"`);
+                console.log(`WALLET ADDRESS: ${walletAddress}, ENABLE_RECOMMENDATIONS: ${window.enableSwapRecommendations}`);
+
                 // Force wallet balance refresh with a slight delay
                 // This ensures the wallet card recommendation is updated first
                 setTimeout(() => {
                     getWalletBalances().then(() => {
                         // Send wallet notification after balances are refreshed - only for BUY and SELL
+                        console.log(`Calling sendWalletNotification(${consensus}, "${message}")`);
                         sendWalletNotification(consensus, message);
                     });
                 }, 500);
