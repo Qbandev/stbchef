@@ -127,19 +127,81 @@ function updateModelDecisions(data, walletAddress) {
 
                 let message = '';
                 if (consensus === 'BUY') {
-                    // Calculate a reasonable swap amount for BUY (e.g., $10)
-                    const swapAmount = 10.0;
-                    const ethAmount = (swapAmount / currentPrice).toFixed(6);
-                    message = `🟢 BUY Signal at $${currentPrice}\n`;
-                    message += `Recommended by: ${buyModels.join(', ')}\n`;
-                    message += `Suggested Swap: ~$${swapAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                    // Get the swap amount from wallet manager's recommendation
+                    const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    if (swapAmount > 0) {
+                        const ethAmount = (swapAmount / currentPrice).toFixed(6);
+                        message = `🟢 BUY Signal at $${currentPrice}\n`;
+                        message += `Recommended by: ${buyModels.join(', ')}\n`;
+                        message += `Suggested Swap: ~$${swapAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                    } else {
+                        // Use the same fallback mechanism as wallet notifications
+                        const totalValue = window.walletBalances?.totalValueUSD || 0;
+                        const currentEthAllocation = window.walletBalances?.ethAllocation || 0;
+                        const targetEthMin = window.walletBalances?.targetEthMin || 40;
+                        
+                        if (totalValue > 0 && currentEthAllocation < targetEthMin) {
+                            // Calculate amount needed to reach target minimum
+                            const targetEthValue = (totalValue * targetEthMin / 100);
+                            const currentEthValue = (totalValue * currentEthAllocation / 100);
+                            const fallbackAmount = targetEthValue - currentEthValue;
+                            
+                            if (fallbackAmount > 0) {
+                                const ethAmount = (fallbackAmount / currentPrice).toFixed(6);
+                                message = `🟢 BUY Signal at $${currentPrice}\n`;
+                                message += `Recommended by: ${buyModels.join(', ')}\n`;
+                                message += `Suggested Swap: ~$${fallbackAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                            }
+                        }
+                        
+                        // If we couldn't calculate a meaningful amount, use a minimal amount
+                        if (!message) {
+                            const minimalAmount = 1.0; // $1 minimum
+                            const ethAmount = (minimalAmount / currentPrice).toFixed(6);
+                            message = `🟢 BUY Signal at $${currentPrice}\n`;
+                            message += `Recommended by: ${buyModels.join(', ')}\n`;
+                            message += `Suggested Swap: ~$${minimalAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                        }
+                    }
                 } else if (consensus === 'SELL') {
-                    // Calculate a reasonable swap amount for SELL (e.g., 0.005 ETH)
-                    const ethAmount = 0.005;
-                    const usdAmount = (ethAmount * currentPrice).toFixed(2);
-                    message = `🔴 SELL Signal at $${currentPrice}\n`;
-                    message += `Recommended by: ${sellModels.join(', ')}\n`;
-                    message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount} USDC`;
+                    // Get the swap amount from wallet manager's recommendation
+                    const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    if (swapAmount > 0) {
+                        const ethAmount = (swapAmount / currentPrice).toFixed(6);
+                        const usdAmount = (ethAmount * currentPrice).toFixed(2);
+                        message = `🔴 SELL Signal at $${currentPrice}\n`;
+                        message += `Recommended by: ${sellModels.join(', ')}\n`;
+                        message += `Suggested Swap: ~${ethAmount} ETH → $${usdAmount} USDC`;
+                    } else {
+                        // Use the same fallback mechanism as wallet notifications
+                        const totalValue = window.walletBalances?.totalValueUSD || 0;
+                        const currentEthAllocation = window.walletBalances?.ethAllocation || 0;
+                        const targetEthMax = window.walletBalances?.targetEthMax || 60;
+                        
+                        if (totalValue > 0 && currentEthAllocation > targetEthMax) {
+                            // Calculate amount needed to reach target maximum
+                            const targetEthValue = (totalValue * targetEthMax / 100);
+                            const currentEthValue = (totalValue * currentEthAllocation / 100);
+                            const excessEthValue = currentEthValue - targetEthValue;
+                            
+                            if (excessEthValue > 0) {
+                                const ethAmount = (excessEthValue / currentPrice).toFixed(6);
+                                const usdAmount = (ethAmount * currentPrice).toFixed(2);
+                                message = `🔴 SELL Signal at $${currentPrice}\n`;
+                                message += `Recommended by: ${sellModels.join(', ')}\n`;
+                                message += `Suggested Swap: ~${ethAmount} ETH → $${usdAmount} USDC`;
+                            }
+                        }
+                        
+                        // If we couldn't calculate a meaningful amount, use a minimal amount
+                        if (!message) {
+                            const minimalAmount = 0.0001; // 0.0001 ETH minimum
+                            const usdAmount = (minimalAmount * currentPrice).toFixed(2);
+                            message = `🔴 SELL Signal at $${currentPrice}\n`;
+                            message += `Recommended by: ${sellModels.join(', ')}\n`;
+                            message += `Suggested Swap: ~${minimalAmount.toFixed(6)} ETH → $${usdAmount} USDC`;
+                        }
+                    }
                 }
 
                 // Show browser notification for BUY and SELL signals only
