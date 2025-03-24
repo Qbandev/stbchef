@@ -429,7 +429,7 @@ async function sendWalletNotification(signalType, message) {
                             } else {
                                 // Default fallback
                                 txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                console.log(`Falling back to test amount for BUY notification due to error: ${valueError.message}`);
+                                console.log(`Falling back to test amount for BUY notification - no valid price data`);
                             }
                         }
                     } else {
@@ -482,7 +482,7 @@ async function sendWalletNotification(signalType, message) {
                             } else {
                                 // Default fallback
                                 txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                console.log(`Falling back to test amount for SELL notification: ${valueError.message}`);
+                                console.log(`Falling back to test amount for SELL notification - no valid price data`);
                             }
                         }
                     } else {
