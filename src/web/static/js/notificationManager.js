@@ -93,6 +93,7 @@ async function sendWalletNotification(signalType, message) {
                     
                     // Get the recommended swap amount from wallet manager
                     let swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    let ethAmount = 0;
                     
                     if (swapAmount > 0) {
                         // Use the recommended amount from wallet manager
