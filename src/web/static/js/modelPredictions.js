@@ -127,11 +127,19 @@ function updateModelDecisions(data, walletAddress) {
 
                 let message = '';
                 if (consensus === 'BUY') {
+                    // Calculate a reasonable swap amount for BUY (e.g., $10)
+                    const swapAmount = 10.0;
+                    const ethAmount = (swapAmount / currentPrice).toFixed(6);
                     message = `🟢 BUY Signal at $${currentPrice}\n`;
-                    message += `Recommended by: ${buyModels.join(', ')}`;
+                    message += `Recommended by: ${buyModels.join(', ')}\n`;
+                    message += `Suggested Swap: ~$${swapAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
                 } else if (consensus === 'SELL') {
+                    // Calculate a reasonable swap amount for SELL (e.g., 0.005 ETH)
+                    const ethAmount = 0.005;
+                    const usdAmount = (ethAmount * currentPrice).toFixed(2);
                     message = `🔴 SELL Signal at $${currentPrice}\n`;
-                    message += `Recommended by: ${sellModels.join(', ')}`;
+                    message += `Recommended by: ${sellModels.join(', ')}\n`;
+                    message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount} USDC`;
                 }
 
                 // Show browser notification for BUY and SELL signals only
