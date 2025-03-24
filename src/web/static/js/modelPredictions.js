@@ -123,7 +123,8 @@ function updateModelDecisions(data, walletAddress) {
             if (consensus && (consensus === 'BUY' || consensus === 'SELL')) {
                 const buyModels = getModelDecisions(decisions);
                 const sellModels = getModelSellDecisions(decisions);
-                const currentPrice = data.eth_price.toFixed(2);
+                const ethPrice = parseFloat(data.eth_price);
+                const currentPriceFormatted = ethPrice.toFixed(2);
 
                 // Calculate swap amount based on wallet balances and price
                 let swapAmount = 0;
@@ -133,7 +134,6 @@ function updateModelDecisions(data, walletAddress) {
                 // Get wallet balances for calculations
                 const ethBalance = window.walletBalances?.eth || 0;
                 const usdcBalance = window.walletBalances?.usdc || 0;
-                const ethPrice = parseFloat(data.eth_price);
                 
                 // Total value in USD
                 const ethValueUSD = ethBalance * ethPrice;
@@ -156,7 +156,8 @@ function updateModelDecisions(data, walletAddress) {
                             const targetEthValue = (totalValue * targetEthMin / 100);
                             swapAmount = targetEthValue - ethValueUSD;
                         } else if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
-                            // Within range - moderate buy to midpoint
+                            // Within range - moderate buy to move halfway from current position toward the maximum target
+                            // This creates a balanced approach that increases ETH without pushing all the way to the maximum
                             const midPoint = (targetEthMax + currentEthAllocation) / 2;
                             const targetEthValue = (totalValue * midPoint / 100);
                             swapAmount = targetEthValue - ethValueUSD;
@@ -175,7 +176,7 @@ function updateModelDecisions(data, walletAddress) {
                     }
                     
                     swapDirection = 'USDC → ETH';
-                    message = `🟢 BUY Signal at $${currentPrice}\n`;
+                    message = `🟢 BUY Signal at $${currentPriceFormatted}\n`;
                     message += `Recommended by: ${buyModels.join(', ')}`;
                     
                     // Only add swap details if swapAmount is significant
@@ -190,7 +191,8 @@ function updateModelDecisions(data, walletAddress) {
                             const targetEthValue = (totalValue * targetEthMax / 100);
                             swapAmount = ethValueUSD - targetEthValue;
                         } else if (currentEthAllocation >= targetEthMin && currentEthAllocation <= targetEthMax) {
-                            // Within range - moderate sell to midpoint
+                            // Within range - moderate sell to midpoint between current and minimum
+                            // This provides a balanced approach to reduce ETH without going all the way to minimum
                             const midPoint = (targetEthMin + currentEthAllocation) / 2;
                             const targetEthValue = (totalValue * midPoint / 100);
                             swapAmount = ethValueUSD - targetEthValue;
@@ -216,7 +218,7 @@ function updateModelDecisions(data, walletAddress) {
                     }
                     
                     swapDirection = 'ETH → USDC';
-                    message = `🔴 SELL Signal at $${currentPrice}\n`;
+                    message = `🔴 SELL Signal at $${currentPriceFormatted}\n`;
                     message += `Recommended by: ${sellModels.join(', ')}`;
                     
                     // Only add swap details if swapAmount is significant
