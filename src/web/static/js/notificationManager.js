@@ -92,26 +92,26 @@ async function sendWalletNotification(signalType, message) {
                     const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
                     // Get the recommended swap amount from wallet manager
-                    const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    let swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
                     
                     if (swapAmount > 0) {
                         // Use the recommended amount from wallet manager
                         if (currentPrice > 0) {
                             ethAmount = swapAmount / currentPrice;
-                            ethAmount = parseFloat(ethAmount.toFixed(8));
-                            console.log(`LLM BUY Signal: Using recommended $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                            swapAmount = ethAmount * currentPrice;
+                            console.log(`LLM BUY Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
                             
                             // Set additional data for the transaction
                             message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
                             
                             // Prepare the additional data for the transaction
-                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap $${swapAmount.toFixed(2)} USDC for ~${ethAmount.toFixed(6)} ETH]`;
+                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
                             
                             // Store this for use in the transaction params later
                             window.llmBuyAdditionalData = llmBuyAdditionalData;
                         } else {
-                            console.log(`LLM BUY Signal: Cannot calculate ETH amount: currentPrice is invalid`);
-                            ethAmount = 0;
+                            console.log(`LLM BUY Signal: Cannot calculate USDC amount: currentPrice is invalid`);
+                            swapAmount = 0;
                         }
                     } else {
                         // Calculate amount based on portfolio value and target allocation
@@ -127,7 +127,7 @@ async function sendWalletNotification(signalType, message) {
                             
                             if (fallbackAmount > 0 && currentPrice > 0) {
                                 ethAmount = fallbackAmount / currentPrice;
-                                ethAmount = parseFloat(ethAmount.toFixed(8));
+                                swapAmount = ethAmount * currentPrice;
                                 console.log(`LLM BUY Signal: Using portfolio-based $${fallbackAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
                                 
                                 // Set additional data for the transaction
@@ -145,7 +145,7 @@ async function sendWalletNotification(signalType, message) {
                         if (!ethAmount || ethAmount <= 0) {
                             const minimalAmount = 1.0; // $1 minimum
                             ethAmount = minimalAmount / currentPrice;
-                            ethAmount = parseFloat(ethAmount.toFixed(8));
+                            swapAmount = minimalAmount * currentPrice;
                             console.log(`LLM BUY Signal: Using minimal $${minimalAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
                             
                             // Set additional data for the transaction
@@ -201,7 +201,7 @@ async function sendWalletNotification(signalType, message) {
                     const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
                     // Get the recommended swap amount from wallet manager
-                    const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    let swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
                     
                     if (swapAmount > 0) {
                         // Use the recommended amount from wallet manager
