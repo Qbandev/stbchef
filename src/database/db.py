@@ -317,11 +317,11 @@ class TradingDatabase:
                     # Add trend detection for threshold adjustment
                     if len(recent_prices) >= 6:  # Use last 6 prices for trend
                         # Average of older 3 prices
-                        first_prices = sum(recent_prices[3:6]) / 3
+                        olderPrices = sum(recent_prices[3:6]) / 3
                         # Average of recent 3 prices
-                        last_prices = sum(recent_prices[0:3]) / 3
+                        newerPrices = sum(recent_prices[0:3]) / 3
                         trend_change = (
-                            (last_prices - first_prices) / first_prices) * 100
+                            (newerPrices - olderPrices) / olderPrices) * 100
 
                         # If we detect a strong trend (>2% movement), increase threshold
                         if abs(trend_change) > 2.0:

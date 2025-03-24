@@ -51,8 +51,8 @@ function calculateTradeScore(decision, priceChangePercent, threshold) {
             // Correct BUY decision
             score = 1.0;
             // Enhanced bonus points for strong upward moves
-            const bonusMultiplier = Math.min(1.5, magnitude / (threshold * 3));
-            score += 0.5 * bonusMultiplier;
+            const scaledBonus = Math.min(1.5, magnitude / (threshold * 3));
+            score += 0.5 * scaledBonus;
         } else if (priceChangePercent > 0) {
             // Right direction but didn't meet threshold
             score = 0.5;
@@ -62,8 +62,8 @@ function calculateTradeScore(decision, priceChangePercent, threshold) {
             // Correct SELL decision
             score = 1.0;
             // Enhanced bonus points for strong downward moves
-            const bonusMultiplier = Math.min(1.5, magnitude / (threshold * 3));
-            score += 0.5 * bonusMultiplier;
+            const scaledBonus = Math.min(1.5, magnitude / (threshold * 3));
+            score += 0.5 * scaledBonus;
         } else if (priceChangePercent < 0) {
             // Right direction but didn't meet threshold
             score = 0.5;
