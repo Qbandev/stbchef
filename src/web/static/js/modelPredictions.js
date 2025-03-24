@@ -1,5 +1,9 @@
 // Model prediction analysis functions for Simple Crypto Trading Bot Chef
 
+// Constants for swap amount minimums
+const MIN_USD_SWAP_AMOUNT = 1.0; // Minimum USD amount for BUY signals
+const MIN_ETH_SWAP_AMOUNT = 0.0001; // Minimum ETH amount for SELL signals
+
 /**
  * Get list of models that recommend BUY action
  * @param {Object} decisions - Object containing model decisions
@@ -160,7 +164,7 @@ function updateModelDecisions(data, walletAddress) {
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!hasCalculatedSwap) {
-                            const minimalAmount = 1.0; // $1 minimum
+                            const minimalAmount = MIN_USD_SWAP_AMOUNT;
                             const ethAmount = minimalAmount / currentPrice;
                             message = `🟢 BUY Signal at $${currentPrice}\n`;
                             message += `Recommended by: ${buyModels.join(', ')}\n`;
@@ -205,7 +209,7 @@ function updateModelDecisions(data, walletAddress) {
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!hasCalculatedSwap) {
-                            const minimalEthAmount = 0.0001; // 0.0001 ETH minimum
+                            const minimalEthAmount = MIN_ETH_SWAP_AMOUNT;
                             const usdAmount = minimalEthAmount * currentPrice;
                             message = `🔴 SELL Signal at $${currentPrice}\n`;
                             message += `Recommended by: ${sellModels.join(', ')}\n`;

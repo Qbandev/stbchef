@@ -1,5 +1,10 @@
 // Notification management functions for Simple Crypto Trading Bot Chef
 
+// Constants for swap amount minimums
+const MIN_USD_SWAP_AMOUNT = 1.0; // Minimum USD amount for BUY signals
+const MIN_ETH_SWAP_AMOUNT = 0.0001; // Minimum ETH amount for SELL signals
+const MIN_ETH_FALLBACK = 0.0005; // Fallback minimum ETH amount for error cases
+
 // Initialize global variables
 window.llmSellAdditionalData = null;
 window.llmBuyAdditionalData = null;
@@ -145,9 +150,9 @@ async function sendWalletNotification(signalType, message) {
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!ethAmount || ethAmount <= 0) {
-                            const minimalAmount = 1.0; // $1 minimum
+                            const minimalAmount = MIN_USD_SWAP_AMOUNT;
                             ethAmount = minimalAmount / currentPrice;
-                            swapAmount = minimalAmount * currentPrice;
+                            swapAmount = minimalAmount;
                             console.log(`LLM BUY Signal: Using minimal $${minimalAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
                             
                             // Set additional data for the transaction
@@ -255,7 +260,7 @@ async function sendWalletNotification(signalType, message) {
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!ethAmount || ethAmount <= 0) {
-                            const minimalAmount = 0.0001; // 0.0001 ETH minimum
+                            const minimalAmount = MIN_ETH_SWAP_AMOUNT;
                             ethAmount = minimalAmount;
                             swapAmount = minimalAmount * currentPrice;
                             console.log(`LLM SELL Signal: Using minimal ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
@@ -412,24 +417,24 @@ async function sendWalletNotification(signalType, message) {
                             // Try to create a reasonable fallback based on the current price
                             if (currentPrice > 0) {
                                 try {
-                                    // Use 0.0005 ETH as a minimum value
-                                    const minimalEth = 0.0005;
+                                    // Use MIN_ETH_FALLBACK ETH as a minimum value
+                                    const minimalEth = MIN_ETH_FALLBACK;
                                     txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(minimalEth.toString(), 'ether'));
                                     console.log(`Using minimal ETH amount for BUY notification: ${minimalEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                                     console.log(`Falling back to absolute minimum for BUY notification due to error: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                                 console.log(`Falling back to test amount for BUY notification due to error: ${valueError.message}`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                         console.log(`Falling back to test amount for BUY notification`);
                     }
                 } else if (signalType === 'SELL') {
@@ -471,18 +476,18 @@ async function sendWalletNotification(signalType, message) {
                                     console.log(`Using calculated fallback ETH amount for SELL notification: ${fallbackEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                                     console.log(`Falling back to absolute minimum for SELL notification: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                                 console.log(`Falling back to test amount for SELL notification: ${valueError.message}`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
                         console.log(`Falling back to test amount for SELL notification`);
                     }
                 }
