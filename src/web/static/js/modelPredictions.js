@@ -167,11 +167,13 @@ function updateModelDecisions(data, walletAddress) {
                     // Get the swap amount from wallet manager's recommendation
                     const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
                     if (swapAmount > 0) {
-                        const ethAmount = (swapAmount / currentPrice).toFixed(6);
-                        const usdAmount = (ethAmount * currentPrice).toFixed(2);
+                        // Calculate ETH amount first as a number
+                        const ethAmount = swapAmount / currentPrice;
+                        // Calculate USD amount as a number
+                        const usdAmount = ethAmount * currentPrice;
                         message = `🔴 SELL Signal at $${currentPrice}\n`;
                         message += `Recommended by: ${sellModels.join(', ')}\n`;
-                        message += `Suggested Swap: ~${ethAmount} ETH → $${usdAmount} USDC`;
+                        message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount.toFixed(2)} USDC`;
                     } else {
                         // Use the same fallback mechanism as wallet notifications
                         const totalValue = window.walletBalances?.totalValueUSD || 0;
