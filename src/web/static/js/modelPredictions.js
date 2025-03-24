@@ -129,11 +129,14 @@ function updateModelDecisions(data, walletAddress) {
                 if (consensus === 'BUY') {
                     // Get the swap amount from wallet manager's recommendation
                     const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    let hasCalculatedSwap = false;
+                    
                     if (swapAmount > 0) {
-                        const ethAmount = (swapAmount / currentPrice).toFixed(6);
+                        const ethAmount = swapAmount / currentPrice;
                         message = `🟢 BUY Signal at $${currentPrice}\n`;
                         message += `Recommended by: ${buyModels.join(', ')}\n`;
-                        message += `Suggested Swap: ~$${swapAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                        message += `Suggested Swap: ~$${swapAmount.toFixed(2)} USDC → ${ethAmount.toFixed(6)} ETH`;
+                        hasCalculatedSwap = true;
                     } else {
                         // Use the same fallback mechanism as wallet notifications
                         const totalValue = window.walletBalances?.totalValueUSD || 0;
@@ -151,11 +154,12 @@ function updateModelDecisions(data, walletAddress) {
                                 message = `🟢 BUY Signal at $${currentPrice}\n`;
                                 message += `Recommended by: ${buyModels.join(', ')}\n`;
                                 message += `Suggested Swap: ~$${fallbackAmount.toFixed(2)} USDC → ${ethAmount.toFixed(6)} ETH`;
+                                hasCalculatedSwap = true;
                             }
                         }
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
-                        if (!message) {
+                        if (!hasCalculatedSwap) {
                             const minimalAmount = 1.0; // $1 minimum
                             const ethAmount = minimalAmount / currentPrice;
                             message = `🟢 BUY Signal at $${currentPrice}\n`;
@@ -166,6 +170,8 @@ function updateModelDecisions(data, walletAddress) {
                 } else if (consensus === 'SELL') {
                     // Get the swap amount from wallet manager's recommendation
                     const swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
+                    let hasCalculatedSwap = false;
+                    
                     if (swapAmount > 0) {
                         // Calculate ETH amount first as a number
                         const ethAmount = swapAmount / currentPrice;
@@ -174,6 +180,7 @@ function updateModelDecisions(data, walletAddress) {
                         message = `🔴 SELL Signal at $${currentPrice}\n`;
                         message += `Recommended by: ${sellModels.join(', ')}\n`;
                         message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount.toFixed(2)} USDC`;
+                        hasCalculatedSwap = true;
                     } else {
                         // Use the same fallback mechanism as wallet notifications
                         const totalValue = window.walletBalances?.totalValueUSD || 0;
@@ -192,11 +199,12 @@ function updateModelDecisions(data, walletAddress) {
                                 message = `🔴 SELL Signal at $${currentPrice}\n`;
                                 message += `Recommended by: ${sellModels.join(', ')}\n`;
                                 message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount.toFixed(2)} USDC`;
+                                hasCalculatedSwap = true;
                             }
                         }
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
-                        if (!message) {
+                        if (!hasCalculatedSwap) {
                             const minimalEthAmount = 0.0001; // 0.0001 ETH minimum
                             const usdAmount = minimalEthAmount * currentPrice;
                             message = `🔴 SELL Signal at $${currentPrice}\n`;

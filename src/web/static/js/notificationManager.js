@@ -99,6 +99,7 @@ async function sendWalletNotification(signalType, message) {
                         // Use the recommended amount from wallet manager
                         if (currentPrice > 0) {
                             ethAmount = swapAmount / currentPrice;
+                            ethAmount = parseFloat(ethAmount.toFixed(6)); // Ensure consistent precision
                             const calculatedUsdAmount = ethAmount * currentPrice;
                             console.log(`LLM BUY Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
                             
@@ -208,6 +209,7 @@ async function sendWalletNotification(signalType, message) {
                         // Use the recommended amount from wallet manager
                         if (currentPrice > 0) {
                             ethAmount = swapAmount / currentPrice;
+                            ethAmount = parseFloat(ethAmount.toFixed(6)); // Ensure consistent precision
                             const calculatedUsdAmount = ethAmount * currentPrice;
                             console.log(`LLM SELL Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
                             
