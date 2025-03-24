@@ -47,40 +47,11 @@ function calculateTradeScore(decision, priceChangePercent, threshold) {
 
     // Enhanced scoring system with trend consideration
     if (decision === 'BUY') {
-        if (priceChangePercent > threshold) {
-            // Correct BUY decision
-            score = 1.0;
-            // Enhanced bonus points for strong upward moves
-            const scaledBonus = Math.min(1.5, magnitude / (threshold * 3));
-            score += 0.5 * scaledBonus;
-        } else if (priceChangePercent > 0) {
-            // Right direction but didn't meet threshold
-            score = 0.5;
-        }
+        score = priceChangePercent >= threshold ? 100 : 0;
     } else if (decision === 'SELL') {
-        if (priceChangePercent < -threshold) {
-            // Correct SELL decision
-            score = 1.0;
-            // Enhanced bonus points for strong downward moves
-            const scaledBonus = Math.min(1.5, magnitude / (threshold * 3));
-            score += 0.5 * scaledBonus;
-        } else if (priceChangePercent < 0) {
-            // Right direction but didn't meet threshold
-            score = 0.5;
-        }
+        score = priceChangePercent <= -threshold ? 100 : 0;
     } else if (decision === 'HOLD') {
-        if (magnitude <= threshold) {
-            // Perfect HOLD decision
-            score = 1.0;
-            // Small bonus for very stable price
-            score += 0.5 * (1 - magnitude / threshold);
-        } else if (magnitude <= threshold * 1.5) {
-            // Acceptable HOLD in moderate volatility
-            score = 0.5;
-        } else {
-            // HOLD during strong trend - reduce score
-            score = 0.25;
-        }
+        score = Math.abs(priceChangePercent) <= threshold ? 100 : 0;
     }
 
     return score;

@@ -307,8 +307,12 @@ class TradingDatabase:
                 # Calculate volatility if we have enough data
                 if len(recent_prices) >= 2:
                     # Calculate price changes for volatility
-                    price_changes = [abs(recent_prices[i] - recent_prices[i+1]) / recent_prices[i+1] * 100
-                                     for i in range(len(recent_prices)-1)]
+                    price_changes = [
+                        abs(recent_prices[i] - recent_prices[i+1]
+                            ) / recent_prices[i+1] * 100
+                        if recent_prices[i+1] != 0 else 0
+                        for i in range(len(recent_prices)-1)
+                    ]
                     avg_volatility = sum(price_changes) / len(price_changes)
 
                     # Reduced volatility impact (from 30% to 25%)
