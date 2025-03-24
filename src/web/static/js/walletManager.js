@@ -799,11 +799,6 @@ function updateWalletCard() {
                             'You will receive test notifications in MetaMask but will not send any transactions' : 
                             'Enable to receive test notifications in MetaMask'}
                     </p>
-                    <div class="mt-2 text-center">
-                        <button id="test-notification-btn" class="text-xs bg-blue-800 hover:bg-blue-700 text-gray-200 px-2 py-1 rounded transition-colors">
-                            Test Notification Now
-                        </button>
-                    </div>
                 </div>
                 ` : ''}
             </div>
@@ -1841,6 +1836,24 @@ function setupMetaMaskEventListeners() {
             }
         });
         
+        // Additional event listener for the enable swap recommendations toggle
+        document.addEventListener('click', function(event) {
+            if (event.target && event.target.id === 'enable-swap-recommendations') {
+                window.enableSwapRecommendations = event.target.checked;
+                // Store preference in localStorage
+                localStorage.setItem('stbchef_enable_swap_recommendations', window.enableSwapRecommendations);
+                // Update the UI to reflect the change
+                updateWalletCard();
+                
+                // Show notification about the change
+                if (window.enableSwapRecommendations) {
+                    showNotification('MetaMask Test Notifications enabled. You will receive test notifications in MetaMask but will not send any transactions.', 'info');
+                } else {
+                    showNotification('MetaMask Test Notifications disabled. You will only receive notifications in the browser.', 'info');
+                }
+            }
+        });
+        
         // Mark event listeners as successfully set up
         window.hasSetupMetaMaskEvents = true;
     } catch (error) {
@@ -1849,84 +1862,6 @@ function setupMetaMaskEventListeners() {
         // Reset flag after setting up event listeners
         window.isSettingUpMetaMaskEvents = false;
     }
-    
-    // Additional event listener for the enable swap recommendations toggle
-    document.addEventListener('click', function(event) {
-        if (event.target && event.target.id === 'enable-swap-recommendations') {
-            window.enableSwapRecommendations = event.target.checked;
-            // Store preference in localStorage
-            localStorage.setItem('stbchef_enable_swap_recommendations', window.enableSwapRecommendations);
-            // Update the UI to reflect the change
-            updateWalletCard();
-            
-            // Show notification about the change
-            if (window.enableSwapRecommendations) {
-                showNotification('MetaMask Test Notifications enabled. You will receive test notifications in MetaMask but will not send any transactions.', 'info');
-            } else {
-                showNotification('MetaMask Test Notifications disabled. You will only receive notifications in the browser.', 'info');
-            }
-        }
-    });
-
-    // Add this code to the setupMetaMaskEventListeners function, after the enable swap recommendations event listener
-
-    // Event listener for testing notifications
-    document.addEventListener('click', function(event) {
-        if (event.target && event.target.id === 'test-notification-btn') {
-            // Get current ETH price with safety check
-            const ethPrice = window.walletBalances.ethusd || 0;
-            if (ethPrice <= 0 && document.querySelector('[data-recommended-action="SELL"]')) {
-                showNotification('Cannot test SELL notification: ETH price data not available', 'warning');
-                return;
-            }
-            
-            // Find current recommended action and swap details from the UI
-            const actionElement = document.querySelector('[data-recommended-action]');
-            const swapElement = document.querySelector('[data-suggested-swap]');
-            
-            if (actionElement && swapElement) {
-                const action = actionElement.getAttribute('data-recommended-action');
-                const swapMessage = swapElement.getAttribute('data-suggested-swap');
-                
-                if (action && swapMessage && window.sendWalletNotification) {
-                    window.sendWalletNotification(action, swapMessage);
-                    // Removed duplicate notification since sendWalletNotification already shows one
-                }
-            } else {
-                // Fallback if we can't find the elements with data attributes
-                const recommendedAction = document.querySelector('.recommended-action');
-                const suggestedSwap = document.querySelector('.suggested-swap');
-                
-                if (recommendedAction && suggestedSwap) {
-                    const action = recommendedAction.textContent.trim();
-                    const swapMessage = suggestedSwap.textContent.trim();
-                    
-                    if ((action === 'BUY' || action === 'SELL') && swapMessage && window.sendWalletNotification) {
-                        window.sendWalletNotification(action, `Suggested Swap: ${swapMessage}`);
-                        // Removed duplicate notification
-                    }
-                } else {
-                    // Last resort: just try to parse directly from the wallet card
-                    const actionText = document.querySelector('span.text-white, span.text-gray-300');
-                    const swapText = document.querySelector('span.text-gray-300:not(.text-xs)');
-                    
-                    if (actionText && swapText && window.sendWalletNotification) {
-                        const action = actionText.textContent.trim();
-                        const swapMessage = swapText.textContent.trim();
-                        
-                        if ((action === 'BUY' || action === 'SELL') && swapMessage) {
-                            window.sendWalletNotification(action, swapMessage);
-                            // Removed duplicate notification
-                        } else {
-                            showNotification('No valid recommendation found to test', 'warning');
-                        }
-                    } else {
-                        showNotification('No recommendation available to test', 'warning');
-                    }
-                }
-            }
-        }
-    });
 }
 
 /**
