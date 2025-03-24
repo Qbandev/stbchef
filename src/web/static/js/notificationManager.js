@@ -423,19 +423,19 @@ async function sendWalletNotification(signalType, message) {
                                     console.log(`Using minimal ETH amount for BUY notification: ${minimalEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                    console.log(`Falling back to absolute minimum for BUY notification due to error: ${fallbackError.message}`);
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                                    console.log(`Falling back to minimal ETH amount for BUY notification due to error: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                console.log(`Falling back to test amount for BUY notification - no valid price data`);
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                                console.log(`Falling back to minimal ETH amount for BUY notification - no valid price data`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                        console.log(`Falling back to test amount for BUY notification`);
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                        console.log(`Falling back to minimal ETH amount for BUY notification`);
                     }
                 } else if (signalType === 'SELL') {
                     // For SELL signals, we use the actual ETH amount from the parsed message
@@ -476,19 +476,19 @@ async function sendWalletNotification(signalType, message) {
                                     console.log(`Using calculated fallback ETH amount for SELL notification: ${fallbackEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                    console.log(`Falling back to absolute minimum for SELL notification: ${fallbackError.message}`);
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                                    console.log(`Falling back to minimal ETH amount for SELL notification due to error: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                                console.log(`Falling back to test amount for SELL notification - no valid price data`);
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                                console.log(`Falling back to minimal ETH amount for SELL notification - no valid price data`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_SWAP_AMOUNT.toString(), 'ether'));
-                        console.log(`Falling back to test amount for SELL notification`);
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
+                        console.log(`Falling back to minimal ETH amount for SELL notification`);
                     }
                 }
                 
