@@ -43,21 +43,15 @@ function calculateDynamicThreshold(volatility) {
  */
 function calculateTradeScore(decision, priceChangePercent, threshold) {
     let score = 0;
+    const magnitude = Math.abs(priceChangePercent);
 
-    // Base score for correct direction
-    if (decision === 'BUY' && priceChangePercent > threshold) {
-        score = 1;
-    } else if (decision === 'SELL' && priceChangePercent < -threshold) {
-        score = 1;
-    } else if (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold) {
-        score = 1;
-    }
-
-    // Bonus points for magnitude - MODIFIED to be less aggressive
-    if (score > 0) {
-        const magnitude = Math.abs(priceChangePercent) - threshold;
-        // Reduce the bonus points impact - max 0.5 additional points instead of 1
-        score += Math.min(0.5, magnitude / (threshold * 2)); 
+    // Enhanced scoring system with trend consideration
+    if (decision === 'BUY') {
+        score = priceChangePercent >= threshold ? 100 : 0;
+    } else if (decision === 'SELL') {
+        score = priceChangePercent <= -threshold ? 100 : 0;
+    } else if (decision === 'HOLD') {
+        score = Math.abs(priceChangePercent) <= threshold ? 100 : 0;
     }
 
     return score;
