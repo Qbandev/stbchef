@@ -292,9 +292,9 @@ class TradingDatabase:
 
                 hours_passed = time_passed.total_seconds() / 3600
 
-                # Scale the threshold based on time - more time means we expect larger moves
-                # Starts at 0.5%, caps at 2%
-                hold_threshold = min(0.5 + (hours_passed * 0.1), 2.0)
+                # Improved threshold calculation - starts at 1.0%, caps at 3.0%
+                # Faster growth rate (0.15% per hour instead of 0.1%)
+                hold_threshold = min(1.0 + (hours_passed * 0.15), 3.0)
 
                 # Market volatility adjustment - if market is volatile, require larger moves
                 # Get the volatility from recent price changes
@@ -306,12 +306,26 @@ class TradingDatabase:
 
                 # Calculate volatility if we have enough data
                 if len(recent_prices) >= 2:
+                    # Calculate price changes for volatility
                     price_changes = [abs(recent_prices[i] - recent_prices[i+1]) / recent_prices[i+1] * 100
                                      for i in range(len(recent_prices)-1)]
                     avg_volatility = sum(price_changes) / len(price_changes)
 
-                    # Adjust threshold based on volatility
-                    hold_threshold = max(hold_threshold, avg_volatility * 0.3)
+                    # Reduced volatility impact (from 30% to 25%)
+                    hold_threshold = max(hold_threshold, avg_volatility * 0.25)
+
+                    # Add trend detection for threshold adjustment
+                    if len(recent_prices) >= 6:  # Use last 6 prices for trend
+                        # Average of older 3 prices
+                        first_prices = sum(recent_prices[3:6]) / 3
+                        # Average of recent 3 prices
+                        last_prices = sum(recent_prices[0:3]) / 3
+                        trend_change = (
+                            (last_prices - first_prices) / first_prices) * 100
+
+                        # If we detect a strong trend (>2% movement), increase threshold
+                        if abs(trend_change) > 2.0:
+                            hold_threshold *= 1.25  # 25% increase in trending markets
 
                 # Determine if decision was correct
                 was_correct = False

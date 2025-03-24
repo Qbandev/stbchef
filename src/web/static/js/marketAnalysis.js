@@ -43,21 +43,44 @@ function calculateDynamicThreshold(volatility) {
  */
 function calculateTradeScore(decision, priceChangePercent, threshold) {
     let score = 0;
+    const magnitude = Math.abs(priceChangePercent);
 
-    // Base score for correct direction
-    if (decision === 'BUY' && priceChangePercent > threshold) {
-        score = 1;
-    } else if (decision === 'SELL' && priceChangePercent < -threshold) {
-        score = 1;
-    } else if (decision === 'HOLD' && Math.abs(priceChangePercent) <= threshold) {
-        score = 1;
-    }
-
-    // Bonus points for magnitude - MODIFIED to be less aggressive
-    if (score > 0) {
-        const magnitude = Math.abs(priceChangePercent) - threshold;
-        // Reduce the bonus points impact - max 0.5 additional points instead of 1
-        score += Math.min(0.5, magnitude / (threshold * 2)); 
+    // Enhanced scoring system with trend consideration
+    if (decision === 'BUY') {
+        if (priceChangePercent > threshold) {
+            // Correct BUY decision
+            score = 1.0;
+            // Enhanced bonus points for strong upward moves
+            const bonusMultiplier = Math.min(1.5, magnitude / (threshold * 3));
+            score += 0.5 * bonusMultiplier;
+        } else if (priceChangePercent > 0) {
+            // Right direction but didn't meet threshold
+            score = 0.5;
+        }
+    } else if (decision === 'SELL') {
+        if (priceChangePercent < -threshold) {
+            // Correct SELL decision
+            score = 1.0;
+            // Enhanced bonus points for strong downward moves
+            const bonusMultiplier = Math.min(1.5, magnitude / (threshold * 3));
+            score += 0.5 * bonusMultiplier;
+        } else if (priceChangePercent < 0) {
+            // Right direction but didn't meet threshold
+            score = 0.5;
+        }
+    } else if (decision === 'HOLD') {
+        if (magnitude <= threshold) {
+            // Perfect HOLD decision
+            score = 1.0;
+            // Small bonus for very stable price
+            score += 0.5 * (1 - magnitude / threshold);
+        } else if (magnitude <= threshold * 1.5) {
+            // Acceptable HOLD in moderate volatility
+            score = 0.5;
+        } else {
+            // HOLD during strong trend - reduce score
+            score = 0.25;
+        }
     }
 
     return score;

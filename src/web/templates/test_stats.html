@@ -97,8 +97,98 @@
         
         <div class="card">
             <h2 class="text-xl mb-4">Performance Scoring Analysis</h2>
-            <p class="mb-4">This page demonstrates the comparison between raw accuracy and weighted performance scores for LLM trading models.</p>
+            <p class="mb-4">This page demonstrates how the system evaluates AI model trading decisions and calculates performance scores.</p>
             
+            <div class="mb-6">
+                <h3 class="text-lg font-bold mb-2">Scoring System Explanation</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="model-card">
+                        <h4 class="text-md font-bold mb-2 text-blue-400">Dynamic Thresholds</h4>
+                        <ul class="list-disc ml-4 text-sm">
+                            <li>Base threshold: 1.0% (starts) → 3.0% (caps)</li>
+                            <li>Growth rate: 0.15% per hour</li>
+                            <li>Volatility impact: 25% of market volatility</li>
+                            <li>Trend adjustment: +25% in strong trends (>2%)</li>
+                        </ul>
+                        <div class="mt-2 text-xs text-gray-400">
+                            Example: If market volatility is 2% and decision is 2 hours old:<br>
+                            Base: 1.0% + (2 * 0.15%) = 1.3%<br>
+                            Volatility: max(1.3%, 2% * 0.25) = 1.3%<br>
+                            Final: 1.3% * 1.25 = 1.625% (if strong trend)
+                        </div>
+                    </div>
+                    <div class="model-card">
+                        <h4 class="text-md font-bold mb-2 text-purple-400">Score Components</h4>
+                        <ul class="list-disc ml-4 text-sm">
+                            <li>Raw Accuracy: correct decisions / total decisions</li>
+                            <li>Profit Ratio: profitable trades / total trades</li>
+                            <li>Magnitude Bonus: up to +0.5 for strong moves</li>
+                            <li>Trend Following: extra points for trend alignment</li>
+                        </ul>
+                        <div class="mt-2 text-xs text-gray-400">
+                            Example: Model with 70% raw accuracy:<br>
+                            Base: 70 points<br>
+                            Profit Ratio: 80% profitable → +12 points<br>
+                            Final Score: 82 points
+                        </div>
+                    </div>
+                </div>
+
+                <div class="model-card mb-4">
+                    <h4 class="text-md font-bold mb-2 text-green-400">Time-Based Evaluation</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <h5 class="text-sm font-bold mb-1">Short-term (< 1 hour)</h5>
+                            <ul class="text-xs list-disc ml-4">
+                                <li>Tighter thresholds (1.0-1.5%)</li>
+                                <li>Quick price movements</li>
+                                <li>Higher precision required</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h5 class="text-sm font-bold mb-1">Medium-term (1-4 hours)</h5>
+                            <ul class="text-xs list-disc ml-4">
+                                <li>Growing thresholds (1.5-2.5%)</li>
+                                <li>Trend confirmation</li>
+                                <li>Balanced evaluation</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h5 class="text-sm font-bold mb-1">Long-term (4+ hours)</h5>
+                            <ul class="text-xs list-disc ml-4">
+                                <li>Maximum thresholds (2.5-3.0%)</li>
+                                <li>Major trend moves</li>
+                                <li>Focus on significant changes</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="model-card">
+                    <h4 class="text-md font-bold mb-2 text-yellow-400">Market Context Adjustments</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h5 class="text-sm font-bold mb-1">High Volatility Market</h5>
+                            <ul class="text-xs list-disc ml-4">
+                                <li>Increased thresholds (+25-50%)</li>
+                                <li>Higher magnitude bonuses</li>
+                                <li>Stricter HOLD evaluations</li>
+                                <li>Example: 2% base → 3% threshold</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h5 class="text-sm font-bold mb-1">Low Volatility Market</h5>
+                            <ul class="text-xs list-disc ml-4">
+                                <li>Standard thresholds</li>
+                                <li>Normal magnitude bonuses</li>
+                                <li>Relaxed HOLD evaluations</li>
+                                <li>Example: 1% base → 1.25% threshold</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div class="model-card">
                     <h3 class="text-lg font-bold mb-2">Gemini AI</h3>
@@ -193,14 +283,123 @@
         </div>
         
         <div class="card">
+            <h2 class="text-xl mb-4">Decision Evaluation Examples</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="model-card">
+                    <h3 class="text-lg font-bold mb-2">BUY Decision Scoring</h3>
+                    <table class="mb-4">
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Price Change</th>
+                            <th>Score</th>
+                            <th>Explanation</th>
+                        </tr>
+                        <tr>
+                            <td>Strong Uptrend</td>
+                            <td>+5.0%</td>
+                            <td class="good">1.5</td>
+                            <td>Perfect direction + max magnitude bonus</td>
+                        </tr>
+                        <tr>
+                            <td>Moderate Up</td>
+                            <td>+2.0%</td>
+                            <td class="moderate">1.2</td>
+                            <td>Correct + partial magnitude bonus</td>
+                        </tr>
+                        <tr>
+                            <td>Slight Up</td>
+                            <td>+0.5%</td>
+                            <td class="poor">0.5</td>
+                            <td>Right direction but below threshold</td>
+                        </tr>
+                        <tr>
+                            <td>Wrong Direction</td>
+                            <td>-1.0%</td>
+                            <td class="poor">0.0</td>
+                            <td>Completely incorrect prediction</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="model-card">
+                    <h3 class="text-lg font-bold mb-2">HOLD Decision Scoring</h3>
+                    <table class="mb-4">
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Price Change</th>
+                            <th>Score</th>
+                            <th>Explanation</th>
+                        </tr>
+                        <tr>
+                            <td>Stable Price</td>
+                            <td>±0.3%</td>
+                            <td class="good">1.4</td>
+                            <td>Perfect stability + bonus</td>
+                        </tr>
+                        <tr>
+                            <td>Moderate Move</td>
+                            <td>±1.5%</td>
+                            <td class="moderate">0.5</td>
+                            <td>Outside threshold but acceptable</td>
+                        </tr>
+                        <tr>
+                            <td>Strong Trend</td>
+                            <td>±4.0%</td>
+                            <td class="poor">0.25</td>
+                            <td>Missed significant move</td>
+                        </tr>
+                        <tr>
+                            <td>Extreme Move</td>
+                            <td>±8.0%</td>
+                            <td class="poor">0.0</td>
+                            <td>Completely missed opportunity</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="model-card mt-4">
+                <h3 class="text-lg font-bold mb-2">Real-World Example Analysis</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-md font-bold mb-2 text-cyan-400">ETH Price Movement: $1981.56 → $2190.14</h4>
+                        <ul class="text-sm list-disc ml-4">
+                            <li>Total Change: +10.52%</li>
+                            <li>Time Frame: Multiple hours</li>
+                            <li>Strong upward trend detected</li>
+                            <li>High volatility period</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-md font-bold mb-2 text-cyan-400">Model Evaluation Criteria</h4>
+                        <ul class="text-sm list-disc ml-4">
+                            <li>BUY decisions should score high</li>
+                            <li>HOLD decisions penalized</li>
+                            <li>Timing affects score weight</li>
+                            <li>Early BUY gets max bonus</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
             <h2 class="text-xl mb-4">Portfolio Recommendation Logic</h2>
             <div class="mb-4">
                 <h3 class="text-lg font-bold mb-2">Current Settings</h3>
-                <p>Severe imbalance threshold: <span id="threshold" class="font-medium text-white">10%</span></p>
-                <p>Current ETH Allocation: <span id="allocation" class="font-medium text-white">-</span></p>
-                <p>Target Range: <span id="target-range" class="font-medium text-yellow-400">-</span></p>
-                <p>Consensus: <span id="consensus" class="font-medium text-purple-400">-</span></p>
-                <p>Recommendation: <span id="recommendation" class="font-medium text-cyan-400">-</span></p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="model-card">
+                        <h4 class="text-md font-bold mb-2">Portfolio Parameters</h4>
+                        <p>Severe imbalance threshold: <span id="threshold" class="font-medium text-white">10%</span></p>
+                        <p>Current ETH Allocation: <span id="allocation" class="font-medium text-white">-</span></p>
+                        <p>Target Range: <span id="target-range" class="font-medium text-yellow-400">-</span></p>
+                    </div>
+                    <div class="model-card">
+                        <h4 class="text-md font-bold mb-2">AI Consensus</h4>
+                        <p>Model Agreement: <span id="consensus" class="font-medium text-purple-400">-</span></p>
+                        <p>Final Recommendation: <span id="recommendation" class="font-medium text-cyan-400">-</span></p>
+                    </div>
+                </div>
             </div>
             
             <h3 class="text-lg font-bold mb-2">Test Scenarios</h3>
@@ -263,7 +462,7 @@
                 </tr>
             </table>
             
-            <h3 class="text-lg font-bold mb-2">LLM Consensus Swap Amount Tests</h3>
+            <h3 class="text-lg font-bold mb-2">Swap Amount Calculation Examples</h3>
             <table class="mb-4">
                 <tr>
                     <th>Scenario</th>
