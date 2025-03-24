@@ -1,10 +1,5 @@
 // Notification management functions for Simple Crypto Trading Bot Chef
 
-// Constants for swap amount minimums
-const MIN_USD_SWAP_AMOUNT = 1.0; // Minimum USD amount for BUY signals
-const MIN_ETH_SWAP_AMOUNT = 0.0001; // Minimum ETH amount for SELL signals
-const MIN_ETH_FALLBACK = 0.0005; // Fallback minimum ETH amount for error cases
-
 // Initialize global variables
 window.llmSellAdditionalData = null;
 window.llmBuyAdditionalData = null;
@@ -96,74 +91,25 @@ async function sendWalletNotification(signalType, message) {
                     const recommendedBy = message.match(/Recommended by: (.*)/);
                     const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
-                    // Get the recommended swap amount from wallet manager
-                    let swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
-                    let ethAmount = 0;
-                    
-                    if (swapAmount > 0) {
-                        // Use the recommended amount from wallet manager
-                        if (currentPrice > 0) {
-                            ethAmount = swapAmount / currentPrice;
-                            ethAmount = parseFloat(ethAmount.toFixed(6)); // Ensure consistent precision
-                            const calculatedUsdAmount = ethAmount * currentPrice;
-                            console.log(`LLM BUY Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
-                            
-                            // Set additional data for the transaction
-                            message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                            
-                            // Prepare the additional data for the transaction
-                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${calculatedUsdAmount.toFixed(2)} USDC]`;
-                            
-                            // Store this for use in the transaction params later
-                            window.llmBuyAdditionalData = llmBuyAdditionalData;
-                        } else {
-                            console.log(`LLM BUY Signal: Cannot calculate USDC amount: currentPrice is invalid`);
-                            swapAmount = 0;
-                        }
+                    // Since this is an LLM signal, we'll calculate a reasonable swap amount
+                    // Using a standard small amount like $10 for notifications
+                    swapAmount = 10.0;
+                    if (currentPrice > 0) {
+                        ethAmount = swapAmount / currentPrice;
+                        ethAmount = parseFloat(ethAmount.toFixed(8));
+                        console.log(`LLM BUY Signal: Using standard $${swapAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
+                        
+                        // Set additional data for the transaction
+                        message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
+                        
+                        // Prepare the additional data for the transaction
+                        const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap $${swapAmount.toFixed(2)} USDC for ~${ethAmount.toFixed(6)} ETH]`;
+                        
+                        // Store this for use in the transaction params later
+                        window.llmBuyAdditionalData = llmBuyAdditionalData;
                     } else {
-                        // Calculate amount based on portfolio value and target allocation
-                        const totalValue = window.walletBalances?.totalValueUSD || 0;
-                        const currentEthAllocation = window.walletBalances?.ethAllocation || 0;
-                        const targetEthMin = window.walletBalances?.targetEthMin || 40;
-                        
-                        if (totalValue > 0 && currentEthAllocation < targetEthMin) {
-                            // Calculate amount needed to reach target minimum
-                            const targetEthValue = (totalValue * targetEthMin / 100);
-                            const currentEthValue = (totalValue * currentEthAllocation / 100);
-                            const fallbackAmount = targetEthValue - currentEthValue;
-                            
-                            if (fallbackAmount > 0 && currentPrice > 0) {
-                                ethAmount = fallbackAmount / currentPrice;
-                                swapAmount = ethAmount * currentPrice;
-                                console.log(`LLM BUY Signal: Using portfolio-based $${fallbackAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
-                                
-                                // Set additional data for the transaction
-                                message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                                
-                                // Prepare the additional data for the transaction
-                                const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap $${fallbackAmount.toFixed(2)} USDC for ~${ethAmount.toFixed(6)} ETH]`;
-                                
-                                // Store this for use in the transaction params later
-                                window.llmBuyAdditionalData = llmBuyAdditionalData;
-                            }
-                        }
-                        
-                        // If we couldn't calculate a meaningful amount, use a minimal amount
-                        if (!ethAmount || ethAmount <= 0) {
-                            const minimalAmount = MIN_USD_SWAP_AMOUNT;
-                            ethAmount = minimalAmount / currentPrice;
-                            swapAmount = minimalAmount;
-                            console.log(`LLM BUY Signal: Using minimal $${minimalAmount.toFixed(2)} USDC = ${ethAmount.toFixed(6)} ETH at price $${currentPrice}`);
-                            
-                            // Set additional data for the transaction
-                            message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                            
-                            // Prepare the additional data for the transaction
-                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap $${minimalAmount.toFixed(2)} USDC for ~${ethAmount.toFixed(6)} ETH]`;
-                            
-                            // Store this for use in the transaction params later
-                            window.llmBuyAdditionalData = llmBuyAdditionalData;
-                        }
+                        console.log(`LLM BUY Signal: Cannot calculate ETH amount: currentPrice is invalid`);
+                        ethAmount = 0;
                     }
                 }
             } else {
@@ -207,73 +153,24 @@ async function sendWalletNotification(signalType, message) {
                     const recommendedBy = message.match(/Recommended by: (.*)/);
                     const modelsText = recommendedBy ? recommendedBy[1] : "AI models";
                     
-                    // Get the recommended swap amount from wallet manager
-                    let swapAmount = window.walletBalances?.recommendedSwapAmount || 0;
-                    
-                    if (swapAmount > 0) {
-                        // Use the recommended amount from wallet manager
-                        if (currentPrice > 0) {
-                            ethAmount = swapAmount / currentPrice;
-                            ethAmount = parseFloat(ethAmount.toFixed(6)); // Ensure consistent precision
-                            const calculatedUsdAmount = ethAmount * currentPrice;
-                            console.log(`LLM SELL Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
-                            
-                            // Set additional data for the transaction
-                            message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                            
-                            // Prepare the additional data for the transaction
-                            const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${calculatedUsdAmount.toFixed(2)} USDC]`;
-                            
-                            // Store this for use in the transaction params later
-                            window.llmSellAdditionalData = llmAdditionalData;
-                        } else {
-                            console.log(`LLM SELL Signal: Cannot calculate USDC amount: currentPrice is invalid`);
-                            swapAmount = 0;
-                        }
+                    // Since this is an LLM signal, we'll calculate a reasonable ETH amount
+                    // Using a standard small amount like 0.005 ETH for notifications
+                    ethAmount = 0.005;
+                    if (currentPrice > 0) {
+                        swapAmount = ethAmount * currentPrice;
+                        console.log(`LLM SELL Signal: Using standard ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                        
+                        // Set additional data for the transaction
+                        message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
+                        
+                        // Prepare the additional data for the transaction
+                        const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
+                        
+                        // Store this for use in the transaction params later
+                        window.llmSellAdditionalData = llmAdditionalData;
                     } else {
-                        // Calculate amount based on portfolio value and target allocation
-                        const totalValue = window.walletBalances?.totalValueUSD || 0;
-                        const currentEthAllocation = window.walletBalances?.ethAllocation || 0;
-                        const targetEthMax = window.walletBalances?.targetEthMax || 60;
-                        
-                        if (totalValue > 0 && currentEthAllocation > targetEthMax) {
-                            // Calculate amount needed to reach target maximum
-                            const targetEthValue = (totalValue * targetEthMax / 100);
-                            const currentEthValue = (totalValue * currentEthAllocation / 100);
-                            const excessEthValue = currentEthValue - targetEthValue;
-                            
-                            if (excessEthValue > 0 && currentPrice > 0) {
-                                ethAmount = excessEthValue / currentPrice;
-                                swapAmount = ethAmount * currentPrice;
-                                console.log(`LLM SELL Signal: Using portfolio-based ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
-                                
-                                // Set additional data for the transaction
-                                message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                                
-                                // Prepare the additional data for the transaction
-                                const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
-                                
-                                // Store this for use in the transaction params later
-                                window.llmSellAdditionalData = llmAdditionalData;
-                            }
-                        }
-                        
-                        // If we couldn't calculate a meaningful amount, use a minimal amount
-                        if (!ethAmount || ethAmount <= 0) {
-                            const minimalAmount = MIN_ETH_SWAP_AMOUNT;
-                            ethAmount = minimalAmount;
-                            swapAmount = minimalAmount * currentPrice;
-                            console.log(`LLM SELL Signal: Using minimal ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
-                            
-                            // Set additional data for the transaction
-                            message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
-                            
-                            // Prepare the additional data for the transaction
-                            const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
-                            
-                            // Store this for use in the transaction params later
-                            window.llmSellAdditionalData = llmAdditionalData;
-                        }
+                        console.log(`LLM SELL Signal: Cannot calculate USDC amount: currentPrice is invalid`);
+                        swapAmount = 0;
                     }
                 }
             } else {
@@ -417,25 +314,25 @@ async function sendWalletNotification(signalType, message) {
                             // Try to create a reasonable fallback based on the current price
                             if (currentPrice > 0) {
                                 try {
-                                    // Use MIN_ETH_FALLBACK ETH as a minimum value
-                                    const minimalEth = MIN_ETH_FALLBACK;
+                                    // Use 0.0005 ETH as a minimum value
+                                    const minimalEth = 0.0005;
                                     txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(minimalEth.toString(), 'ether'));
                                     console.log(`Using minimal ETH amount for BUY notification: ${minimalEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                                    console.log(`Falling back to minimal ETH amount for BUY notification due to error: ${fallbackError.message}`);
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    console.log(`Falling back to absolute minimum for BUY notification due to error: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                                console.log(`Falling back to minimal ETH amount for BUY notification - no valid price data`);
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                console.log(`Falling back to test amount for BUY notification due to error: ${valueError.message}`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                        console.log(`Falling back to minimal ETH amount for BUY notification`);
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        console.log(`Falling back to test amount for BUY notification`);
                     }
                 } else if (signalType === 'SELL') {
                     // For SELL signals, we use the actual ETH amount from the parsed message
@@ -476,19 +373,19 @@ async function sendWalletNotification(signalType, message) {
                                     console.log(`Using calculated fallback ETH amount for SELL notification: ${fallbackEth} ETH`);
                                 } catch (fallbackError) {
                                     // If even that fails, use absolute minimum
-                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                                    console.log(`Falling back to minimal ETH amount for SELL notification due to error: ${fallbackError.message}`);
+                                    txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                    console.log(`Falling back to absolute minimum for SELL notification: ${fallbackError.message}`);
                                 }
                             } else {
                                 // Default fallback
-                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                                console.log(`Falling back to minimal ETH amount for SELL notification - no valid price data`);
+                                txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                                console.log(`Falling back to test amount for SELL notification: ${valueError.message}`);
                             }
                         }
                     } else {
                         // Fallback if parsing failed
-                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei(MIN_ETH_FALLBACK.toString(), 'ether'));
-                        console.log(`Falling back to minimal ETH amount for SELL notification`);
+                        txParams.value = window.web3.utils.toHex(window.web3.utils.toWei('0.0001', 'ether'));
+                        console.log(`Falling back to test amount for SELL notification`);
                     }
                 }
                 
