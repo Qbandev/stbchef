@@ -99,14 +99,14 @@ async function sendWalletNotification(signalType, message) {
                         // Use the recommended amount from wallet manager
                         if (currentPrice > 0) {
                             ethAmount = swapAmount / currentPrice;
-                            swapAmount = ethAmount * currentPrice;
-                            console.log(`LLM BUY Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                            const calculatedUsdAmount = ethAmount * currentPrice;
+                            console.log(`LLM BUY Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
                             
                             // Set additional data for the transaction
                             message = `BUY Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
                             
                             // Prepare the additional data for the transaction
-                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
+                            const llmBuyAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend buying ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${calculatedUsdAmount.toFixed(2)} USDC]`;
                             
                             // Store this for use in the transaction params later
                             window.llmBuyAdditionalData = llmBuyAdditionalData;
@@ -208,14 +208,14 @@ async function sendWalletNotification(signalType, message) {
                         // Use the recommended amount from wallet manager
                         if (currentPrice > 0) {
                             ethAmount = swapAmount / currentPrice;
-                            swapAmount = ethAmount * currentPrice;
-                            console.log(`LLM SELL Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${swapAmount.toFixed(2)} USDC at price $${currentPrice}`);
+                            const calculatedUsdAmount = ethAmount * currentPrice;
+                            console.log(`LLM SELL Signal: Using recommended ${ethAmount.toFixed(6)} ETH = $${calculatedUsdAmount.toFixed(2)} USDC at price $${currentPrice}`);
                             
                             // Set additional data for the transaction
                             message = `SELL Signal at $${currentPrice}\nRecommended by: ${modelsText}`;
                             
                             // Prepare the additional data for the transaction
-                            const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${swapAmount.toFixed(2)} USDC]`;
+                            const llmAdditionalData = ` [LLM TRADING SIGNAL - ${modelsText} recommend selling ETH at $${currentPrice}. This would swap ${ethAmount.toFixed(6)} ETH for ~$${calculatedUsdAmount.toFixed(2)} USDC]`;
                             
                             // Store this for use in the transaction params later
                             window.llmSellAdditionalData = llmAdditionalData;

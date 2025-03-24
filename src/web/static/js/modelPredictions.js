@@ -147,20 +147,20 @@ function updateModelDecisions(data, walletAddress) {
                             const fallbackAmount = targetEthValue - currentEthValue;
                             
                             if (fallbackAmount > 0) {
-                                const ethAmount = (fallbackAmount / currentPrice).toFixed(6);
+                                const ethAmount = fallbackAmount / currentPrice;
                                 message = `🟢 BUY Signal at $${currentPrice}\n`;
                                 message += `Recommended by: ${buyModels.join(', ')}\n`;
-                                message += `Suggested Swap: ~$${fallbackAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                                message += `Suggested Swap: ~$${fallbackAmount.toFixed(2)} USDC → ${ethAmount.toFixed(6)} ETH`;
                             }
                         }
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!message) {
                             const minimalAmount = 1.0; // $1 minimum
-                            const ethAmount = (minimalAmount / currentPrice).toFixed(6);
+                            const ethAmount = minimalAmount / currentPrice;
                             message = `🟢 BUY Signal at $${currentPrice}\n`;
                             message += `Recommended by: ${buyModels.join(', ')}\n`;
-                            message += `Suggested Swap: ~$${minimalAmount.toFixed(2)} USDC → ${ethAmount} ETH`;
+                            message += `Suggested Swap: ~$${minimalAmount.toFixed(2)} USDC → ${ethAmount.toFixed(6)} ETH`;
                         }
                     }
                 } else if (consensus === 'SELL') {
@@ -187,21 +187,21 @@ function updateModelDecisions(data, walletAddress) {
                             const excessEthValue = currentEthValue - targetEthValue;
                             
                             if (excessEthValue > 0) {
-                                const ethAmount = (excessEthValue / currentPrice).toFixed(6);
-                                const usdAmount = (ethAmount * currentPrice).toFixed(2);
+                                const ethAmount = excessEthValue / currentPrice;
+                                const usdAmount = ethAmount * currentPrice;
                                 message = `🔴 SELL Signal at $${currentPrice}\n`;
                                 message += `Recommended by: ${sellModels.join(', ')}\n`;
-                                message += `Suggested Swap: ~${ethAmount} ETH → $${usdAmount} USDC`;
+                                message += `Suggested Swap: ~${ethAmount.toFixed(6)} ETH → $${usdAmount.toFixed(2)} USDC`;
                             }
                         }
                         
                         // If we couldn't calculate a meaningful amount, use a minimal amount
                         if (!message) {
-                            const minimalAmount = 0.0001; // 0.0001 ETH minimum
-                            const usdAmount = (minimalAmount * currentPrice).toFixed(2);
+                            const minimalEthAmount = 0.0001; // 0.0001 ETH minimum
+                            const usdAmount = minimalEthAmount * currentPrice;
                             message = `🔴 SELL Signal at $${currentPrice}\n`;
                             message += `Recommended by: ${sellModels.join(', ')}\n`;
-                            message += `Suggested Swap: ~${minimalAmount.toFixed(6)} ETH → $${usdAmount} USDC`;
+                            message += `Suggested Swap: ~${minimalEthAmount.toFixed(6)} ETH → $${usdAmount.toFixed(2)} USDC`;
                         }
                     }
                 }
