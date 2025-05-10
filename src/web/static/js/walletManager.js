@@ -395,8 +395,20 @@ function updateWalletCard() {
     window.web3.eth.getChainId().then(chainId => {
         const isLinea = chainId === 59144;
         const isEthereum = chainId === 1;
-        const networkName = isLinea ? 'Linea' : isEthereum ? 'Ethereum' : 'Unknown Network';
-        const networkClass = isLinea || isEthereum ? 'text-green-400' : 'text-yellow-400';
+        const isHardhat = chainId === 31337; // Add support for local Hardhat network
+        const networkName = isLinea ? 'Linea' : 
+                           isEthereum ? 'Ethereum' : 
+                           isHardhat ? 'Hardhat Local' : 'Unknown Network';
+        const networkClass = isLinea || isEthereum || isHardhat ? 'text-green-400' : 'text-yellow-400';
+        const isSupportedNetwork = isLinea || isEthereum || isHardhat;
+        
+        if (!isSupportedNetwork) {
+            showNotification(`Unsupported network (Chain ID: ${chainId}). Please switch to Linea, Ethereum mainnet, or Local Hardhat Network.`, 'warning');
+            console.log(`Unsupported network: ${chainId}`);
+            
+            // Update loading state to show network issue
+            showLoadingWalletState("Connected to unsupported network - please switch");
+        }
         
         // Network switching buttons
         const switchNetworkButtons = isLinea || isEthereum ? `
@@ -975,10 +987,15 @@ async function getWalletBalances() {
         // Check if we're on Linea (Chain ID 59144) or Ethereum (Chain ID 1)
         const isLinea = chainId === 59144;
         const isEthereum = chainId === 1;
-        const isSupportedNetwork = isLinea || isEthereum;
+        const isHardhat = chainId === 31337; // Add support for local Hardhat network
+        const networkName = isLinea ? 'Linea' : 
+                           isEthereum ? 'Ethereum' : 
+                           isHardhat ? 'Hardhat Local' : 'Unknown Network';
+        const networkClass = isLinea || isEthereum || isHardhat ? 'text-green-400' : 'text-yellow-400';
+        const isSupportedNetwork = isLinea || isEthereum || isHardhat;
         
         if (!isSupportedNetwork) {
-            showNotification(`Unsupported network (Chain ID: ${chainId}). Please switch to Linea or Ethereum mainnet.`, 'warning');
+            showNotification(`Unsupported network (Chain ID: ${chainId}). Please switch to Linea, Ethereum mainnet, or Local Hardhat Network.`, 'warning');
             console.log(`Unsupported network: ${chainId}`);
             
             // Update loading state to show network issue
@@ -1345,6 +1362,8 @@ async function connectWallet() {
         
         window.userAccount = null;
         window.web3 = null;
+        window.ethersProvider = null; // Clear ethers provider too
+        window.smartAccountAddress = null; // Clear smart account address
         resetWalletBalances();
         
         // Remove from localStorage to prevent auto-reconnect
@@ -1418,6 +1437,55 @@ async function connectWallet() {
             window.userAccount = accounts[0];
             window.web3 = new Web3(window.ethereum);
 
+            // Initialize ethers provider for EIP-7702 support
+            if (typeof ethers !== 'undefined') {
+                try {
+                    window.ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+                    console.log('Ethers provider initialized');
+                    
+                    // Initialize swap manager if available
+                    if (typeof window.initSwapManager === 'function') {
+                        try {
+                            await window.initSwapManager(window.web3);
+                            console.log('Swap manager initialized');
+                        } catch (swapInitError) {
+                            console.error('Error initializing swap manager:', swapInitError);
+                        }
+                    }
+                    
+                    // Create smart account
+                    if (typeof window.createSmartAccount === 'function') {
+                        try {
+                            const signer = window.ethersProvider.getSigner();
+                            const smartAccountAddress = await window.createSmartAccount(signer);
+                            console.log('Smart account created:', smartAccountAddress);
+                            window.smartAccountAddress = smartAccountAddress;
+                            
+                            // Add smart account indicator to wallet UI
+                            const walletCard = document.getElementById('wallet-card');
+                            if (walletCard) {
+                                const smartAccountBadge = document.createElement('div');
+                                smartAccountBadge.className = 'text-xs text-green-400 mt-1';
+                                smartAccountBadge.innerHTML = `<i class="fas fa-shield-alt mr-1"></i> EIP-7702 Smart Account Enabled`;
+                                
+                                // Try to find the right place to insert
+                                const targetSelector = '.network-address-badge';
+                                const targetElement = walletCard.querySelector(targetSelector);
+                                if (targetElement) {
+                                    targetElement.appendChild(smartAccountBadge);
+                                }
+                            }
+                        } catch (smartAccountError) {
+                            console.error('Error creating smart account:', smartAccountError);
+                        }
+                    }
+                } catch (ethersError) {
+                    console.error('Error setting up ethers:', ethersError);
+                }
+            } else {
+                console.warn('Ethers library not available, advanced features will be disabled');
+            }
+
             // Remove this account from the disconnected list if it was there
             const accountLower = accounts[0].toLowerCase();
             const disconnectIndex = window.disconnectedAccounts.indexOf(accountLower);
@@ -1432,10 +1500,11 @@ async function connectWallet() {
             const chainId = await window.web3.eth.getChainId();
             const isLinea = chainId === 59144;
             const isEthereum = chainId === 1;
+            const isHardhat = chainId === 31337; // Add support for local Hardhat network
             
             // Only show warning if on unsupported network, no need for confirmation on supported ones
-            if (!isLinea && !isEthereum) {
-                window.showNotification(`Connected to unsupported network (ID: ${chainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+            if (!isLinea && !isEthereum && !isHardhat) {
+                window.showNotification(`Connected to unsupported network (ID: ${chainId}). Please switch to Linea (ID: 59144), Ethereum (ID: 1), or Local Hardhat (31337).`, 'warning');
             }
 
             // Save account to localStorage
@@ -1509,10 +1578,11 @@ async function connectWallet() {
                     const newChainId = parseInt(chainIdHex, 16);
                     const isLinea = newChainId === 59144;
                     const isEthereum = newChainId === 1;
+                    const isHardhat = newChainId === 31337; // Add support for local Hardhat network
                     
                     // Only show warning if on unsupported network
-                    if (!isLinea && !isEthereum) {
-                        window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+                    if (!isLinea && !isEthereum && !isHardhat) {
+                        window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144), Ethereum (ID: 1), or Local Hardhat (31337).`, 'warning');
                     }
                     
                     // Get the current MetaMask account and check if it's disconnected
@@ -1532,6 +1602,25 @@ async function connectWallet() {
                             
                             // If not a disconnected account, proceed with normal updates
                             if (window.userAccount) {
+                                // Initialize ethers provider after network change
+                                if (typeof ethers !== 'undefined') {
+                                    window.ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+                                    console.log('Ethers provider re-initialized after network change');
+                                    
+                                    // Re-create smart account for new network if needed
+                                    const signer = window.ethersProvider.getSigner();
+                                    if (typeof window.createSmartAccount === 'function') {
+                                        window.createSmartAccount(signer)
+                                            .then(smartAccountAddress => {
+                                                console.log('Smart account re-created for new network:', smartAccountAddress);
+                                                window.smartAccountAddress = smartAccountAddress;
+                                            })
+                                            .catch(error => {
+                                                console.error('Error re-creating smart account:', error);
+                                            });
+                                    }
+                                }
+                                
                                 // Update wallet data
                                 getWalletBalances().catch(error => 
                                     console.error('Error fetching wallet balances after chain change:', error));
@@ -1576,6 +1665,8 @@ async function connectWallet() {
                         }
                         
                         window.userAccount = null;
+                        window.ethersProvider = null; // Clear ethers provider
+                        window.smartAccountAddress = null; // Clear smart account reference
                         resetWalletBalances();
                         
                         // Remove from localStorage
@@ -1762,10 +1853,11 @@ function setupMetaMaskEventListeners() {
             const newChainId = parseInt(chainIdHex, 16);
             const isLinea = newChainId === 59144;
             const isEthereum = newChainId === 1;
+            const isHardhat = newChainId === 31337; // Add support for local Hardhat network
             
             // Only show warning if on unsupported network
-            if (!isLinea && !isEthereum) {
-                window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144) or Ethereum (ID: 1).`, 'warning');
+            if (!isLinea && !isEthereum && !isHardhat) {
+                window.showNotification(`Switched to unsupported network (ID: ${newChainId}). Please switch to Linea (ID: 59144), Ethereum (ID: 1), or Local Hardhat (31337).`, 'warning');
             }
             
             // Update wallet data

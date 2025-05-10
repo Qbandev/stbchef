@@ -1,0 +1,76 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/qbandev/workspace-qbandev/stbchef/contracts/SimpleSwap.sol": {
+      "lastModificationDate": 1746886878720,
+      "contentHash": "34680ac45d9cc47b9cec08ab818a9d65",
+      "sourceName": "contracts/SimpleSwap.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.17"
+      ],
+      "artifacts": [
+        "IERC20",
+        "SimpleSwap"
+      ]
+    },
+    "/Users/qbandev/workspace-qbandev/stbchef/contracts/SmartAccount.sol": {
+      "lastModificationDate": 1746886806791,
+      "contentHash": "c8943c314ee51d0e8aaa75ede9d62d75",
+      "sourceName": "contracts/SmartAccount.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.17"
+      ],
+      "artifacts": [
+        "SmartAccount"
+      ]
+    }
+  }
+}

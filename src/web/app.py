@@ -353,9 +353,12 @@ def test_stats() -> str:
     return render_template("test_stats.html")
 
 
-@app.route("/clear-storage", methods=["POST"])
-def clear_storage() -> dict:
+@app.route("/clear-storage", methods=["GET", "POST"])
+def clear_storage() -> Union[str, dict]:
     """Clear localStorage data for fresh start on redeployment."""
+    if request.method == "GET":
+        return render_template("clear-storage.html")
+
     try:
         # Create empty stats records for today to ensure we start with zeros
         today = datetime.now().strftime('%Y-%m-%d')

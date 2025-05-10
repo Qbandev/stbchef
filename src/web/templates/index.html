@@ -587,6 +587,177 @@
                 };
             }
         });
+
+        // Initialize the swap interface when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up event listeners for the swap modal
+            document.getElementById('execute-trade-btn').addEventListener('click', function() {
+                // Get latest wallet balances first to show accurate amounts
+                if (typeof window.getWalletBalances === 'function') {
+                    window.getWalletBalances().then(() => {
+                        console.log('Refreshed wallet balances for swap form');
+                        updateSwapFormBalances();
+                    }).catch(err => {
+                        console.error('Error refreshing wallet balances:', err);
+                    });
+                }
+                document.getElementById('swap-modal').classList.remove('hidden');
+            });
+            
+            document.getElementById('close-swap-modal').addEventListener('click', function() {
+                document.getElementById('swap-modal').classList.add('hidden');
+            });
+            
+            // Update the swap currency label when the swap direction changes
+            document.querySelectorAll('input[name="swap-direction"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    updateSwapFormBalances();
+                });
+            });
+            
+            // Function to update the swap form with current balances
+            function updateSwapFormBalances() {
+                const swapCurrencyEl = document.getElementById('swap-currency');
+                const swapBalanceEl = document.getElementById('swap-balance');
+                const direction = document.querySelector('input[name="swap-direction"]:checked').value;
+                
+                if (direction === 'eth-to-usdc') {
+                    swapCurrencyEl.textContent = 'ETH';
+                    if (window.walletBalances && typeof window.walletBalances.eth !== 'undefined') {
+                        swapBalanceEl.textContent = `Balance: ${window.walletBalances.eth.toFixed(4)} ETH`;
+                    } else {
+                        swapBalanceEl.textContent = 'Balance: 0.00 ETH';
+                    }
+                } else {
+                    swapCurrencyEl.textContent = 'USDC';
+                    if (window.walletBalances && typeof window.walletBalances.usdc !== 'undefined') {
+                        swapBalanceEl.textContent = `Balance: ${window.walletBalances.usdc.toFixed(2)} USDC`;
+                    } else {
+                        swapBalanceEl.textContent = 'Balance: 0.00 USDC';
+                    }
+                }
+                console.log('Updated swap form with wallet balances:', window.walletBalances);
+            }
+            
+            // Set up the execute swap button
+            document.getElementById('execute-swap-btn').addEventListener('click', async function() {
+                const direction = document.querySelector('input[name="swap-direction"]:checked').value;
+                const amount = parseFloat(document.getElementById('swap-amount').value);
+                const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
+                
+                if (isNaN(amount) || amount <= 0) {
+                    window.showNotification('Please enter a valid amount', 'error');
+                    return;
+                }
+                
+                // Check if wallet is connected
+                if (!window.userAccount) {
+                    window.showNotification('Please connect your wallet first', 'error');
+                    return;
+                }
+                
+                // Make sure we're using the right network by reinitializing ethers
+                if (window.initializeEthersProvider) {
+                    try {
+                        await window.initializeEthersProvider();
+                    } catch (err) {
+                        console.error('Error initializing provider:', err);
+                    }
+                }
+                
+                try {
+                    if (direction === 'eth-to-usdc') {
+                        if (typeof window.swapEthToUsdc === 'function') {
+                            const result = await window.swapEthToUsdc(amount, useGasToken);
+                            if (result.status === 'success') {
+                                window.showNotification(`Swap successful: ${amount} ETH to USDC`, 'success');
+                                document.getElementById('swap-modal').classList.add('hidden');
+                            }
+                        } else {
+                            throw new Error('Swap functionality not available');
+                        }
+                    } else {
+                        if (typeof window.swapUsdcToEth === 'function') {
+                            const result = await window.swapUsdcToEth(amount, useGasToken);
+                            if (result.status === 'success') {
+                                window.showNotification(`Swap successful: ${amount} USDC to ETH`, 'success');
+                                document.getElementById('swap-modal').classList.add('hidden');
+                            }
+                        } else {
+                            throw new Error('Swap functionality not available');
+                        }
+                    }
+                } catch (error) {
+                    window.showNotification(`Error executing swap: ${error.message}`, 'error');
+                }
+            });
+            
+            // Update the Pay Gas in USDC toggle based on localStorage
+            const enableSwapRecommendations = localStorage.getItem('stbchef_enable_swap_recommendations') === 'true';
+            document.getElementById('enable-swap-recommendations').checked = enableSwapRecommendations;
+            window.enableSwapRecommendations = enableSwapRecommendations;
+            
+            // Function to update swap history
+            function updateSwapHistory() {
+                if (!window.getRecentSwaps) return;
+                
+                const swaps = window.getRecentSwaps();
+                const historyBody = document.getElementById('swap-history-body');
+                
+                if (!swaps || swaps.length === 0) {
+                    historyBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-400">
+                                No transactions yet. Execute a trade based on AI recommendations to get started.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                historyBody.innerHTML = '';
+                swaps.forEach(swap => {
+                    const dateTime = new Date(swap.timestamp);
+                    const formattedDate = dateTime.toLocaleDateString();
+                    const formattedTime = dateTime.toLocaleTimeString();
+                    
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-cyber-darker transition';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-white">${formattedTime}</div>
+                            <div class="text-xs text-gray-400">${formattedDate}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-white">${swap.fromToken} → ${swap.toToken}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-white">
+                            ${swap.fromAmount.toFixed(6)} ${swap.fromToken}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                ${swap.status === 'SUCCESSFUL' ? 'bg-green-900 text-green-200' : 
+                                swap.status === 'PENDING' ? 'bg-yellow-900 text-yellow-200' : 
+                                'bg-red-900 text-red-200'}">
+                                ${swap.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <a href="https://etherscan.io/tx/${swap.txHash}" target="_blank" class="text-blue-400 hover:text-blue-300">
+                                <i class="fas fa-external-link-alt mr-1"></i> View
+                            </a>
+                        </td>
+                    `;
+                    
+                    historyBody.appendChild(row);
+                });
+            }
+            
+            // Update swap history initially and periodically
+            updateSwapHistory();
+            setInterval(updateSwapHistory, 10000); // Update every 10 seconds
+        });
     </script>
 
     <!-- Info Panel Toggle Script -->
@@ -953,5 +1124,121 @@
             </div>
         </div>
     </main>
+
+    <!-- Add this new swap history section just before the closing main tag -->
+    <div class="card bg-cyber-dark p-4 pb-6 rounded-xl shadow-lg border border-blue-900 mt-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold cyber-title">Recent Transactions</h2>
+            <div class="flex items-center">
+                <label class="inline-flex items-center cursor-pointer mr-4">
+                    <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer">
+                    <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <span class="ms-3 text-sm font-medium text-gray-300">Pay Gas in USDC</span>
+                </label>
+                <button id="execute-trade-btn" class="cyber-btn px-4 py-1.5">
+                    <i class="fas fa-exchange-alt mr-2"></i>
+                    New Swap
+                </button>
+            </div>
+        </div>
+        
+        <!-- Swap history table -->
+        <div class="overflow-x-auto rounded-lg">
+            <table class="min-w-full divide-y divide-gray-700">
+                <thead class="bg-cyber-darker">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Transaction</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Details</th>
+                    </tr>
+                </thead>
+                <tbody id="swap-history-body" class="bg-cyber-dark divide-y divide-gray-800">
+                    <!-- This will be populated with recent swap history -->
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-400">
+                            No transactions yet. Execute a trade based on AI recommendations to get started.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Add a modal for initiating manual swaps -->
+    <div id="swap-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-cyber-dark p-6 rounded-lg shadow-lg max-w-md w-full border border-blue-500">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-blue-400">Execute Swap</h3>
+                <button id="close-swap-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Add simulation mode notice -->
+            <div class="bg-blue-900 bg-opacity-30 border border-blue-700 rounded p-3 mb-4">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-2"></i>
+                    <div>
+                        <p class="text-blue-300 text-sm font-semibold">Simulation Mode</p>
+                        <p class="text-gray-300 text-xs">This is a demonstration of EIP-7702 functionality. No actual trades will be executed. See IMPLEMENTATION_GUIDE.md for completion steps.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 mb-2">Swap Direction</label>
+                    <div class="flex space-x-4">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="swap-direction" value="eth-to-usdc" class="form-radio text-blue-600" checked>
+                            <span class="ml-2 text-white">ETH → USDC</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="swap-direction" value="usdc-to-eth" class="form-radio text-blue-600">
+                            <span class="ml-2 text-white">USDC → ETH</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="swap-amount" class="block text-gray-300 mb-2">Amount</label>
+                    <div class="flex items-center">
+                        <input type="number" id="swap-amount" class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-blue-500 focus:outline-none" placeholder="0.0" style="color: white !important; caret-color: white; text-shadow: 0 0 0 white;">
+                        <span id="swap-currency" class="ml-2 text-gray-300">ETH</span>
+                    </div>
+                    <div id="swap-balance" class="text-xs text-gray-500 mt-1">Balance: 0.00 ETH</div>
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 mb-2">Gas Payment</label>
+                    <div class="flex space-x-4">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="gas-token" value="eth" class="form-radio text-blue-600" checked>
+                            <span class="ml-2 text-white">Pay in ETH</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="gas-token" value="usdc" class="form-radio text-blue-600">
+                            <span class="ml-2 text-white">Pay in USDC</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="pt-4">
+                    <button id="execute-swap-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                        <i class="fas fa-exchange-alt mr-2"></i>
+                        Execute Swap
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this before the closing body tag -->
+    <!-- Load ethers.js first from local file -->
+    <script src="/static/js/lib/ethers-5.7.2.umd.min.js" type="text/javascript"></script>
+    <!-- Then load our module loader which will handle dynamic imports -->
+    <script src="/static/js/moduleLoader.js" type="text/javascript"></script>
 </body>
 </html> 

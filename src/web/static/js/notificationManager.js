@@ -73,7 +73,7 @@ async function sendWalletNotification(signalType, message) {
         }
         
         // Show the notification with the exact message passed from modelPredictions.js
-        showNotification(message, 'info');
+        showNotification(message, 'info', true);
         
         // Parse the swap amount from the message parameter
         let swapAmount = 0;
