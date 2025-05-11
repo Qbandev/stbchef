@@ -19,6 +19,7 @@ flask-limiter = "^3.5.0"
 flask-talisman = "^1.0.0"
 httpx = "0.25.2"
 flask-cors = "^5.0.1"
+numpy = "^2.2.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
