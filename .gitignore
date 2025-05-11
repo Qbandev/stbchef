@@ -179,3 +179,5 @@ node_modules/
 # Environment variables
 .env
 .playwright/
+artifacts/
+cache/
