@@ -43,12 +43,11 @@ try:
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
 
-    # Apply a conservative default of 120 requests per minute per IP.
-    Limiter(
-        app,
+    limiter = Limiter(
         key_func=get_remote_address,
-        default_limits=["120 per minute"],
+        default_limits=["120 per minute"]
     )
+    limiter.init_app(app)
     logging.info(
         "[security] Flask-Limiter enabled with 120 req/min default limit")
 except ImportError:
