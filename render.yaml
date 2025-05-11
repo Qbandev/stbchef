@@ -2,7 +2,7 @@ services:
   - type: web
     name: stbchef-web
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: |
       # Install Python dependencies
       pip install poetry

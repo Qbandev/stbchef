@@ -15,11 +15,6 @@ module.exports = {
       chainId: parseInt(process.env.CHAIN_ID || "59144"),
       gasPrice: 1000000000, // 1 gwei
     },
-    linea: {
-      url: process.env.LINEA_RPC_URL || "https://rpc.linea.build",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 59144,
-    },
     lineaTestnet: {
       url: process.env.LINEA_TESTNET_RPC_URL || "https://rpc.goerli.linea.build",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
@@ -35,19 +30,10 @@ module.exports = {
   },
   etherscan: {
     apiKey: {
-      linea: process.env.LINEASCAN_API_KEY || "",
       lineaTestnet: process.env.LINEASCAN_API_KEY || "",
       lineaMainnet: process.env.LINEASCAN_API_KEY || ""
     },
     customChains: [
-      {
-        network: "linea",
-        chainId: 59144,
-        urls: {
-          apiURL: "https://api.lineascan.build/api",
-          browserURL: "https://lineascan.build/"
-        }
-      },
       {
         network: "lineaMainnet",
         chainId: 59144,
