@@ -2,7 +2,7 @@
 // Implements trading functionality with real swap execution
 
 // Use global ethers variable instead of ES module import
-import { createSmartAccount, buildPectraTx, executeSwap, TokenAddresses, getSimulatedTransactions } from './smartAccount.js';
+import { createSmartAccount, buildPectraTx, executeSwap, TokenAddresses } from './smartAccount.js';
 
 // Common token addresses (0x00...00 represents native ETH)
 const NATIVE_ETH = '0x0000000000000000000000000000000000000000';
@@ -398,24 +398,25 @@ export function getRecentSwaps() {
     return [...recentSwaps];
   }
   
-  // If no local history, try to get simulated transactions
-  try {
-    const simulatedTxs = getSimulatedTransactions();
+  // If no local history, try to get simulated transactions -- THIS LOGIC IS NOW REMOVED
+  // try {
+  //   const simulatedTxs = getSimulatedTransactions(); // This function was removed
     
-    // Convert to our expected format
-    return simulatedTxs.map(tx => ({
-      timestamp: tx.timestamp,
-      txHash: tx.hash,
-      fromToken: tx.fromToken,
-      toToken: tx.toToken,
-      fromAmount: parseFloat(ethers.utils.formatEther(tx.amount)),
-      estimatedToAmount: 0, // We don't have this in simulated transactions
-      status: 'SUCCESSFUL' // All simulated transactions are successful
-    }));
-  } catch (e) {
-    console.error('Error getting simulated transactions:', e);
-    return [];
-  }
+  //   // Convert to our expected format
+  //   return simulatedTxs.map(tx => ({
+  //     timestamp: tx.timestamp,
+  //     txHash: tx.hash,
+  //     fromToken: tx.fromToken,
+  //     toToken: tx.toToken,
+  //     fromAmount: parseFloat(ethers.utils.formatEther(tx.amount)),
+  //     estimatedToAmount: 0, // We don't have this in simulated transactions
+  //     status: 'SUCCESSFUL' // All simulated transactions are successful
+  //   }));
+  // } catch (e) {
+  //   console.error('Error getting simulated transactions:', e);
+  //   return []; // Return empty if simulated also fails or is not available
+  // }
+  return []; // Always return empty array if no real recentSwaps, as simulation is gone
 }
 
 /**

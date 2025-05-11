@@ -1,10 +1,6 @@
 // Smart Account functionality for Simple Crypto Trading Bot Chef
 // Implements EIP-7702 support for Ethereum Pectra upgrade
 
-// Remove simulation mode
-const SIMULATION_MODE = false;
-const simulatedTransactions = [];
-
 // Contract addresses (to be filled after deployment)
 export const DEPLOYED_CONTRACTS = {
   "smartAccount": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
@@ -289,12 +285,12 @@ let smartAccounts = {};
  */
 export async function createSmartAccount(signer) {
   try {
-    console.log('[smartAccount] Creating EIP-7702 smart account...');
+    // console.log('[smartAccount] Creating EIP-7702 smart account...');
     
     // Check if we already have a smart account for this signer
     const signerAddress = await signer.getAddress();
     if (smartAccounts[signerAddress]) {
-      console.log('Smart account already exists for this address');
+      // console.log('Smart account already exists for this address');
       return smartAccounts[signerAddress];
     }
     
@@ -305,56 +301,46 @@ export async function createSmartAccount(signer) {
     if (provider) {
       try {
         network = await provider.getNetwork();
-        console.log(`[smartAccount] Creating smart account on network: ${network.name} (chainId: ${network.chainId})`);
+        // console.log(`[smartAccount] Creating smart account on network: ${network.name} (chainId: ${network.chainId})`);
       } catch (networkError) {
-        console.error('[smartAccount] Error getting network from provider:', networkError);
+        // console.error('[smartAccount] Error getting network from provider:', networkError);
       }
     }
     
     // Calculate the expected address
-    // In a real implementation, you would deploy the smart account contract here
-    // For now, simulate creating a smart account
-    if (SIMULATION_MODE) {
-      const smartAccountAddress = ethers.utils.getContractAddress({
-        from: signerAddress,
-        nonce: await provider.getTransactionCount(signerAddress)
-      });
-      smartAccounts[signerAddress] = smartAccountAddress;
-      console.log('[smartAccount] SIMULATION: Smart account address:', smartAccountAddress);
-      return smartAccountAddress;
-    } else {
-      // In the real implementation, here we would interact with a factory contract
-      // For now, we'll assume the contract is already deployed and just need to be connected
+    // Logic from the original 'else' block of SIMULATION_MODE check is now the default
+    // In the real implementation, here we would interact with a factory contract
+    // For now, we'll assume the contract is already deployed and just need to be connected
+    
+    // Set contract address based on chain ID
+    let smartAccountAddress = DEPLOYED_CONTRACTS.smartAccount;
+    
+    // If we don't have an address yet, we'll deploy a new one
+    if (!smartAccountAddress) {
+      // console.log("[smartAccount] Deploying a new smart account contract...");
+      const factory = new ethers.ContractFactory(SmartAccountABI, [], signer);
+      const smartAccount = await factory.deploy();
+      await smartAccount.deployTransaction.wait();
       
-      // Set contract address based on chain ID
-      let smartAccountAddress = DEPLOYED_CONTRACTS.smartAccount;
+      smartAccountAddress = smartAccount.address;
+      // console.log(`[smartAccount] New smart account deployed at: ${smartAccountAddress}`);
       
-      // If we don't have an address yet, we'll deploy a new one
-      if (!smartAccountAddress) {
-        console.log("[smartAccount] Deploying a new smart account contract...");
-        const factory = new ethers.ContractFactory(SmartAccountABI, [], signer);
-        const smartAccount = await factory.deploy();
-        await smartAccount.deployTransaction.wait();
-        
-        smartAccountAddress = smartAccount.address;
-        console.log(`[smartAccount] New smart account deployed at: ${smartAccountAddress}`);
-        
-        // Enable features
-        await smartAccount.enableFeature(Feature.SessionKeys);
-        await smartAccount.enableFeature(Feature.BatchTransactions);
-        await smartAccount.enableFeature(Feature.GasTokenPayment);
-        
-        // Update the deployed contract address
-        DEPLOYED_CONTRACTS.smartAccount = smartAccountAddress;
-      }
+      // Enable features
+      await smartAccount.enableFeature(Feature.SessionKeys);
+      await smartAccount.enableFeature(Feature.BatchTransactions);
+      await smartAccount.enableFeature(Feature.GasTokenPayment);
       
-      // Save the address
-      smartAccounts[signerAddress] = smartAccountAddress;
-      
-      return smartAccountAddress;
+      // Update the deployed contract address
+      DEPLOYED_CONTRACTS.smartAccount = smartAccountAddress;
     }
+    
+    // Save the address
+    smartAccounts[signerAddress] = smartAccountAddress;
+    
+    return smartAccountAddress;
+
   } catch (error) {
-    console.error('[smartAccount] Error creating smart account:', error);
+    // console.error('[smartAccount] Error creating smart account:', error);
     throw error;
   }
 }
@@ -397,8 +383,8 @@ export function buildPectraTx(txParams, gasToken = null, batch = null) {
  */
 export async function executeSwap(signer, fromToken, toToken, amount, useGasToken = false) {
   try {
-    console.log('[smartAccount] executeSwap function called.');
-    console.log('[smartAccount] Args - Signer:', signer, 'From:', fromToken, 'To:', toToken, 'Amount:', amount.toString(), 'UseGasToken:', useGasToken);
+    // console.log('[smartAccount] executeSwap function called.');
+    // console.log('[smartAccount] Args - Signer:', signer, 'From:', fromToken, 'To:', toToken, 'Amount:', amount.toString(), 'UseGasToken:', useGasToken);
 
     // Get network info first
     const provider = signer.provider;
@@ -407,41 +393,13 @@ export async function executeSwap(signer, fromToken, toToken, amount, useGasToke
     if (provider) {
       try {
         network = await provider.getNetwork();
-        console.log(`[smartAccount] Executing swap on network: ${network.name} (chainId: ${network.chainId})`);
+        // console.log(`[smartAccount] Executing swap on network: ${network.name} (chainId: ${network.chainId})`);
       } catch (networkError) {
-        console.error('[smartAccount] Error getting network from provider during swap:', networkError);
+        // console.error('[smartAccount] Error getting network from provider during swap:', networkError);
       }
     }
     
-    // Explain to user that this is simulation mode
-    if (SIMULATION_MODE) {
-      console.log('SIMULATION MODE: No actual transactions will be executed');
-      
-      // Create a simulated transaction hash
-      const fromTokenSymbol = fromToken === ethers.constants.AddressZero ? 'ETH' : 'USDC';
-      const toTokenSymbol = toToken === ethers.constants.AddressZero ? 'ETH' : 'USDC';
-      const simulatedTxHash = '0x' + Array.from({length: 64}, () => 
-                             '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
-      
-      // Simulate execution time
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Add to simulated transactions
-      simulatedTransactions.push({
-        hash: simulatedTxHash,
-        from: await signer.getAddress(),
-        fromToken: fromTokenSymbol,
-        toToken: toTokenSymbol,
-        amount: amount.toString(),
-        timestamp: Date.now()
-      });
-      
-      console.log(`[smartAccount] SIMULATION: Swap ${fromTokenSymbol} → ${toTokenSymbol} successful`);
-      console.log(`[smartAccount] SIMULATION: Transaction hash: ${simulatedTxHash}`);
-      
-      // Return the simulated hash
-      return simulatedTxHash;
-    }
+    // SIMULATION_MODE block removed, proceeding directly with real swap logic
     
     // Get the current chain ID
     const chainId = network.chainId.toString();
@@ -459,7 +417,7 @@ export async function executeSwap(signer, fromToken, toToken, amount, useGasToke
       throw new Error(`[smartAccount] No SimpleSwap contract deployed on network ${chainId}. DEPLOYED_CONTRACTS: ${JSON.stringify(DEPLOYED_CONTRACTS.simpleSwap)}`);
     }
     
-    console.log(`[smartAccount] Using SimpleSwap address for chainId ${chainId}: ${simpleSwapAddress}`);
+    // console.log(`[smartAccount] Using SimpleSwap address for chainId ${chainId}: ${simpleSwapAddress}`);
     
     // Connect to the SimpleSwap contract
     const simpleSwap = new ethers.Contract(simpleSwapAddress, SimpleSwapABI, signer);
@@ -475,7 +433,7 @@ export async function executeSwap(signer, fromToken, toToken, amount, useGasToke
     } else if (chainId === '31337') {
       // Local Hardhat network - use testnet USDC address for testing
       usdcAddress = TokenAddresses.USDC_LINEA_TESTNET;
-      console.log(`[smartAccount] Local Hardhat (31337): Using MockUSDC (USDC_LINEA_TESTNET) address: ${usdcAddress}`);
+      // console.log(`[smartAccount] Local Hardhat (31337): Using MockUSDC (USDC_LINEA_TESTNET) address: ${usdcAddress}`);
     } else {
       throw new Error(`[smartAccount] Unsupported network for USDC address: ${chainId}`);
     }
@@ -485,50 +443,42 @@ export async function executeSwap(signer, fromToken, toToken, amount, useGasToke
     // Execute the swap based on direction
     if (fromToken === ethers.constants.AddressZero) {
       // ETH to USDC swap
-      console.log(`[smartAccount] ETH to USDC swap. Amount (wei): ${amount.toString()}`);
+      // console.log(`[smartAccount] ETH to USDC swap. Amount (wei): ${amount.toString()}`);
       tx = await simpleSwap.swapEthToUsdc({ value: amount });
     } else {
       // USDC to ETH swap
-      console.log(`[smartAccount] USDC to ETH swap. Amount (smallest unit): ${amount.toString()}, USDC Address: ${usdcAddress}`);
+      // console.log(`[smartAccount] USDC to ETH swap. Amount (smallest unit): ${amount.toString()}, USDC Address: ${usdcAddress}`);
       const usdc = new ethers.Contract(usdcAddress, ERC20_ABI, signer);
       
       // Check current allowance
       const userAddress = await signer.getAddress();
       const currentAllowance = await usdc.allowance(userAddress, simpleSwapAddress);
-      console.log(`[smartAccount] Current USDC allowance for SimpleSwap: ${currentAllowance.toString()}`);
+      // console.log(`[smartAccount] Current USDC allowance for SimpleSwap: ${currentAllowance.toString()}`);
       
       if (currentAllowance.lt(amount)) {
-        console.log('[smartAccount] Approving SimpleSwap to spend USDC...');
+        // console.log('[smartAccount] Approving SimpleSwap to spend USDC...');
         const approveTx = await usdc.approve(simpleSwapAddress, amount);
         await approveTx.wait();
-        console.log('[smartAccount] USDC approved. Tx:', approveTx.hash);
+        // console.log('[smartAccount] USDC approved. Tx:', approveTx.hash);
       } else {
-        console.log('[smartAccount] Sufficient USDC allowance already present.');
+        // console.log('[smartAccount] Sufficient USDC allowance already present.');
       }
       
       // Execute the swap
-      console.log('[smartAccount] Executing SimpleSwap.swapUsdcToEth...');
+      // console.log('[smartAccount] Executing SimpleSwap.swapUsdcToEth...');
       tx = await simpleSwap.swapUsdcToEth(amount);
     }
     
     // Wait for the transaction to complete
-    console.log(`[smartAccount] Swap transaction sent: ${tx.hash}`);
+    // console.log(`[smartAccount] Swap transaction sent: ${tx.hash}`);
     const receipt = await tx.wait();
-    console.log('[smartAccount] Swap transaction confirmed. Receipt:', receipt);
+    // console.log('[smartAccount] Swap transaction confirmed. Receipt:', receipt);
     
     return tx.hash;
   } catch (error) {
-    console.error('[smartAccount] Error executing swap:', error);
+    // console.error('[smartAccount] Error executing swap:', error);
     throw error;
   }
-}
-
-/**
- * Get simulated transactions for demo
- * @returns {Array} - Array of simulated transactions
- */
-export function getSimulatedTransactions() {
-  return [...simulatedTransactions];
 }
 
 /**
@@ -540,7 +490,7 @@ export function getSimulatedTransactions() {
  */
 export async function executeBatchTransactions(signer, transactions, useGasToken = false) {
   try {
-    console.log('[smartAccount] executeBatchTransactions called. Transactions:', transactions, 'UseGasToken:', useGasToken);
+    // console.log('[smartAccount] executeBatchTransactions called. Transactions:', transactions, 'UseGasToken:', useGasToken);
     // Get or create smart account
     const smartAccountAddress = await createSmartAccount(signer);
     
@@ -556,15 +506,15 @@ export async function executeBatchTransactions(signer, transactions, useGasToken
     
     // Send transaction
     const tx = await signer.sendTransaction(pectraTx);
-    console.log(`[smartAccount] Batch transaction sent: ${tx.hash}`);
+    // console.log(`[smartAccount] Batch transaction sent: ${tx.hash}`);
     
     // Wait for transaction to complete
     const receipt = await tx.wait();
-    console.log('[smartAccount] Batch transaction confirmed. Receipt:', receipt);
+    // console.log('[smartAccount] Batch transaction confirmed. Receipt:', receipt);
     
     return tx.hash;
   } catch (error) {
-    console.error('[smartAccount] Error executing batch transactions:', error);
+    // console.error('[smartAccount] Error executing batch transactions:', error);
     throw error;
   }
 } 

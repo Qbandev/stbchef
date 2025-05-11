@@ -272,6 +272,20 @@
                         }
                         
                         if (userAccount) {
+                            // Ensure web3 instance is available from the earlier new Web3(window.ethereum)
+                            if (!window.web3 && window.ethereum) {
+                                console.log('[PageLoad] Re-initializing window.web3 for persisted session.');
+                                window.web3 = new Web3(window.ethereum);
+                            }
+
+                            if (typeof window.initializeEthersProvider === 'function') {
+                                console.log('[PageLoad] Persisted wallet session, calling initializeEthersProvider...');
+                                await window.initializeEthersProvider();
+                                console.log('[PageLoad] initializeEthersProvider completed for persisted session.');
+                            } else {
+                                console.warn('[PageLoad] initializeEthersProvider not found for persisted session.');
+                            }
+
                             updateWalletUI();
                             
                             // Fetch initial wallet data
@@ -1118,20 +1132,7 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
-            <!-- Add simulation mode notice -->
-            <!--
-            <div class="bg-blue-900 bg-opacity-30 border border-blue-700 rounded p-3 mb-4">
-                <div class="flex items-start">
-                    <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-2"></i>
-                    <div>
-                        <p class="text-blue-300 text-sm font-semibold">Simulation Mode</p>
-                        <p class="text-gray-300 text-xs">This is a demonstration of EIP-7702 functionality. No actual trades will be executed. See the README for deployment steps.</p>
-                    </div>
-                </div>
-            </div>
-            -->
-            
+
             <div class="space-y-4">
                 <div>
                     <p class="block text-gray-300 mb-2">Swap Direction</p>
