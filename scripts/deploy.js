@@ -33,7 +33,7 @@ async function main() {
     // 59144 = Linea mainnet, otherwise default to Linea testnet constants
     usdcAddress = network.chainId === 59144 ? USDC_ADDRESS.mainnet : USDC_ADDRESS.testnet;
   }
-
+  
   console.log(`Using USDC address: ${usdcAddress}`);
   
   // Get the deployer account

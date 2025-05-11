@@ -6,7 +6,7 @@ const SIMULATION_MODE = false;
 const simulatedTransactions = [];
 
 // Contract addresses (to be filled after deployment)
-const DEPLOYED_CONTRACTS = {
+export const DEPLOYED_CONTRACTS = {
   "smartAccount": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   "simpleSwap": {
     "31337": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",

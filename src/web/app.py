@@ -62,8 +62,19 @@ try:
     csp = {
         'default-src': "'self'",
         'img-src': "'self' data:",
-        'script-src': "'self' 'unsafe-inline'",
-        'style-src': "'self' 'unsafe-inline'",
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdn.tailwindcss.com",
+            "https://cdn.jsdelivr.net",
+            "https://cdnjs.cloudflare.com"
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdnjs.cloudflare.com"
+        ],
+        'font-src': ["'self'", "https://cdnjs.cloudflare.com"]
     }
     Talisman(app, content_security_policy=csp)
     logging.info("[security] Flask-Talisman enabled with basic CSP headers")

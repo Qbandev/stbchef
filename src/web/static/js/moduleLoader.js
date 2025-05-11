@@ -22,6 +22,7 @@ async function loadModules() {
       window.buildPectraTx = smartAccountModule.buildPectraTx;
       window.Feature = smartAccountModule.Feature;
       window.TokenAddresses = smartAccountModule.TokenAddresses;
+      window.DEPLOYED_CONTRACTS = smartAccountModule.DEPLOYED_CONTRACTS;
       
       console.log('Smart Account module loaded');
     } catch (error) {
