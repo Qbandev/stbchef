@@ -224,6 +224,20 @@
       window.userAccount = accounts[0];
       window.web3 = new Web3(window.ethereum);
 
+      // Ensure ethersProvider is initialized after web3 and userAccount are set.
+      if (typeof window.initializeEthersProvider === 'function') {
+        console.log('[walletCore connectWallet] Wallet connected, calling initializeEthersProvider...');
+        try {
+          await window.initializeEthersProvider(); // This will set up window.ethersProvider
+          console.log('[walletCore connectWallet] initializeEthersProvider completed.');
+        } catch (initError) {
+          console.error('[walletCore connectWallet] Error during initializeEthersProvider:', initError);
+          // Handle error if needed, e.g., notify user or reset state
+        }
+      } else {
+        console.warn('[walletCore connectWallet] initializeEthersProvider function not found on window. Ethers-dependent features might not work.');
+      }
+
       if (typeof ethers !== 'undefined') {
         window.ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
         if (typeof window.initSwapManager === 'function') {

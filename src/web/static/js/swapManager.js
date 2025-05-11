@@ -26,21 +26,24 @@ export async function initSwapManager(web3) {
   try {
     console.log('[swapManager] Initializing swap manager...');
     
-    // Convert Web3 provider to ethers provider
-    if (!window.ethereum) {
-      throw new Error('No Ethereum provider found');
+    // Rely on window.ethersProvider set by initializeEthersProvider in moduleLoader.js
+    if (!window.ethersProvider) {
+      console.error('[swapManager initSwapManager] window.ethersProvider NOT found! It should be set by initializeEthersProvider.');
+      // Fallback: If absolutely necessary, try to create, but this indicates a flow issue.
+      if (!window.ethereum) {
+        console.error('[swapManager initSwapManager] window.ethereum NOT found for fallback!');
+        throw new Error('No Ethereum provider found to initialize fallback provider in swapManager.');
+      }
+      window.ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+      console.warn('[swapManager initSwapManager] Fallback: Created new ethersProvider in initSwapManager.');
+      await window.ethersProvider.ready; // Ensure this fallback provider is ready too
     }
     
-    const ethereumProvider = new ethers.providers.Web3Provider(window.ethereum);
+    console.log('[swapManager initSwapManager] Using existing ethers provider:', window.ethersProvider);
     
-    // Attach the provider to window for easy access
-    window.ethersProvider = ethereumProvider;
-    
-    console.log('[swapManager] Swap manager initialized with ethers provider:', window.ethersProvider);
-    
-    // Get network information
-    const network = await ethereumProvider.getNetwork();
-    console.log(`Connected to network: ${network.name} (chainId: ${network.chainId})`);
+    // Get network information from the existing provider
+    const network = await window.ethersProvider.getNetwork();
+    console.log(`[swapManager initSwapManager] Connected to network: ${network.name} (chainId: ${network.chainId})`);
   } catch (error) {
     console.error('Error initializing swap manager:', error);
     throw error;
@@ -54,16 +57,19 @@ export async function initSwapManager(web3) {
  * @returns {Promise<Object>} - Result object with transaction hash and status
  */
 export async function swapEthToUsdc(ethAmount, useGasToken = false) {
+  console.log('[swapManager] swapEthToUsdc: START. userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
   try {
     console.log('[swapManager] swapEthToUsdc called. Amount:', ethAmount, 'Use Gas Token:', useGasToken);
     console.log('[swapManager] window.ethersProvider:', window.ethersProvider);
     console.log('[swapManager] window.userAccount:', window.userAccount);
 
     if (!window.ethersProvider) {
-      throw new Error('Swap manager not initialized');
+      console.error('[swapManager] swapEthToUsdc: window.ethersProvider is MISSING!');
+      throw new Error('Swap manager not initialized (no ethersProvider)');
     }
     
     if (!window.userAccount) {
+      console.error('[swapManager] swapEthToUsdc: window.userAccount is MISSING!');
       throw new Error('No wallet connected');
     }
     
@@ -173,16 +179,19 @@ export async function swapEthToUsdc(ethAmount, useGasToken = false) {
  * @returns {Promise<Object>} - Result object with transaction hash and status
  */
 export async function swapUsdcToEth(usdcAmount, useGasToken = false) {
+  console.log('[swapManager] swapUsdcToEth: START. userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
   try {
     console.log('[swapManager] swapUsdcToEth called. Amount:', usdcAmount, 'Use Gas Token:', useGasToken);
     console.log('[swapManager] window.ethersProvider:', window.ethersProvider);
     console.log('[swapManager] window.userAccount:', window.userAccount);
 
     if (!window.ethersProvider) {
-      throw new Error('Swap manager not initialized');
+      console.error('[swapManager] swapUsdcToEth: window.ethersProvider is MISSING!');
+      throw new Error('Swap manager not initialized (no ethersProvider)');
     }
     
     if (!window.userAccount) {
+      console.error('[swapManager] swapUsdcToEth: window.userAccount is MISSING!');
       throw new Error('No wallet connected');
     }
     

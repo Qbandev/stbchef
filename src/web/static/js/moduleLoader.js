@@ -68,27 +68,35 @@ async function initializeEthersProvider() {
   try {
     // Confirm ethers is available
     if (typeof window.ethers !== 'undefined' && window.ethereum) {
-      console.log('Initializing ethers provider...');
+      console.log('[moduleLoader initializeEthersProvider] Initializing ethers provider...');
       
       // Get the current network
       const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
       const chainId = parseInt(chainIdHex, 16);
-      console.log(`Current chainId from ethereum: ${chainId}`);
+      console.log(`[moduleLoader initializeEthersProvider] Current chainId from ethereum: ${chainId}`);
       
       // Initialize ethers provider with the current ethereum provider
       window.ethersProvider = new window.ethers.providers.Web3Provider(window.ethereum, 'any');
+      console.log('[moduleLoader initializeEthersProvider] window.ethersProvider assigned:', window.ethersProvider);
       
       // Force refresh provider to get latest network
       await window.ethersProvider.ready;
+      console.log('[moduleLoader initializeEthersProvider] window.ethersProvider.ready completed.');
       
       // Log network details
       const network = await window.ethersProvider.getNetwork();
-      console.log(`Ethers provider initialized with network: ${network.name} (chainId: ${network.chainId})`);
+      console.log(`[moduleLoader initializeEthersProvider] Ethers provider initialized with network: ${network.name} (chainId: ${network.chainId})`);
       
       // Initialize swap manager
       if (typeof window.initSwapManager === 'function' && window.web3) {
+        console.log('[moduleLoader initializeEthersProvider] Calling window.initSwapManager...');
         await window.initSwapManager(window.web3);
-        console.log('Swap manager initialized');
+        console.log('[moduleLoader initializeEthersProvider] Swap manager initialized (after initSwapManager call).');
+      } else {
+        console.warn('[moduleLoader initializeEthersProvider] initSwapManager or window.web3 not available.', {
+          hasInitSwapManager: typeof window.initSwapManager === 'function',
+          hasWeb3: typeof window.web3 !== 'undefined'
+        });
       }
       
       // Create smart account if needed
@@ -295,11 +303,14 @@ function setupSwapForm() {
 
   if (executeSwapBtn) {
     executeSwapBtn.addEventListener('click', async function() {
+      console.log('[moduleLoader executeSwapBtn] Clicked.');
       const direction = document.querySelector('input[name="swap-direction"]:checked').value;
       const amountInput = document.getElementById('swap-amount');
       const amount = parseFloat(amountInput?.value || '0');
       const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
       
+      console.log('[moduleLoader executeSwapBtn] State before checks: userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
+
       if (isNaN(amount) || amount <= 0) {
         window.showNotification('Please enter a valid amount', 'error');
         return;
@@ -307,14 +318,19 @@ function setupSwapForm() {
       
       // Check wallet connection
       if (!window.userAccount || !window.ethersProvider) {
+        console.error('[moduleLoader executeSwapBtn] Wallet/Provider check FAILED. userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
         window.showNotification('Please connect your wallet first', 'error');
         return;
       }
+      console.log('[moduleLoader executeSwapBtn] Wallet/Provider check PASSED.');
       
       // Force reinitialize ethers provider to make sure we have the correct network
-      await initializeEthersProvider();
+      // Let's re-enable this to ensure the provider is fresh for the current network.
+      console.log('[moduleLoader executeSwapBtn] Calling initializeEthersProvider before swap execution...');
+      await initializeEthersProvider(); 
+      console.log('[moduleLoader executeSwapBtn] initializeEthersProvider completed. New provider state:', window.ethersProvider);
       
-      console.log(`Executing ${direction} swap for ${amount} with gas token: ${useGasToken}`);
+      console.log(`[moduleLoader executeSwapBtn] Executing ${direction} swap for ${amount} with gas token: ${useGasToken}`);
       
       try {
         if (direction === 'eth-to-usdc') {

@@ -88,6 +88,28 @@ class TradingDatabase:
                 )
             """)
 
+            # Create daily_stats table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_stats (
+                    date TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    total_trades INTEGER DEFAULT 0,
+                    correct_trades INTEGER DEFAULT 0,
+                    incorrect_trades INTEGER DEFAULT 0,
+                    buy_decisions INTEGER DEFAULT 0,
+                    sell_decisions INTEGER DEFAULT 0,
+                    hold_decisions INTEGER DEFAULT 0,
+                    avg_profit REAL DEFAULT 0.0,
+                    PRIMARY KEY (date, model)
+                )
+            """)
+
+            # Create index for daily_stats for faster queries by date
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_daily_stats_date 
+                ON daily_stats(date)
+            """)
+
             # Create indices for better query performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_market_data_timestamp 
