@@ -181,3 +181,4 @@ node_modules/
 .playwright/
 artifacts/
 cache/
+test-results/
