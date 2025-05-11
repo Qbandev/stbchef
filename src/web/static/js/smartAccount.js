@@ -3,11 +3,11 @@
 
 // Contract addresses (to be filled after deployment)
 export const DEPLOYED_CONTRACTS = {
-  "smartAccount": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+  "smartAccount": "0xC1a6875BDc2CA3FB47B36EdD56fE65034F1D7454",
   "simpleSwap": {
     "31337": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e", // Localhost Hardhat
     "59140": "",
-    "59144": ""
+    "59144": "0x067f5703e07511c25379F41B11a113aC9fBA958b"
   }
 };
 
