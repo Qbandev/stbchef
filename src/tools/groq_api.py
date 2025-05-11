@@ -11,6 +11,7 @@ from typing import Dict, Optional
 import numpy as np
 from datetime import datetime, timedelta
 
+import httpx
 from groq import Groq
 
 
@@ -23,7 +24,15 @@ class GroqClient:
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable not set")
         self.api_key = api_key
-        self.client = Groq(api_key=api_key)
+
+        # Explicitly create an httpx.AsyncClient instance, ignoring system proxies
+        # This is because Groq uses an AsyncClient internally by default.
+        # custom_async_httpx_client = httpx.AsyncClient(trust_env=False)
+
+        self.client = Groq(
+            api_key=api_key
+            # http_client=custom_async_httpx_client
+        )
         self.price_history = []
         self.decision_history = []
         self.max_history = 100  # Keep last 100 data points

@@ -76,22 +76,47 @@ function updateModelDecisions(data, walletAddress) {
         
         // Valid action received, show the action with appropriate styling
         let actionClass = '';
+        let actionHTML = '';
         
         switch (action) {
             case 'BUY':
                 actionClass = 'text-white';
+                // Add execute button for BUY actions
+                actionHTML = `
+                    <span>${action}</span>
+                    <button 
+                        class="execute-trade ml-2 px-2 py-0.5 text-xs rounded bg-blue-700 hover:bg-blue-600 transition-colors" 
+                        data-model="${model}" 
+                        data-action="${action}"
+                        title="Execute trade based on this recommendation">
+                        Trade
+                    </button>
+                `;
                 break;
             case 'SELL':
                 actionClass = 'text-gray-300';
+                // Add execute button for SELL actions
+                actionHTML = `
+                    <span>${action}</span>
+                    <button 
+                        class="execute-trade ml-2 px-2 py-0.5 text-xs rounded bg-red-700 hover:bg-red-600 transition-colors" 
+                        data-model="${model}" 
+                        data-action="${action}"
+                        title="Execute trade based on this recommendation">
+                        Trade
+                    </button>
+                `;
                 break;
             case 'HOLD':
                 actionClass = 'text-white';
+                actionHTML = `<span>${action}</span>`;
                 break;
             default:
                 actionClass = 'text-gray-400';
+                actionHTML = `<span>${action}</span>`;
         }
         
-        decisionElement.textContent = action;
+        decisionElement.innerHTML = actionHTML;
         decisionElement.classList.add(actionClass);
         
         // Only store decisions when wallet is connected
@@ -100,6 +125,9 @@ function updateModelDecisions(data, walletAddress) {
             storeAIDecisionForWallet(model, action, data.eth_price, walletAddress);
         }
     });
+
+    // Set up event listeners for trade buttons
+    setupTradeButtonListeners();
 
     // Check for consensus and notify if wallet is connected
     if (walletAddress && hasValidPrice) {
@@ -182,6 +210,9 @@ function updateModelDecisions(data, walletAddress) {
                     // Only add swap details if swapAmount is significant
                     if (swapAmount >= 0.10) { // $0.10 minimum for meaningful swaps
                         message += `\nSuggested Swap: ~$${swapAmount.toFixed(2)} ${swapDirection}`;
+                        
+                        // Add execute button to notification
+                        message += `\n<button id="consensus-swap-btn" class="mt-2 py-1 px-3 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs">Execute Swap</button>`;
                     }
                 } else if (consensus === 'SELL') {
                     // Calculate SELL amount - similar to walletManager.js logic
@@ -225,16 +256,22 @@ function updateModelDecisions(data, walletAddress) {
                     if (swapAmount >= 0.10) { // $0.10 minimum for meaningful swaps
                         const ethAmountToSell = ethPrice > 0 ? swapAmount / ethPrice : 0;
                         message += `\nSuggested Swap: ~${ethAmountToSell.toFixed(4)} ${swapDirection}`;
+                        
+                        // Add execute button to notification
+                        message += `\n<button id="consensus-swap-btn" class="mt-2 py-1 px-3 bg-red-600 hover:bg-red-500 rounded text-white text-xs">Execute Swap</button>`;
                     }
                 }
 
                 // Show browser notification for BUY and SELL signals only
-                showNotification(message, 'info');
+                showNotification(message, 'info', true);
 
                 // Log the notification being sent for debugging
                 console.log(`LLM CONSENSUS: ${consensus} signal detected from ${Object.keys(validDecisions).length} models`);
                 console.log(`Sending notification with message: "${message}"`);
                 console.log(`WALLET ADDRESS: ${walletAddress}, ENABLE_RECOMMENDATIONS: ${window.enableSwapRecommendations}`);
+
+                // Set up event listener for consensus swap button
+                setupConsensusSwapButton(consensus, swapAmount, ethPrice);
 
                 // Force wallet balance refresh with a slight delay
                 // This ensures the wallet card recommendation is updated first
@@ -538,6 +575,114 @@ function updateAccuracy(currentPrice) {
             rawAccuracyElement.className = `font-bold text-xs text-white`;
         }
     });
+}
+
+/**
+ * Set up event listeners for individual model trade buttons
+ */
+function setupTradeButtonListeners() {
+    // Remove any existing listeners first to prevent duplicates
+    const existingButtons = document.querySelectorAll('.execute-trade');
+    existingButtons.forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+    });
+    
+    // Add new listeners
+    document.querySelectorAll('.execute-trade').forEach(button => {
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            
+            // Get model and action from data attributes
+            const model = button.getAttribute('data-model');
+            const action = button.getAttribute('data-action');
+            
+            // Default confidence level based on model
+            let confidence = 0.5; // Default confidence
+            
+            // If we have accuracy data, adjust confidence
+            if (window.aiAccuracy && window.aiAccuracy[model]) {
+                confidence = window.aiAccuracy[model] / 100; // Convert percentage to 0-1 range
+            }
+            
+            console.log(`Executing ${action} trade from ${model} model with confidence ${confidence}`);
+            
+            // Determine if gas should be paid in USDC
+            const useGasToken = window.enableSwapRecommendations === true;
+            
+            // Execute the trade
+            if (typeof window.executeAIRecommendedSwap === 'function') {
+                window.executeAIRecommendedSwap(model, action, confidence, useGasToken)
+                    .then(result => {
+                        console.log('Trade execution result:', result);
+                    })
+                    .catch(error => {
+                        console.error('Error executing trade:', error);
+                        showNotification(`Error executing trade: ${error.message}`, 'error');
+                    });
+            } else {
+                console.error('Swap functionality not available');
+                showNotification('Swap functionality not available. Try refreshing the page.', 'error');
+            }
+        });
+    });
+}
+
+/**
+ * Set up event listener for consensus swap button in notifications
+ * @param {string} action - BUY or SELL
+ * @param {number} swapAmount - Amount to swap in USD
+ * @param {number} ethPrice - Current ETH price
+ */
+function setupConsensusSwapButton(action, swapAmount, ethPrice) {
+    // Use setTimeout to ensure the button exists in the DOM
+    setTimeout(() => {
+        const consensusButton = document.getElementById('consensus-swap-btn');
+        if (consensusButton) {
+            consensusButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                
+                // Determine if gas should be paid in USDC
+                const useGasToken = window.enableSwapRecommendations === true;
+                
+                if (action === 'BUY') {
+                    // For BUY, we swap USDC to ETH
+                    // swapAmount is already in USD
+                    if (typeof window.swapUsdcToEth === 'function') {
+                        window.swapUsdcToEth(swapAmount, useGasToken)
+                            .then(result => {
+                                console.log('Consensus BUY execution result:', result);
+                            })
+                            .catch(error => {
+                                console.error('Error executing consensus BUY:', error);
+                                showNotification(`Error executing swap: ${error.message}`, 'error');
+                            });
+                    } else {
+                        console.error('Swap functionality not available');
+                        showNotification('Swap functionality not available. Try refreshing the page.', 'error');
+                    }
+                } else if (action === 'SELL') {
+                    // For SELL, we swap ETH to USDC
+                    // Convert USD amount to ETH
+                    const ethAmount = ethPrice > 0 ? swapAmount / ethPrice : 0;
+                    
+                    if (typeof window.swapEthToUsdc === 'function') {
+                        window.swapEthToUsdc(ethAmount, useGasToken)
+                            .then(result => {
+                                console.log('Consensus SELL execution result:', result);
+                            })
+                            .catch(error => {
+                                console.error('Error executing consensus SELL:', error);
+                                showNotification(`Error executing swap: ${error.message}`, 'error');
+                            });
+                    } else {
+                        console.error('Swap functionality not available');
+                        showNotification('Swap functionality not available. Try refreshing the page.', 'error');
+                    }
+                }
+            });
+        }
+    }, 100);
 }
 
 // Make functions available globally

@@ -74,7 +74,7 @@ class TradingDatabase:
                     eth_balance REAL NOT NULL,
                     usdc_balance REAL NOT NULL,
                     eth_allocation REAL NOT NULL,
-                    eth_price REAL NOT NULL,
+                    eth_price REAL,
                     network TEXT NOT NULL
                 )
             """)
@@ -86,6 +86,28 @@ class TradingDatabase:
                     is_connected BOOLEAN NOT NULL,
                     last_updated DATETIME NOT NULL
                 )
+            """)
+
+            # Create daily_stats table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_stats (
+                    date TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    total_trades INTEGER DEFAULT 0,
+                    correct_trades INTEGER DEFAULT 0,
+                    incorrect_trades INTEGER DEFAULT 0,
+                    buy_decisions INTEGER DEFAULT 0,
+                    sell_decisions INTEGER DEFAULT 0,
+                    hold_decisions INTEGER DEFAULT 0,
+                    avg_profit REAL DEFAULT 0.0,
+                    PRIMARY KEY (date, model)
+                )
+            """)
+
+            # Create index for daily_stats for faster queries by date
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_daily_stats_date 
+                ON daily_stats(date)
             """)
 
             # Create indices for better query performance
@@ -667,24 +689,30 @@ class TradingDatabase:
         network: str = "unknown"
     ) -> None:
         """Store wallet action in database."""
-        # Get current ETH price
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT eth_price 
-                FROM market_data 
-                ORDER BY timestamp DESC 
-                LIMIT 1
-            """)
-            result = cursor.fetchone()
-            if not result:
-                logging.warning(
-                    "No market data available. Cannot store wallet action.")
-                raise ValueError("No market data available.")
-            eth_price = result[0]
+        eth_price_to_store = None  # Default to None (NULL in DB)
+        try:
+            with sqlite3.connect(self.db_path) as conn_price:
+                cursor_price = conn_price.cursor()
+                cursor_price.execute("""
+                    SELECT eth_price 
+                    FROM market_data 
+                    ORDER BY timestamp DESC 
+                    LIMIT 1
+                """)
+                result = cursor_price.fetchone()
+                if result and result[0] is not None:
+                    eth_price_to_store = result[0]
+                else:
+                    logging.warning(
+                        "[db store_wallet_action] No market data available for eth_price. Storing action with NULL price.")
+        except Exception as e_price:
+            logging.error(
+                f"[db store_wallet_action] Error fetching eth_price: {e_price}. Storing action with NULL price.")
 
+        with sqlite3.connect(self.db_path) as conn_action:
+            cursor_action = conn_action.cursor()
             # Store wallet action
-            cursor.execute("""
+            cursor_action.execute("""
                 INSERT INTO wallet_actions (
                     timestamp,
                     wallet_address,
@@ -702,10 +730,10 @@ class TradingDatabase:
                 eth_balance,
                 usdc_balance,
                 eth_allocation,
-                eth_price,
+                eth_price_to_store,  # Use the fetched or None value
                 network
             ))
-            conn.commit()
+            conn_action.commit()
 
     def get_wallet_stats(self, wallet_address: str) -> Dict[str, Dict[str, float]]:
         """Get statistics for a specific wallet."""

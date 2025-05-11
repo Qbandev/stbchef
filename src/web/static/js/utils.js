@@ -15,14 +15,18 @@ function sanitizeHTML(str) {
  * Display a notification message to the user
  * @param {string} message - The message to display
  * @param {string} type - Type of notification (info, success, warning, error)
+ * @param {boolean} allowHtml - Whether to allow HTML content in the message
  */
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', allowHtml = false) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
 
-    // Format message with line breaks and sanitize against XSS
+    // Format message with line breaks and sanitize against XSS if not allowing HTML
     const formattedMessage = message.split('\n')
-        .map(line => `<div>${sanitizeHTML(line)}</div>`)
+        .map(line => {
+            // If HTML is allowed, don't sanitize, otherwise sanitize the content
+            return `<div>${allowHtml ? line : sanitizeHTML(line)}</div>`;
+        })
         .join('');
 
     notification.innerHTML = `

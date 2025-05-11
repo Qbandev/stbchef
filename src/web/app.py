@@ -13,7 +13,7 @@ import sqlite3
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory, session
 from flask_cors import CORS
 
 from src.agents.market_data import MarketDataAgent
@@ -35,7 +35,53 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
 CORS(app)
+
+# --- Security & rate-limiting middleware ---------------------------------
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["120 per minute"]
+    )
+    limiter.init_app(app)
+    logging.info(
+        "[security] Flask-Limiter enabled with 120 req/min default limit")
+except ImportError:
+    logging.warning(
+        "[security] flask-limiter not installed – rate limiting disabled")
+
+try:
+    from flask_talisman import Talisman
+
+    # Simple CSP allowing same-origin assets and inline scripts/styles generated
+    # by the build process.  Adjust as you harden.
+    csp = {
+        'default-src': "'self'",
+        'img-src': "'self' data:",
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdn.tailwindcss.com",
+            "https://cdn.jsdelivr.net",
+            "https://cdnjs.cloudflare.com"
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdnjs.cloudflare.com"
+        ],
+        'font-src': ["'self'", "https://cdnjs.cloudflare.com"]
+    }
+    Talisman(app, content_security_policy=csp)
+    logging.info("[security] Flask-Talisman enabled with basic CSP headers")
+except ImportError:
+    logging.warning(
+        "[security] flask-talisman not installed – CSP headers not applied")
 
 # Initialize components with memory-efficient settings
 state = TradingState()
@@ -353,19 +399,30 @@ def test_stats() -> str:
     return render_template("test_stats.html")
 
 
-@app.route("/clear-storage", methods=["POST"])
-def clear_storage() -> dict:
+@app.route("/clear-storage", methods=["GET", "POST"])
+def clear_storage() -> Union[str, dict]:
     """Clear localStorage data for fresh start on redeployment."""
+    if request.method == "GET":
+        return render_template("clear-storage.html")
+
     try:
         # Create empty stats records for today to ensure we start with zeros
         today = datetime.now().strftime('%Y-%m-%d')
+        logging.info(
+            f"[clear-storage] Attempting to clear and reset daily_stats for date: {today} on DB: {db.db_path}")
         with sqlite3.connect(db.db_path) as conn:
             cursor = conn.cursor()
+            logging.info(
+                f"[clear-storage] Deleting existing stats for {today}...")
             # Delete any existing stats for today
             cursor.execute("DELETE FROM daily_stats WHERE date = ?", (today,))
+            logging.info(
+                f"[clear-storage] Deleted {cursor.rowcount} rows for {today}.")
 
             # Insert fresh zero stats for each model
             for model in ['gemini', 'groq', 'mistral']:
+                logging.info(
+                    f"[clear-storage] Inserting zero stats for model {model} for {today}...")
                 cursor.execute("""
                     INSERT INTO daily_stats (
                         date, model, total_trades, correct_trades, incorrect_trades,
@@ -373,9 +430,14 @@ def clear_storage() -> dict:
                     ) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0.0)
                 """, (today, model))
             conn.commit()
+            logging.info(
+                f"[clear-storage] Successfully cleared and reset daily_stats for {today}.")
 
         return jsonify({"status": "success", "message": "Storage cleared successfully"})
     except Exception as e:
+        # Log the full traceback
+        logging.error(
+            f"[clear-storage] Error during POST request: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -629,6 +691,55 @@ def store_ai_decision() -> Union[dict, tuple[dict, int]]:
         return jsonify({"status": "success", "message": "AI decision stored successfully"})
     except Exception as e:
         logging.error(f"Error storing AI decision: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/swaps/price")
+def get_swap_quote():
+    """Return a slippage-adjusted quote for a swap without executing it.
+
+    Query params:
+      direction: 'eth-to-usdc' | 'usdc-to-eth' (default eth-to-usdc)
+      amount: numeric string – amount of *from* token
+    Response JSON: { direction, amount, quote, slippage_bps }
+    """
+    try:
+        direction = request.args.get('direction', 'eth-to-usdc').lower()
+        amount_str = request.args.get('amount', '0')
+
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return jsonify({"error": "Invalid amount"}), 400
+
+        if amount <= 0:
+            return jsonify({"error": "Amount must be greater than zero"}), 400
+
+        # Pull latest ETH price from cached trading data (USD/USDC is 1:1 here)
+        with trading_data_lock:
+            eth_price = float(latest_trading_data.get('eth_price', 0))
+
+        if eth_price == 0:
+            # Fallback to live fetch if cache empty
+            eth_price = market_agent.get_market_data().eth_price
+
+        SLIPPAGE_FACTOR = 0.995  # 0.5% slippage just like contract
+
+        if direction == 'eth-to-usdc':
+            quote = amount * eth_price * SLIPPAGE_FACTOR
+        elif direction == 'usdc-to-eth':
+            quote = (amount / eth_price) * SLIPPAGE_FACTOR
+        else:
+            return jsonify({"error": "Unsupported direction"}), 400
+
+        return jsonify({
+            "direction": direction,
+            "amount": amount,
+            "quote": quote,
+            "slippage_bps": 50
+        })
+    except Exception as e:
+        logging.error(f"Error in get_swap_quote: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 

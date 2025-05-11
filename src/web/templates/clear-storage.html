@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Storage - STB Chef</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .container {
+            max-width: 500px;
+            padding: 2rem;
+            background-color: #2d3748;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        
+        h1 {
+            color: #90cdf4;
+            margin-top: 0;
+        }
+        
+        p {
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+        
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .clear-btn {
+            background-color: #e53e3e;
+            color: white;
+        }
+        
+        .clear-btn:hover {
+            background-color: #c53030;
+        }
+        
+        .cancel-btn {
+            background-color: #4a5568;
+            color: white;
+        }
+        
+        .cancel-btn:hover {
+            background-color: #2d3748;
+        }
+        
+        .result {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            display: none;
+        }
+        
+        .success {
+            background-color: #2f855a;
+            color: #f0fff4;
+        }
+        
+        .error {
+            background-color: #9b2c2c;
+            color: #fff5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Clear Application Storage</h1>
+        <p>This will reset all app data including wallet connections, trading history, and settings. This action cannot be undone.</p>
+        
+        <div class="buttons">
+            <button id="clear-btn" class="clear-btn">Clear All Data</button>
+            <button id="cancel-btn" class="cancel-btn">Cancel</button>
+        </div>
+        
+        <div id="result" class="result"></div>
+    </div>
+    
+    <script src="/static/js/clear-storage.js"></script>
+</body>
+</html> 
