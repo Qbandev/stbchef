@@ -13,7 +13,7 @@ import sqlite3
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory, session
 from flask_cors import CORS
 
 from src.agents.market_data import MarketDataAgent
@@ -35,6 +35,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
 CORS(app)
 
 # --- Security & rate-limiting middleware ---------------------------------
@@ -407,13 +408,21 @@ def clear_storage() -> Union[str, dict]:
     try:
         # Create empty stats records for today to ensure we start with zeros
         today = datetime.now().strftime('%Y-%m-%d')
+        logging.info(
+            f"[clear-storage] Attempting to clear and reset daily_stats for date: {today} on DB: {db.db_path}")
         with sqlite3.connect(db.db_path) as conn:
             cursor = conn.cursor()
+            logging.info(
+                f"[clear-storage] Deleting existing stats for {today}...")
             # Delete any existing stats for today
             cursor.execute("DELETE FROM daily_stats WHERE date = ?", (today,))
+            logging.info(
+                f"[clear-storage] Deleted {cursor.rowcount} rows for {today}.")
 
             # Insert fresh zero stats for each model
             for model in ['gemini', 'groq', 'mistral']:
+                logging.info(
+                    f"[clear-storage] Inserting zero stats for model {model} for {today}...")
                 cursor.execute("""
                     INSERT INTO daily_stats (
                         date, model, total_trades, correct_trades, incorrect_trades,
@@ -421,9 +430,14 @@ def clear_storage() -> Union[str, dict]:
                     ) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0.0)
                 """, (today, model))
             conn.commit()
+            logging.info(
+                f"[clear-storage] Successfully cleared and reset daily_stats for {today}.")
 
         return jsonify({"status": "success", "message": "Storage cleared successfully"})
     except Exception as e:
+        # Log the full traceback
+        logging.error(
+            f"[clear-storage] Error during POST request: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

@@ -27,10 +27,12 @@ class GroqClient:
 
         # Explicitly create an httpx.AsyncClient instance, ignoring system proxies
         # This is because Groq uses an AsyncClient internally by default.
-        custom_async_httpx_client = httpx.AsyncClient(trust_env=False)
+        # custom_async_httpx_client = httpx.AsyncClient(trust_env=False)
 
         self.client = Groq(
-            api_key=api_key, http_client=custom_async_httpx_client)
+            api_key=api_key
+            # http_client=custom_async_httpx_client
+        )
         self.price_history = []
         self.decision_history = []
         self.max_history = 100  # Keep last 100 data points

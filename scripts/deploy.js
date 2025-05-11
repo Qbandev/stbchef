@@ -21,16 +21,17 @@ async function main() {
   // --------------------------------------------------------------
 
   let usdcAddress;
+  let mockUSDCInstance; // Declare mockUSDCInstance here to be accessible later
 
   if (network.chainId === 31337) {
     console.log("Local Hardhat network detected – deploying MockUSDC…");
 
-    const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const mockUSDC = await MockUSDC.deploy();
-    await mockUSDC.deployed();
+    const MockUSDCFactory = await ethers.getContractFactory("MockUSDC");
+    mockUSDCInstance = await MockUSDCFactory.deploy(); // Assign to the outer scope variable
+    await mockUSDCInstance.deployed();
 
-    console.log(`MockUSDC deployed to: ${mockUSDC.address}`);
-    usdcAddress = mockUSDC.address;
+    console.log(`MockUSDC deployed to: ${mockUSDCInstance.address}`);
+    usdcAddress = mockUSDCInstance.address;
   } else {
     // 59144 = Linea mainnet, otherwise default to Linea testnet constants
     usdcAddress = network.chainId === 59144 ? USDC_ADDRESS.mainnet : USDC_ADDRESS.testnet;
@@ -82,6 +83,19 @@ async function main() {
 
   await simpleSwap.deployed();
   console.log(`SimpleSwap deployed to: ${simpleSwap.address}`);
+
+  // If on local Hardhat network, fund SimpleSwap with some MockUSDC
+  if (network.chainId === 31337 && mockUSDCInstance) { // Check mockUSDCInstance now
+    const initialLiquidity = ethers.utils.parseUnits("1000000.0", 6); // e.g., 1 Million MockUSDC
+    console.log(`Funding SimpleSwap contract (${simpleSwap.address}) with ${ethers.utils.formatUnits(initialLiquidity, 6)} MockUSDC...`);
+    const transferTx = await mockUSDCInstance.connect(deployer).transfer(simpleSwap.address, initialLiquidity);
+    await transferTx.wait();
+    console.log(`SimpleSwap funded with MockUSDC. Transaction: ${transferTx.hash}`);
+    
+    // Verify SimpleSwap MockUSDC balance
+    const simpleSwapUsdcBalance = await mockUSDCInstance.balanceOf(simpleSwap.address);
+    console.log(`SimpleSwap contract MockUSDC balance: ${ethers.utils.formatUnits(simpleSwapUsdcBalance, 6)}`);
+  }
 
   // If SimpleSwap exposes a setter for USDC address (older versions),
   // update it so front-end code works regardless of constructor param.

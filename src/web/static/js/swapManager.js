@@ -24,7 +24,7 @@ const recentSwaps = [];
  */
 export async function initSwapManager(web3) {
   try {
-    console.log('Initializing swap manager...');
+    console.log('[swapManager] Initializing swap manager...');
     
     // Convert Web3 provider to ethers provider
     if (!window.ethereum) {
@@ -36,7 +36,7 @@ export async function initSwapManager(web3) {
     // Attach the provider to window for easy access
     window.ethersProvider = ethereumProvider;
     
-    console.log('Swap manager initialized with ethers provider');
+    console.log('[swapManager] Swap manager initialized with ethers provider:', window.ethersProvider);
     
     // Get network information
     const network = await ethereumProvider.getNetwork();
@@ -55,6 +55,10 @@ export async function initSwapManager(web3) {
  */
 export async function swapEthToUsdc(ethAmount, useGasToken = false) {
   try {
+    console.log('[swapManager] swapEthToUsdc called. Amount:', ethAmount, 'Use Gas Token:', useGasToken);
+    console.log('[swapManager] window.ethersProvider:', window.ethersProvider);
+    console.log('[swapManager] window.userAccount:', window.userAccount);
+
     if (!window.ethersProvider) {
       throw new Error('Swap manager not initialized');
     }
@@ -170,6 +174,10 @@ export async function swapEthToUsdc(ethAmount, useGasToken = false) {
  */
 export async function swapUsdcToEth(usdcAmount, useGasToken = false) {
   try {
+    console.log('[swapManager] swapUsdcToEth called. Amount:', usdcAmount, 'Use Gas Token:', useGasToken);
+    console.log('[swapManager] window.ethersProvider:', window.ethersProvider);
+    console.log('[swapManager] window.userAccount:', window.userAccount);
+
     if (!window.ethersProvider) {
       throw new Error('Swap manager not initialized');
     }
@@ -290,6 +298,10 @@ export async function swapUsdcToEth(usdcAmount, useGasToken = false) {
  */
 export async function executeAIRecommendedSwap(model, action, confidence, useGasToken = false) {
   try {
+    console.log('[swapManager] executeAIRecommendedSwap called. Model:', model, 'Action:', action, 'Confidence:', confidence, 'Use Gas Token:', useGasToken);
+    console.log('[swapManager] window.userAccount for AI Swap:', window.userAccount);
+    console.log('[swapManager] window.walletBalances for AI Swap:', window.walletBalances);
+
     // Validate inputs
     if (!window.userAccount) {
       throw new Error('No wallet connected');
@@ -403,6 +415,7 @@ export function getRecentSwaps() {
  * @returns {Promise<boolean>} - Whether the user confirmed the swap
  */
 async function showSwapConfirmation(params) {
+  console.log('[swapManager] showSwapConfirmation called with params:', params);
   return new Promise((resolve) => {
     // Create modal background
     const modal = document.createElement('div');

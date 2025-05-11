@@ -645,53 +645,77 @@
             
             // Set up the execute swap button
             document.getElementById('execute-swap-btn').addEventListener('click', async function() {
+                console.log('[SwapModalBtn] Execute Swap button clicked.');
                 const direction = document.querySelector('input[name="swap-direction"]:checked').value;
                 const amount = parseFloat(document.getElementById('swap-amount').value);
                 const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
                 
+                console.log(`[SwapModalBtn] Direction: ${direction}, Amount: ${amount}, UseGasToken: ${useGasToken}`);
+
                 if (isNaN(amount) || amount <= 0) {
+                    console.log('[SwapModalBtn] Invalid amount, showing notification and returning.');
                     window.showNotification('Please enter a valid amount', 'error');
                     return;
                 }
                 
                 // Check if wallet is connected
                 if (!window.userAccount) {
+                    console.log('[SwapModalBtn] No userAccount, showing notification and returning.');
                     window.showNotification('Please connect your wallet first', 'error');
                     return;
                 }
+                console.log('[SwapModalBtn] userAccount is present:', window.userAccount);
                 
                 // Make sure we're using the right network by reinitializing ethers
                 if (window.initializeEthersProvider) {
+                    console.log('[SwapModalBtn] initializeEthersProvider found, attempting to call.');
                     try {
                         await window.initializeEthersProvider();
+                        console.log('[SwapModalBtn] initializeEthersProvider success.');
                     } catch (err) {
-                        console.error('Error initializing provider:', err);
+                        console.error('[SwapModalBtn] Error initializing provider via initializeEthersProvider:', err);
+                        window.showNotification('Error initializing wallet provider. Please try reconnecting.', 'error');
+                        return; // Stop if provider re-init fails
                     }
+                } else {
+                    console.warn('[SwapModalBtn] initializeEthersProvider function not found on window.');
                 }
                 
+                console.log('[SwapModalBtn] Proceeding to call swap functions...');
                 try {
                     if (direction === 'eth-to-usdc') {
                         if (typeof window.swapEthToUsdc === 'function') {
+                            console.log('[SwapModalBtn] Calling window.swapEthToUsdc...');
                             const result = await window.swapEthToUsdc(amount, useGasToken);
                             if (result.status === 'success') {
+                                console.log('[SwapModalBtn] ETH->USDC swap success:', result);
                                 window.showNotification(`Swap successful: ${amount} ETH to USDC`, 'success');
                                 document.getElementById('swap-modal').classList.add('hidden');
+                            } else {
+                                console.log('[SwapModalBtn] ETH->USDC swap non-success status:', result);
                             }
                         } else {
-                            throw new Error('Swap functionality not available');
+                            console.error('[SwapModalBtn] window.swapEthToUsdc is not a function!');
+                            throw new Error('Swap functionality (ETH->USDC) not available');
                         }
-                    } else {
+                    } else { // usdc-to-eth
                         if (typeof window.swapUsdcToEth === 'function') {
+                            console.log('[SwapModalBtn] Calling window.swapUsdcToEth...');
                             const result = await window.swapUsdcToEth(amount, useGasToken);
                             if (result.status === 'success') {
+                                console.log('[SwapModalBtn] USDC->ETH swap success:', result);
                                 window.showNotification(`Swap successful: ${amount} USDC to ETH`, 'success');
                                 document.getElementById('swap-modal').classList.add('hidden');
+                            } else {
+                                console.log('[SwapModalBtn] USDC->ETH swap non-success status:', result);
                             }
                         } else {
-                            throw new Error('Swap functionality not available');
+                            console.error('[SwapModalBtn] window.swapUsdcToEth is not a function!');
+                            throw new Error('Swap functionality (USDC->ETH) not available');
                         }
                     }
                 } catch (error) {
+                    console.error('[SwapModalBtn] Error during swap execution attempt:', error);
                     window.showNotification(`Error executing swap: ${error.message}`, 'error');
                 }
             });
@@ -1181,6 +1205,7 @@
             </div>
             
             <!-- Add simulation mode notice -->
+            <!--
             <div class="bg-blue-900 bg-opacity-30 border border-blue-700 rounded p-3 mb-4">
                 <div class="flex items-start">
                     <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-2"></i>
@@ -1190,6 +1215,7 @@
                     </div>
                 </div>
             </div>
+            -->
             
             <div class="space-y-4">
                 <div>

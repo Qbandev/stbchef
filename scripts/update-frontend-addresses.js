@@ -30,7 +30,7 @@ function updateAddresses() {
 
   // Update DEPLOYED_CONTRACTS.simpleSwap for the specific chainId
   if (deployedAddresses.simpleSwap && deployedAddresses.chainId) {
-    const ssChainIdRegex = new RegExp(`(export const DEPLOYED_CONTRACTS[\s\S]*?"simpleSwap":\s*{[\s\S]*?"${deployedAddresses.chainId}":\s*")([^"]*)(")`, 'm');
+    const ssChainIdRegex = new RegExp(`("${deployedAddresses.chainId}":\\s*")([^"]*)(")`, 'm');
     if (smartAccountJsContent.match(ssChainIdRegex)){
         smartAccountJsContent = smartAccountJsContent.replace(ssChainIdRegex, `$1${deployedAddresses.simpleSwap}$3`);
         console.log(`  Updated SimpleSwap for chainId ${deployedAddresses.chainId} to: ${deployedAddresses.simpleSwap}`);

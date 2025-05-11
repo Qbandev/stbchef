@@ -26,22 +26,50 @@
   if (!window.savedWalletCardHTML) window.savedWalletCardHTML = null;
 
   function updateWalletUI() {
+    console.log('[walletUI] updateWalletUI called. userAccount:', window.userAccount);
     const walletBtn = document.getElementById('wallet-btn');
-    if (!walletBtn) return;
+    const walletCard = document.getElementById('wallet-card');
+    const executeSwapBtn = document.getElementById('execute-swap-btn'); // Get the swap button
+
     if (window.userAccount) {
-      walletBtn.innerHTML = `${window.formatWalletAddress ? window.formatWalletAddress(window.userAccount) : window.userAccount} <i class="fas fa-sign-out-alt ml-2"></i>`;
+      console.log('[walletUI] User account found. Updating UI for connected state.');
+      walletBtn.innerHTML = `<i class="fas fa-wallet mr-2"></i> ${window.formatWalletAddress ? window.formatWalletAddress(window.userAccount) : window.userAccount} <i class="fas fa-sign-out-alt ml-2"></i>`;
       walletBtn.classList.add('connected');
       walletBtn.title = 'Click to disconnect wallet';
+      if (executeSwapBtn) {
+        console.log('[walletUI] Enabling execute-swap-btn.');
+        executeSwapBtn.disabled = false;
+        executeSwapBtn.title = 'Execute the swap';
+      } else {
+        console.log('[walletUI] execute-swap-btn not found when trying to enable.');
+      }
     } else {
-      walletBtn.innerHTML = 'Connect Wallet';
+      console.log('[walletUI] No user account. Updating UI for disconnected state.');
+      walletBtn.innerHTML = '<i class="fas fa-plug mr-2"></i> Connect Wallet';
       walletBtn.classList.remove('connected');
       walletBtn.title = 'Connect to MetaMask';
+      if (walletCard) {
+        walletCard.innerHTML = defaultWalletCardHTML;
+      }
+      if (executeSwapBtn) {
+        console.log('[walletUI] Disabling execute-swap-btn.');
+        executeSwapBtn.disabled = true;
+        executeSwapBtn.title = 'Connect wallet to enable swaps';
+      } else {
+        console.log('[walletUI] execute-swap-btn not found when trying to disable.');
+      }
+      // Clear balances and other sensitive info
+      window.walletBalances = { eth: 0, usdc: 0, ethusd: 0, totalValueUSD: 0 };
     }
   }
 
   function showLoadingWalletState(message = 'Loading wallet data...') {
+    console.log('[walletUI] showLoadingWalletState called with message:', message);
     const walletCard = document.getElementById('wallet-card');
-    if (!walletCard) return;
+    if (!walletCard) {
+      console.log('[walletUI] showLoadingWalletState: walletCard not found. Bailing.');
+      return;
+    }
 
     // Save current HTML once so we can restore later
     if (!window.savedWalletCardHTML && walletCard.innerHTML.length > 0) {
