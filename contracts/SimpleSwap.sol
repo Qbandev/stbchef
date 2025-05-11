@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
 interface IERC20 {
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
     function transfer(address recipient, uint256 amount) external returns (bool);
@@ -12,9 +14,14 @@ interface IERC20 {
  * @title SimpleSwap
  * @dev A minimal DEX implementation for ETH/USDC swaps
  */
-contract SimpleSwap {
+contract SimpleSwap is ReentrancyGuard {
     address public usdcAddress;
     uint256 public ethPrice; // USDC per ETH with 6 decimals
+    
+    // Basis-points denominator (1 bp = 0.01 %)
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+    // Hard-coded slippage applied to every swap (default 0.5 %)
+    uint256 public constant SLIPPAGE_BPS = 50; // 50 bp = 0.5 %
     
     event Swapped(address indexed user, address indexed fromToken, address indexed toToken, uint256 fromAmount, uint256 toAmount);
     
@@ -43,15 +50,13 @@ contract SimpleSwap {
      * @dev Swap ETH to USDC
      * @return Amount of USDC received
      */
-    function swapEthToUsdc() external payable returns (uint256) {
+    function swapEthToUsdc() external payable nonReentrant returns (uint256) {
         require(msg.value > 0, "Must send ETH");
         
-        // Calculate USDC amount to send based on current price
-        // USDC has 6 decimals, ETH has 18
+        // Apply slippage: user receives slightly less USDC
         uint256 ethAmount = msg.value;
-        uint256 usdcAmount = (ethAmount * ethPrice) / 1e18;
+        uint256 usdcAmount = (ethAmount * ethPrice * (BPS_DENOMINATOR - SLIPPAGE_BPS)) / 1e18 / BPS_DENOMINATOR;
         
-        // Transfer USDC to the user
         IERC20 usdc = IERC20(usdcAddress);
         require(usdc.transfer(msg.sender, usdcAmount), "USDC transfer failed");
         
@@ -65,7 +70,7 @@ contract SimpleSwap {
      * @param usdcAmount Amount of USDC to swap
      * @return Amount of ETH received
      */
-    function swapUsdcToEth(uint256 usdcAmount) external returns (uint256) {
+    function swapUsdcToEth(uint256 usdcAmount) external nonReentrant returns (uint256) {
         require(usdcAmount > 0, "Must send USDC");
         
         // Transfer USDC from user
@@ -73,7 +78,7 @@ contract SimpleSwap {
         require(usdc.transferFrom(msg.sender, address(this), usdcAmount), "USDC transfer failed");
         
         // Calculate ETH amount to send based on current price
-        uint256 ethAmount = (usdcAmount * 1e18) / ethPrice;
+        uint256 ethAmount = (usdcAmount * 1e18 * (BPS_DENOMINATOR - SLIPPAGE_BPS)) / (ethPrice * BPS_DENOMINATOR);
         
         // Send ETH to user
         (bool success, ) = msg.sender.call{value: ethAmount}("");
@@ -90,7 +95,7 @@ contract SimpleSwap {
      * @return Amount of USDC that would be received
      */
     function getQuoteEthToUsdc(uint256 ethAmount) external view returns (uint256) {
-        return (ethAmount * ethPrice) / 1e18;
+        return (ethAmount * ethPrice * (BPS_DENOMINATOR - SLIPPAGE_BPS)) / 1e18 / BPS_DENOMINATOR;
     }
     
     /**
@@ -99,7 +104,7 @@ contract SimpleSwap {
      * @return Amount of ETH that would be received
      */
     function getQuoteUsdcToEth(uint256 usdcAmount) external view returns (uint256) {
-        return (usdcAmount * 1e18) / ethPrice;
+        return (usdcAmount * 1e18 * (BPS_DENOMINATOR - SLIPPAGE_BPS)) / (ethPrice * BPS_DENOMINATOR);
     }
     
     /**

@@ -235,6 +235,63 @@ function setupSwapForm() {
   
   // Setup swap button
   const executeSwapBtn = document.getElementById('execute-swap-btn');
+
+  // Helper: enable / disable swap button depending on readiness
+  async function refreshSwapButtonState() {
+    if (!executeSwapBtn) return;
+
+    // Preconditions: wallet connected & ethers provider available
+    if (!window.userAccount || !window.ethersProvider || typeof window.TokenAddresses === 'undefined') {
+      executeSwapBtn.disabled = true;
+      executeSwapBtn.title = 'Connect wallet to enable swaps';
+      return;
+    }
+
+    try {
+      const network = await window.ethersProvider.getNetwork();
+      const chainId = Number(network.chainId);
+
+      // Determine USDC address for this network
+      let usdcAddress;
+      switch (chainId) {
+        case 1:
+          usdcAddress = window.TokenAddresses.USDC_ETHEREUM;
+          break;
+        case 59144:
+          usdcAddress = window.TokenAddresses.USDC_LINEA;
+          break;
+        case 59140:
+        case 31337:
+          usdcAddress = window.TokenAddresses.USDC_LINEA_TESTNET;
+          break;
+        default:
+          usdcAddress = null;
+      }
+
+      // Resolve SimpleSwap address from DEPLOYED_CONTRACTS map that smartAccount.js sets
+      const contracts = window.DEPLOYED_CONTRACTS || {};
+      const simpleSwapAddress = contracts.simpleSwap ? contracts.simpleSwap[String(chainId)] : null;
+
+      if (!usdcAddress || !simpleSwapAddress) {
+        executeSwapBtn.disabled = true;
+        executeSwapBtn.title = 'Swap not available on this network yet';
+      } else {
+        executeSwapBtn.disabled = false;
+        executeSwapBtn.title = '';
+      }
+    } catch (err) {
+      console.warn('[swap] Unable to compute readiness', err);
+      executeSwapBtn.disabled = true;
+      executeSwapBtn.title = 'Swap temporarily unavailable';
+    }
+  }
+
+  // Run once and also whenever wallet/network changes
+  refreshSwapButtonState();
+  if (window.setupMetaMaskEventListeners) {
+    window.setupMetaMaskEventListeners({ onNetworkChanged: refreshSwapButtonState, onAccountsChanged: refreshSwapButtonState });
+  }
+
   if (executeSwapBtn) {
     executeSwapBtn.addEventListener('click', async function() {
       const direction = document.querySelector('input[name="swap-direction"]:checked').value;

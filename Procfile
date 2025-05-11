@@ -1,0 +1,1 @@
+web: python -m src.web.app 

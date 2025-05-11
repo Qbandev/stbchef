@@ -12,11 +12,28 @@ async function main() {
   const network = await ethers.provider.getNetwork();
   console.log(`Deploying to network: ${network.name} (chainId: ${network.chainId})`);
   
-  // Choose USDC address based on network
-  const usdcAddress = network.chainId === 59144 
-    ? USDC_ADDRESS.mainnet 
-    : USDC_ADDRESS.testnet;
-  
+  // --------------------------------------------------------------
+  // Determine which USDC address to use.  If we are on Hardhat
+  // local network (chainId 31337) we will deploy a MockUSDC token
+  // on-the-fly so that SimpleSwap has a real ERC20 to work with.
+  // --------------------------------------------------------------
+
+  let usdcAddress;
+
+  if (network.chainId === 31337) {
+    console.log("Local Hardhat network detected – deploying MockUSDC…");
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const mockUSDC = await MockUSDC.deploy();
+    await mockUSDC.deployed();
+
+    console.log(`MockUSDC deployed to: ${mockUSDC.address}`);
+    usdcAddress = mockUSDC.address;
+  } else {
+    // 59144 = Linea mainnet, otherwise default to Linea testnet constants
+    usdcAddress = network.chainId === 59144 ? USDC_ADDRESS.mainnet : USDC_ADDRESS.testnet;
+  }
+
   console.log(`Using USDC address: ${usdcAddress}`);
   
   // Get the deployer account
@@ -63,6 +80,18 @@ async function main() {
 
   await simpleSwap.deployed();
   console.log(`SimpleSwap deployed to: ${simpleSwap.address}`);
+
+  // If SimpleSwap exposes a setter for USDC address (older versions),
+  // update it so front-end code works regardless of constructor param.
+  if (typeof simpleSwap.setUsdcAddress === 'function') {
+    try {
+      const txSet = await simpleSwap.setUsdcAddress(usdcAddress);
+      await txSet.wait();
+      console.log(`SimpleSwap#setUsdcAddress called – now points to ${usdcAddress}`);
+    } catch (err) {
+      console.log("setUsdcAddress() call failed or is not allowed – continuing.");
+    }
+  }
 
   // Output contract addresses
   console.log("\n==================================================");

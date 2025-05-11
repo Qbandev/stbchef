@@ -1,5 +1,10 @@
 # Simple Crypto Trading Bot Chef
 
+[![CI](https://github.com/qbandev/stbchef/actions/workflows/ci.yml/badge.svg)](https://github.com/qbandev/stbchef/actions/workflows/ci.yml)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/qbandev/stbchef)
+
+> **Now Live Trading-Ready 🥳** — The MVP deployed on Render can execute **real ETH ↔︎ USDC swaps** on Linea and Ethereum networks via the built-in `SimpleSwap` DEX contract.
+
 <div align="center">
   <img src="src/web/static/robot.webp" alt="Trading Bot Chef Logo" width="200"/>
   <p><em>AI-Powered Crypto Trading Bot with Ethereum Pectra Support</em></p>
@@ -113,6 +118,30 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
    # Access at http://localhost:8080
    ```
 
+## Environment Variables (.env)
+
+Copy `.env.example` to `.env` and fill **all** required secrets:
+
+```dotenv
+# ---- Core secrets ----
+PRIVATE_KEY=                # Wallet key for contract deployment (no quotes)
+
+# ---- RPC endpoints ----
+LINEA_RPC_URL=https://rpc.linea.build
+LINEA_TESTNET_RPC_URL=https://rpc.goerli.linea.build
+
+# ---- Block-explorer API keys ----
+LINEASCAN_API_KEY=
+ETHERSCAN_API_KEY=
+
+# ---- Optional AI model keys ----
+GEMINI_API_KEY=
+GROQ_API_KEY=
+MISTRAL_API_KEY=
+```
+
+> ⚠️ **Never** commit real secrets. Use Render/CI variable managers in production.
+
 ## Ethereum Pectra Integration
 
 This project implements the new Ethereum Pectra upgrade features:
@@ -195,17 +224,97 @@ The architecture consists of ten core components:
 
 This modular design ensures separation of concerns while maintaining efficient data flow.
 
-## Important Disclaimer
+# Deployment & Verification
 
-This is an **experimental project** for educational and research purposes only:
-- NOT financial advice
-- NOT intended for real trading
-- For AI model comparison only
-- Does NOT execute actual trades
+### One-Click Deploy (Render)
+
+If you have a Render account, press the **Deploy to Render** button above. Render will pick up the `render.yaml` blueprint and provision a free web service. All secrets listed in the blueprint must be supplied in Render's *Environment* tab.
+
+### Manual Local Deploy
+
+1.  Run Hardhat node & deploy contracts locally:
+
+    ```bash
+    npm run node                # Start Hardhat local chain
+    npm run deploy:local        # Deploy SmartAccount + SimpleSwap + MockUSDC
+    ```
+
+2.  Front-end will automatically pick up the local contract addresses (chainId 31337).
+
+### Testnet / Mainnet Deploy
+
+```bash
+# Set PRIVATE_KEY and RPC urls in .env
+npm run deploy                # Linea Testnet (default)
+# or
+npx hardhat run scripts/deploy.js --network lineaMainnet
+```
+
+### Contract Verification
+
+After deployment you can verify both contracts in one command:
+
+```bash
+export SMART_ACCOUNT_ADDRESS=<deployed_smart_account>
+export SIMPLE_SWAP_ADDRESS=<deployed_simple_swap>
+export USDC_ADDRESS=<usdc_address_used>
+
+npx hardhat run scripts/verify.js --network lineaMainnet
+```
+
+If verification succeeds you will see *✔︎* in the console and the contracts will be marked **Verified** on Lineascan / Etherscan.
+
+**Disclaimer**  
+This repository is for demonstration purposes. Although it now supports real on-chain swaps, nothing here constitutes financial advice. Use at your own risk and always test with small amounts first.
+
+## Testing
+
+The project ships with three layers of automated tests and a CI workflow that runs them on every push / pull-request.
+
+| Layer | Command | What it covers |
+|-------|---------|----------------|
+| Solidity / Hardhat | `npx hardhat test` | Unit & integration tests for `SmartAccount`, `SimpleSwap`, mock contracts, happy-path + revert cases. |
+| Python | `poetry run pytest` | Database helpers, API utilities, any pure-Python business logic. |
+| Playwright (UI) | `npm run test:e2e` | Headless Chromium smoke test that loads the dashboard, verifies core buttons are visible, and ensures the swap button is disabled when contracts are unavailable. |
+
+The CI job defined in `.github/workflows/ci.yml` executes all three layers. The Playwright configuration (`playwright.config.js`) automatically spins up the Flask server on port 8080 before running UI tests—no extra steps required.
+
+### Running everything locally
+
+```bash
+# 1. install deps if you haven't already
+poetry install
+npm install --legacy-peer-deps
+
+# 2. run Hardhat tests
+npx hardhat test
+
+# 3. run Python back-end tests
+poetry run pytest -q
+
+# 4. run headless UI smoke test
+npm run test:e2e
+```
+
+All tests should pass before you push or deploy to Render.
+
+## Production Deployment Checklist
+
+Use this mini-checklist before promoting to mainnet or Render production:
+
+| Category | Item |
+|----------|------|
+| Environment | `.env` populated with **PRIVATE_KEY**, RPC URLs, explorer API keys |
+| Contracts | `npm run compile` succeeds & contracts verified on Lineascan/Etherscan |
+| Frontend | Addresses in `smartAccount.js` & friends updated for target chain |
+| Tests | `npx hardhat test`, `pytest`, and `npm run test:e2e` all green |
+| Security | Performed manual review for reentrancy & access-control (SmartAccount, SimpleSwap) |
+| Monitoring | Configure Render logs & alerts for `/api/swaps` error spikes |
+| Docs | README & GitHub Pages reflect latest contract addresses |
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [PolyForm Strict License 1.0.0](LICENSE).
 
 ---
 <div align="center">

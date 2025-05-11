@@ -1,0 +1,78 @@
+Below is an executive-level review of the repository's recent Git history plus a synthesis of the IMPLEMENTATION_GUIDE.md and README.md to frame what still has to be done to reach an MVP that can run on Render and execute real swaps for users.
+────────────────────────────────────
+Recent Git Activity (high-signal)
+HEAD → ea94dc0 "chore: clean up browser errors" (11 May)
+• Deleted stray files: .python-version, several "=x.y.z" patch logs.
+• UI polish / DOM cleanup:
+– Removed the temporary "Pectra" badge injection logic in moduleLoader.js.
+– Changed <label> elements that were purely cosmetic to <p> for a11y.
+– Fixed mismatched IDs in toggle switch markup (enable-swap-toggle).
+• JS refactors:
+– TokenAddresses is now an exported constant (smartAccount.js).
+– walletCore.js initialises an empty placeholder (window.walletCore = {}) first, then wires real methods—eliminates console noise.
+– Misc warning-string tweaks and comments.
+fbf641ff "chore: refactor code and split files" (10 May)
+• Large structural move—split monolithic Wallet/Swap helpers into granular "Manager.js" modules.
+• Front-end build artifacts removed from repo; now ignored.
+• Updated Tailwind build, ESLint config and package versions.
+a6d3b90 "chore: contract first draft" (10 May)
+• Added contracts/SmartAccount.sol, contracts/SimpleSwap.sol.
+• Scaffolded Hardhat scripts (deploy.js, deploy:local, extract-addresses.js).
+• Initial tests for swap flows (found in test/).
+Net takeaway: the codebase is cleaner, browser console warnings are gone, and token/config exports are now import-friendly for other modules.
+────────────────────────────────────
+Key points from IMPLEMENTATION_GUIDE.md & README.md
+• Environment problems called out:
+1 Flask/Werkzeug pinning → use 2.0.1.
+2 OpenZeppelin contracts not installed.
+3 Swap failing locally because there is no USDC token deployed.
+• Two viable local solutions for USDC:
+A Deploy a MockUSDC contract.
+B Point SimpleSwap at Hardhat Account #1 as a "fake" USDC address.
+• Deployment workflow spelled out for Hardhat → Linea Testnet → Linea Mainnet with scripts + .env.
+• For Render hosting:
+– Procfile or render.yaml not yet present.
+– Secrets (.env) must be injected via Render dashboard.
+• README emphasises Python 3.10 + Poetry, Node 18, Tailwind build, and front-end LLM features.
+It still flags "NOT intended for real trading" even though the new goal is real swaps.
+────────────────────────────────────
+Gap Analysis & Next-Step Checklist to Reach MVP on Render
+Backend / Smart-Contracts
+① Finish MockUSDC or real USDC address workflow.
+• If you stay with mocks in local, ensure SimpleSwap.setUsdcAddress() exists and is called post-deploy for testnet/mainnet.
+② Expand SimpleSwap to support slippage controls and re-entrancy guard (OpenZeppelin ReentrancyGuard).
+③ Add Hardhat verification script to auto-verify on Lineascan after deploy.
+Front-End / JS
+④ Wire the new exported TokenAddresses into every module that referenced the previous in-file constant.
+⑤ Re-enable a subtle UX indicator (badge or tooltip) for EIP-7702 features—now optional after cleanup commit.
+⑥ Guard against "External transactions cannot include data" by disabling swap button if USDC address isn't set.
+Python / Flask
+⑦ Pin Flask/Werkzeug 2.0.1 in pyproject.toml and rebuild lockfile.
+⑧ Create a /api/swaps/price endpoint to pull on-chain quote for the exact user amount (currently simulated).
+CI/CD & Render
+⑨ Add:
+• render.yaml (build: npm run build && poetry install, start: poetry run python -m src.web.app).
+• Procfile for fallback: web: python -m src.web.app.
+⑩ Add a GitHub Action to run npm test, npm run lint, pytest, and hardhat test.
+⑪ Document required Render environment variables (PRIVATE_KEY, LINEA_RPC_URL, etc.) in README.
+Security / Production Hardening
+⑫ Move any plaintext test private keys into .env.example only; scrub from code.
+⑬ Rate-limit swap endpoint and add basic abuse monitoring (Render offers "DDoS protection" tiers).
+⑭ Add CSP headers in Flask (flask-talisman) to lock down front-end.
+Testing
+⑮ Expand Hardhat tests to include:
+• Gas-token payments (ERC-20 fee).
+• Batch transactions success path.
+⑯ End-to-end Cypress or Playwright test that spins up local Hardhat node + front-end and completes a swap.
+Docs
+⑰ Update README "Important Disclaimer" to state mainnet trading is live; include risk notice and encourage small trades.
+⑱ Add quick-start for Render deploy: "One-click Deploy" button using Render blueprints.
+────────────────────────────────────
+Recommended Immediate Actions (this sprint)
+Add OpenZeppelin dependency and implement/deploy MockUSDC → close issue #2 & #3.
+Pin Flask/Werkzeug in Poetry → close issue #1.
+Create render.yaml & Procfile, push to repo; set up Render test service.
+Run full local e2e test (Hardhat + browser) to confirm swaps succeed with gas paid in ETH and in USDC.
+If green, deploy to Linea Testnet from CI and verify contracts.
+Completing those will put us one deploy away from an MVP that can execute real swaps for users' wallets on Render.
+Let me know which section you'd like to tackle first, or if you want detailed code edits / Render config files drafted now.

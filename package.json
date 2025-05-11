@@ -12,10 +12,12 @@
         "node": "npx hardhat node",
         "update-addresses": "node scripts/update-contract-addresses.js",
         "deploy-and-update": "npm run deploy | tee deployment.log && node scripts/extract-addresses.js && npm run start",
-        "install-deps": "npm install --legacy-peer-deps"
+        "install-deps": "npm install --legacy-peer-deps",
+        "test:e2e": "playwright test --config=playwright.config.js"
     },
     "dependencies": {
         "@metamask/sdk": "^0.5.6",
+        "@playwright/test": "^1.43.0",
         "ethers": "^5.7.2",
         "web3": "^1.10.0"
     },
@@ -25,6 +27,7 @@
         "@nomicfoundation/hardhat-toolbox": "^2.0.2",
         "@nomiclabs/hardhat-ethers": "^2.2.3",
         "@nomiclabs/hardhat-etherscan": "^3.1.7",
+        "@openzeppelin/contracts": "^4.9.5",
         "@typechain/ethers-v5": "^10.2.1",
         "@typechain/hardhat": "^6.1.6",
         "@types/chai": "^4.3.20",
@@ -54,5 +57,5 @@
         "pectra"
     ],
     "author": "qbandev",
-    "license": "MIT"
+    "license": "PolyForm-Strict-1.0.0"
 }

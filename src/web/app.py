@@ -37,6 +37,41 @@ logging.basicConfig(
 app = Flask(__name__)
 CORS(app)
 
+# --- Security & rate-limiting middleware ---------------------------------
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    # Apply a conservative default of 120 requests per minute per IP.
+    Limiter(
+        app,
+        key_func=get_remote_address,
+        default_limits=["120 per minute"],
+    )
+    logging.info(
+        "[security] Flask-Limiter enabled with 120 req/min default limit")
+except ImportError:
+    logging.warning(
+        "[security] flask-limiter not installed – rate limiting disabled")
+
+try:
+    from flask_talisman import Talisman
+
+    # Simple CSP allowing same-origin assets and inline scripts/styles generated
+    # by the build process.  Adjust as you harden.
+    csp = {
+        'default-src': "'self'",
+        'img-src': "'self' data:",
+        'script-src': "'self' 'unsafe-inline'",
+        'style-src': "'self' 'unsafe-inline'",
+    }
+    Talisman(app, content_security_policy=csp)
+    logging.info("[security] Flask-Talisman enabled with basic CSP headers")
+except ImportError:
+    logging.warning(
+        "[security] flask-talisman not installed – CSP headers not applied")
+
 # Initialize components with memory-efficient settings
 state = TradingState()
 market_agent = MarketDataAgent(state)
@@ -632,6 +667,55 @@ def store_ai_decision() -> Union[dict, tuple[dict, int]]:
         return jsonify({"status": "success", "message": "AI decision stored successfully"})
     except Exception as e:
         logging.error(f"Error storing AI decision: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/swaps/price")
+def get_swap_quote():
+    """Return a slippage-adjusted quote for a swap without executing it.
+
+    Query params:
+      direction: 'eth-to-usdc' | 'usdc-to-eth' (default eth-to-usdc)
+      amount: numeric string – amount of *from* token
+    Response JSON: { direction, amount, quote, slippage_bps }
+    """
+    try:
+        direction = request.args.get('direction', 'eth-to-usdc').lower()
+        amount_str = request.args.get('amount', '0')
+
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return jsonify({"error": "Invalid amount"}), 400
+
+        if amount <= 0:
+            return jsonify({"error": "Amount must be greater than zero"}), 400
+
+        # Pull latest ETH price from cached trading data (USD/USDC is 1:1 here)
+        with trading_data_lock:
+            eth_price = float(latest_trading_data.get('eth_price', 0))
+
+        if eth_price == 0:
+            # Fallback to live fetch if cache empty
+            eth_price = market_agent.get_market_data().eth_price
+
+        SLIPPAGE_FACTOR = 0.995  # 0.5% slippage just like contract
+
+        if direction == 'eth-to-usdc':
+            quote = amount * eth_price * SLIPPAGE_FACTOR
+        elif direction == 'usdc-to-eth':
+            quote = (amount / eth_price) * SLIPPAGE_FACTOR
+        else:
+            return jsonify({"error": "Unsupported direction"}), 400
+
+        return jsonify({
+            "direction": direction,
+            "amount": amount,
+            "quote": quote,
+            "slippage_bps": 50
+        })
+    except Exception as e:
+        logging.error(f"Error in get_swap_quote: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
