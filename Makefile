@@ -20,7 +20,9 @@ compile: ## Compile Solidity contracts
 	npx hardhat compile
 
 deploy-local: ## Deploy contracts to local Hardhat network
+	$(NPM) run compile
 	npx hardhat run scripts/deploy.js --network localhost
+	$(NPM) run update-frontend-addresses
 
 test: ## Run Solidity, Python and Playwright tests
 	npx hardhat test && \

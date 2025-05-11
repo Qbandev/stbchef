@@ -281,20 +281,35 @@ The CI job defined in `.github/workflows/ci.yml` executes all three layers. The 
 
 ### Running everything locally
 
-```bash
-# 1. install deps if you haven't already
-poetry install
-npm install --legacy-peer-deps
+1.  **Install Dependencies & Setup Environment:**
+    *   Ensure Node.js v18+ and Python 3.10+ with Poetry are installed (see Prerequisites).
+    *   Run `make setup`. This installs all Python and Node.js dependencies.
+    *   Copy `.env.example` to `.env` and fill in your API keys (at least `PRIVATE_KEY` for local deployment).
 
-# 2. run Hardhat tests
-npx hardhat test
+2.  **Run Automated Tests (Recommended):**
+    *   `make test` (this runs Hardhat, Pytest, and Playwright tests sequentially).
+    *   All tests should pass. Address any Node.js version warnings if they appear by switching to Node 18+ (`nvm install 18 && nvm use 18`).
 
-# 3. run Python back-end tests
-poetry run pytest -q
-
-# 4. run headless UI smoke test
-npm run test:e2e
-```
+3.  **Local Deployment & Manual Browser Testing:**
+    *   **Terminal 1: Start Local Blockchain**
+        ```bash
+        make node
+        ```
+        *(Keep this running. Note the sample accounts/private keys.)*
+    *   **Terminal 2: Deploy Contracts & Start Web App**
+        ```bash
+        make deploy-local  # Deploys contracts, updates frontend addresses
+        make start         # Starts Flask server at http://localhost:8080
+        ```
+    *   **Browser Testing (MetaMask Required):**
+        1.  Configure MetaMask for "Localhost 8545" (Chain ID: 31337).
+        2.  Import a Hardhat test account (e.g., Account #0 `0xf39...`) into MetaMask.
+        3.  Open `http://localhost:8080`.
+        4.  Connect your wallet.
+        5.  Test ETH → USDC swaps (pay gas in ETH).
+        6.  Test USDC → ETH swaps (pay gas in ETH; may require approving SimpleSwap for MockUSDC first).
+        7.  (Optional) Test swaps with "Pay Gas in USDC" enabled.
+        8.  Check browser console and terminal logs for errors during tests.
 
 All tests should pass before you push or deploy to Render.
 

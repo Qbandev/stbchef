@@ -1,5 +1,7 @@
 const hre = require("hardhat");
 const { ethers } = require("hardhat");
+const fs = require('fs');
+const path = require('path');
 
 async function main() {
   // Define the Linea USDC address
@@ -100,6 +102,26 @@ async function main() {
   console.log(`SimpleSwap: ${simpleSwap.address}`);
   console.log(`USDC Address: ${usdcAddress}`);
   console.log("==================================================");
+
+  // Write addresses to a JSON file for frontend consumption
+  const addresses = {
+    networkName: network.name,
+    chainId: network.chainId,
+    smartAccount: smartAccount.address,
+    simpleSwap: simpleSwap.address,
+    // Only include mockUSDC if it was deployed (i.e., on localhost)
+    ...(network.chainId === 31337 && { mockUSDC: usdcAddress })
+  };
+
+  const artifactsDir = path.join(__dirname, "..", "artifacts");
+  if (!fs.existsSync(artifactsDir)) {
+    fs.mkdirSync(artifactsDir, { recursive: true });
+  }
+  fs.writeFileSync(
+    path.join(artifactsDir, "deployed_addresses.json"),
+    JSON.stringify(addresses, null, 2)
+  );
+  console.log("\nDeployed addresses written to artifacts/deployed_addresses.json");
 }
 
 main().catch((error) => {

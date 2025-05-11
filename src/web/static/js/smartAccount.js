@@ -7,9 +7,9 @@ const simulatedTransactions = [];
 
 // Contract addresses (to be filled after deployment)
 export const DEPLOYED_CONTRACTS = {
-  "smartAccount": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "smartAccount": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
   "simpleSwap": {
-    "31337": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "31337": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
     "59140": "",
     "59144": ""
   }
@@ -272,8 +272,8 @@ export const TokenAddresses = {
   // Linea tokens 
   USDC_LINEA: '0x176211869cA2b568f2A7D4EE941E073a821EE1ff',
   
-  // Linea Testnet tokens
-  USDC_LINEA_TESTNET: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Using Account #1 as USDC for local testing
+  // Linea Testnet tokens (and localhost MockUSDC)
+  USDC_LINEA_TESTNET: '0x0165878A594ca255338adfa4d48449f69242Eb8F', // Address of MockUSDC deployed to localhost
   
   // Native ETH is represented as 0x00...00
   NATIVE_ETH: '0x0000000000000000000000000000000000000000'
