@@ -64,7 +64,7 @@
   window.formatWalletAddress = formatWalletAddress;
   window.persistWalletConnection = persistWalletConnection;
 
-  // Defensive: warn if the legacy functions have not been defined yet.
+  // Defensive checker retained for potential future placeholder usage
   const warnMissing = (fn) => {
     if (typeof window[fn] !== 'function') {
       console.warn(`[walletCore] Expected global function "${fn}" is not available yet.`);
@@ -75,26 +75,9 @@
     return window[fn];
   };
 
-  // Core / plumbing helpers (no DOM manipulation here)
-  window.walletCore = {
-    /* connection & network */
-    connectWallet: warnMissing('connectWallet'),
-    switchNetwork: warnMissing('switchNetwork'),
-    persistWalletConnection: warnMissing('persistWalletConnection'),
-
-    /* balances */
-    getWalletBalances: warnMissing('getWalletBalances'),
-    getTokenBalance: warnMissing('getTokenBalance'),
-    resetWalletBalances: warnMissing('resetWalletBalances'),
-
-    /* MetaMask listeners & helpers */
-    setupMetaMaskEventListeners: warnMissing('setupMetaMaskEventListeners'),
-    handleAccountsChanged: warnMissing('handleAccountsChanged'),
-
-    /* misc utilities */
-    saveDisconnectedAccounts: warnMissing('saveDisconnectedAccounts'),
-    formatWalletAddress: warnMissing('formatWalletAddress'),
-  };
+  // Create placeholder object; real functions are wired up after all
+  // declarations further below so we don't trigger warnMissing noise.
+  window.walletCore = {};
 
   // ---------------- Migrated balance helpers ----------------
   function resetWalletBalances() {

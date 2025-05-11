@@ -130,8 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (success) {
             console.log('All modules loaded successfully');
             
-            // Update UI to reflect smart account capability
-            updatePectraUI();
+            // Smart-account UI badge disabled; nothing else to do here.
           } else {
             console.warn('Some modules failed to load');
           }
@@ -151,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadModules().then(success => {
           if (success) {
             console.log('All modules loaded successfully');
-            updatePectraUI();
+            // badge disabled
           }
         });
       };
@@ -169,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadModules().then(success => {
       if (success) {
         console.log('All modules loaded successfully');
-        updatePectraUI();
+        // badge disabled
       }
     });
   }
@@ -308,24 +307,6 @@ function setupSwapForm() {
     closeSwapModalBtn.addEventListener('click', function() {
       swapModal.classList.add('hidden');
     });
-  }
-}
-
-// Update UI to reflect Pectra support
-function updatePectraUI() {
-  // Update UI to reflect smart account capability
-  const walletBtn = document.getElementById('wallet-btn');
-  if (walletBtn) {
-    walletBtn.classList.add('pectra-enabled');
-    
-    // Add a small badge to indicate Pectra support
-    const existingBadge = walletBtn.querySelector('.pectra-badge');
-    if (!existingBadge) {
-      const pectraBadge = document.createElement('span');
-      pectraBadge.className = 'pectra-badge text-xs rounded-full bg-green-700 text-white px-1 ml-1';
-      pectraBadge.textContent = 'Pectra';
-      walletBtn.appendChild(pectraBadge);
-    }
   }
 }
 

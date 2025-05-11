@@ -529,7 +529,7 @@ function updateWalletCard() {
                     <div class="flex items-center justify-between">
                         <span class="text-gray-400">Enable MetaMask Test Notifications:</span>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer" ${window.enableSwapRecommendations ? 'checked' : ''}>
+                            <input type="checkbox" id="enable-swap-toggle" class="sr-only peer" ${window.enableSwapRecommendations ? 'checked' : ''}>
                             <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-300 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                         </label>
                     </div>
