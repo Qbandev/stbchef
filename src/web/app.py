@@ -68,7 +68,8 @@ try:
             "'unsafe-inline'",
             "https://cdn.tailwindcss.com",
             "https://cdn.jsdelivr.net",
-            "https://cdnjs.cloudflare.com"
+            "https://cdnjs.cloudflare.com",
+            "https://cdn.ethers.io"
         ],
         'style-src': [
             "'self'",
