@@ -311,7 +311,7 @@ function setupSwapForm() {
     const direction = document.querySelector('input[name="swap-direction"]:checked').value;
     const amountInput = document.getElementById('swap-amount');
     const amount = parseFloat(amountInput?.value || '0');
-    const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
+    const useGasToken = false; // Gas payment choice removed – always native token
     
     console.log('[moduleLoader executeSwapBtn] State before checks: userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
 

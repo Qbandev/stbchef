@@ -1,4 +1,4 @@
-.PHONY: setup install test lint start node clean
+.PHONY: setup install test lint start clean
 
 # Python & Node commands
 PY=poetry
@@ -12,22 +12,3 @@ setup: ## Install Python + Node dependencies
 
 start: ## Run Flask dev server on port 8080
 	$(PY) run python -m src.web.app
-
-node: ## Launch local Hardhat chain
-	npx hardhat node
-
-compile: ## Compile Solidity contracts
-	npx hardhat compile
-
-deploy-local: ## Deploy contracts to local Hardhat network
-	$(NPM) run compile
-	npx hardhat run scripts/deploy.js --network localhost
-	$(NPM) run update-frontend-addresses
-
-test: ## Run Solidity, Python and Playwright tests
-	npx hardhat test && \
-	$(PY) run pytest -q && \
-	$(NPM) run test:e2e
-
-clean: ## Remove build artefacts & caches
-	rm -rf artifacts cache tests-results 

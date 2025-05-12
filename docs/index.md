@@ -1,21 +1,25 @@
-# Developer Documentation
+# STBChef Documentation
 
-Welcome to the extended documentation for **Simple Crypto Trading Bot Chef**.
-This site is published automatically via GitHub Pages on every push to `main`.
+Welcome to the **Simple Trading Bot Chef** knowledge-base.  The project has recently been refactored to remove all Solidity contracts and Hardhat tooling; swaps are executed directly through the **KyberSwap Aggregator API**.
 
-| Section | Description |
-|---------|-------------|
-| [Getting Started](getting-started.md) | Local setup, environment variables & first run |
-| [Architecture](architecture.md) | High-level system diagram and data-flow |
-| [Smart Contracts](contracts.md) | Overview of `SmartAccount` and `SimpleSwap` Solidity code |
-| [API Reference](api.md) | REST endpoints exposed by the Flask backend |
+> **Tip — start with the Quick Start guide if you just want to run the dashboard locally.**
 
-> Looking for a quick overview? See the project [README](../README.md).
+## Contents
 
-> **New (v1.2):** The dApp now supports live swaps on **two distinct paths**:
-> * **Linea / Local**  – On-chain via the project's `SimpleSwap` contract and EIP-7702 smart-accounts.
-> * **Ethereum Mainnet** – Through the embedded **Uniswap Swap Widget** iframe (no local contracts).
->
-> The UI auto-detects the connected chain and chooses the correct modal. See [Architecture](architecture.md#swap-execution-modes) for details.
->
-> ⚠️ **Disclaimer** — Use at your own risk. The maintainers accept no responsibility for contract bugs, Uniswap router behaviour or financial loss. 
+| Document | Purpose |
+|----------|---------|
+| [getting-started.md](getting-started.md) | Installation, environment variables, running & testing. |
+| [architecture.md](architecture.md) | High-level component diagram and data-flow. |
+| [api.md](api.md) | List of external APIs the app calls (KyberSwap, price feeds, AI providers). |
+| [contracts.md](contracts.md) | _Legacy reference._ Left here for historical context; no contracts are required anymore. |
+
+## Current Status (May 2025)
+
+* **Swaps**: ETH ↔ USDC on Ethereum Mainnet (chain 1) and Linea (59144) via KyberSwap.  No backend signer or on-chain deployments.
+* **Backend**: Flask serves static files + tiny helper JSON endpoints (e.g. cached price, Fear & Greed).
+* **Frontend**: Tailwind CSS, Ethers v5, Playwright test suite.
+* **Secrets needed**: only AI model API keys — `GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`.
+
+---
+
+Need something that is not covered?  Open an issue or drop a question in the discussions tab! 

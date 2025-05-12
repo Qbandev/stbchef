@@ -6,13 +6,6 @@
     "scripts": {
         "start": "python -m src.web.app",
         "dev": "nodemon --exec python -m src.web.app",
-        "compile": "npx hardhat compile",
-        "deploy": "npx hardhat run scripts/deploy.js --network lineaTestnet",
-        "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
-        "node": "npx hardhat node",
-        "update-addresses": "node scripts/update-contract-addresses.js",
-        "deploy-and-update": "npm run deploy | tee deployment.log && node scripts/extract-addresses.js && npm run start",
-        "update-frontend-addresses": "node scripts/update-frontend-addresses.js",
         "install-deps": "npm install --legacy-peer-deps",
         "test:e2e": "playwright test --config=playwright.config.js"
     },

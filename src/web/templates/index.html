@@ -1107,18 +1107,13 @@
                 </div>
             </div>
         </div>
-    </main>
 
-    <!-- Add this new swap history section just before the closing main tag -->
-    <div class="card bg-cyber-dark p-4 pb-6 rounded-xl shadow-lg border border-blue-900 mt-6">
-        <div class="flex items-center justify-between mb-4">
+
+    <!-- Swap history section -->
+    <div class="cyber-card p-6 rounded-lg shadow mt-8 mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
             <h2 class="text-xl font-bold cyber-title">Recent Transactions</h2>
             <div class="flex items-center">
-                <label class="inline-flex items-center cursor-pointer mr-4">
-                    <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer">
-                    <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    <span class="ms-3 text-sm font-medium text-gray-300">Pay Gas in USDC</span>
-                </label>
                 <button id="execute-trade-btn" class="cyber-btn px-4 py-1.5">
                     <i class="fas fa-exchange-alt mr-2"></i>
                     New Swap
@@ -1184,20 +1179,6 @@
                     <div id="swap-balance" class="text-xs text-gray-500 mt-1">Balance: 0.00 ETH</div>
                 </div>
                 
-                <div>
-                    <p class="block text-gray-300 mb-2">Gas Payment</p>
-                    <div class="flex space-x-4">
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="gas-token" value="eth" class="form-radio text-blue-600" checked>
-                            <span class="ml-2 text-white">Pay in ETH</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="gas-token" value="usdc" class="form-radio text-blue-600">
-                            <span class="ml-2 text-white">Pay in USDC</span>
-                        </label>
-                    </div>
-                </div>
-                
                 <div class="pt-4">
                     <button id="execute-swap-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
                         <i class="fas fa-exchange-alt mr-2"></i>
@@ -1207,7 +1188,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Removed Uniswap widget modal (replaced by Kyber aggregator flow) -->
+    </main>
 </body>
 </html> 
