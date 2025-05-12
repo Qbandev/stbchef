@@ -253,6 +253,50 @@ const ERC20_ABI = [
   }
 ];
 
+// Minimal Uniswap V2 Router ABI (swap functions we use)
+const UNISWAP_ROUTER_ABI = [
+  {
+    "name": "swapExactETHForTokens",
+    "type": "function",
+    "stateMutability": "payable",
+    "inputs": [
+      { "name": "amountOutMin", "type": "uint256" },
+      { "name": "path", "type": "address[]" },
+      { "name": "to", "type": "address" },
+      { "name": "deadline", "type": "uint256" }
+    ],
+    "outputs": [{ "name": "amounts", "type": "uint256[]" }]
+  },
+  {
+    "name": "swapExactTokensForETH",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "amountIn", "type": "uint256" },
+      { "name": "amountOutMin", "type": "uint256" },
+      { "name": "path", "type": "address[]" },
+      { "name": "to", "type": "address" },
+      { "name": "deadline", "type": "uint256" }
+    ],
+    "outputs": [{ "name": "amounts", "type": "uint256[]" }]
+  }
+];
+
+// Minimal Universal Router ABI (execute function)
+const UNIVERSAL_ROUTER_ABI = [
+  {
+    "inputs": [
+      { "internalType": "bytes", "name": "commands", "type": "bytes" },
+      { "internalType": "bytes[]", "name": "inputs", "type": "bytes[]" },
+      { "internalType": "uint256", "name": "deadline", "type": "uint256" }
+    ],
+    "name": "execute",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+];
+
 // Feature enum values
 export const Feature = {
   SessionKeys: 0,
@@ -263,7 +307,14 @@ export const Feature = {
 // Token addresses for different networks
 export const TokenAddresses = {
   // Ethereum tokens
-  USDC_ETHEREUM: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  USDC_ETHEREUM: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  WETH_ETHEREUM: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+  // Use V2 Router address for now, V4 interaction via Universal Router below
+  // UNISWAP_ROUTER_ETHEREUM: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+  // V4 and related contracts (Verify addresses before production!)
+  // Official V4 deployments: https://github.com/Uniswap/deploy-v4
+  UNIVERSAL_ROUTER_ETHEREUM: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD', // Verify this!
+  PERMIT2_ETHEREUM: '0x000000000022D473030F116dDEE9F6B43aC78BA3', // Verify this!
   
   // Linea tokens 
   USDC_LINEA: '0x176211869cA2b568f2A7D4EE941E073a821EE1ff',
@@ -404,6 +455,152 @@ export async function executeSwap(signer, fromToken, toToken, amount, useGasToke
     // Get the current chain ID
     const chainId = network.chainId.toString();
     
+    // Special handling for Ethereum mainnet – use Uniswap V2 router instead of SimpleSwap
+    if (chainId === '1') {
+      const routerAddress = TokenAddresses.UNIVERSAL_ROUTER_ETHEREUM; // V4 Router
+      const router = new ethers.Contract(routerAddress, UNIVERSAL_ROUTER_ABI, signer);
+      const userAddress = await signer.getAddress();
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 10; // 10-minute deadline
+
+      // Define the V4 PoolKey for ETH/USDC 0.3% pool (WETH needed)
+      // Addresses MUST be sorted numerically for PoolKey currency0/currency1
+      const token0 = TokenAddresses.USDC_ETHEREUM; // USDC is lower numerically
+      const token1 = TokenAddresses.WETH_ETHEREUM;
+
+      const poolKey = {
+        currency0: token0,
+        currency1: token1,
+        fee: 3000, // 0.3% fee tier
+        tickSpacing: 60, // Common for 0.3%
+        hooks: ethers.constants.AddressZero // No hooks for basic swap
+      };
+
+      // V4 Commands and Actions
+      const V4_SWAP_COMMAND = '0x0b'; // Corresponds to Commands.V4_SWAP
+      const SWAP_EXACT_IN_SINGLE_ACTION = '0x00'; // Corresponds to Actions.SWAP_EXACT_IN_SINGLE
+      const SETTLE_ALL_ACTION = '0x10'; // Corresponds to Actions.SETTLE_ALL
+      const TAKE_ALL_ACTION = '0x11'; // Corresponds to Actions.TAKE_ALL
+
+      const commands = V4_SWAP_COMMAND;
+      const actions = ethers.utils.concat([
+        SWAP_EXACT_IN_SINGLE_ACTION,
+        SETTLE_ALL_ACTION,
+        TAKE_ALL_ACTION
+      ]);
+
+      let params = [];
+      const slippageTolerance = 0.005; // 0.5% slippage
+
+      if (fromToken === ethers.constants.AddressZero) { // ETH -> USDC swap
+        // ETH → USDC
+        // Calculate minimum USDC out with slippage
+        let minAmountOut = ethers.BigNumber.from(0);
+        if (window.walletBalances && window.walletBalances.ethusd > 0) {
+            const expectedUsdc = ethers.utils.parseUnits((parseFloat(ethers.utils.formatEther(amount)) * window.walletBalances.ethusd).toFixed(6), 6);
+            minAmountOut = expectedUsdc.sub(expectedUsdc.mul(Math.floor(slippageTolerance * 10000)).div(10000));
+        }
+
+        // Note: V4 swaps work with WETH, Universal Router handles ETH wrapping/unwrapping
+        const exactInputSingleParams = {
+          poolKey: poolKey,
+          zeroForOne: false, // Swapping WETH (currency1) for USDC (currency0)
+          amountIn: amount,
+          amountOutMinimum: minAmountOut,
+          hookData: '0x' // Empty bytes
+        };
+        params.push(ethers.utils.defaultAbiCoder.encode([
+          'tuple(address,address,uint24,int24,address)',
+          'bool zeroForOne',
+          'uint128 amountIn',
+          'uint128 amountOutMinimum',
+          'bytes hookData'
+        ], [
+            [
+              exactInputSingleParams.poolKey.currency0,
+              exactInputSingleParams.poolKey.currency1,
+              exactInputSingleParams.poolKey.fee,
+              exactInputSingleParams.poolKey.tickSpacing,
+              exactInputSingleParams.poolKey.hooks
+            ],
+            exactInputSingleParams.zeroForOne,
+            exactInputSingleParams.amountIn,
+            exactInputSingleParams.amountOutMinimum,
+            exactInputSingleParams.hookData
+        ]));
+
+        // SETTLE_ALL params: input currency, amountIn
+        params.push(ethers.utils.defaultAbiCoder.encode(['address', 'uint128'], [poolKey.currency1, amount])); // WETH
+        // TAKE_ALL params: output currency, amountOutMinimum
+        params.push(ethers.utils.defaultAbiCoder.encode(['address', 'uint128'], [poolKey.currency0, minAmountOut])); // USDC
+
+      } else { // USDC -> ETH swap
+        // USDC → ETH
+        // Calculate minimum ETH out with slippage
+        let minAmountOut = ethers.BigNumber.from(0);
+        if (window.walletBalances && window.walletBalances.ethusd > 0) {
+            const expectedEth = ethers.utils.parseEther((parseFloat(ethers.utils.formatUnits(amount, 6)) / window.walletBalances.ethusd).toFixed(18));
+            minAmountOut = expectedEth.sub(expectedEth.mul(Math.floor(slippageTolerance * 10000)).div(10000));
+        }
+
+        const exactInputSingleParams = {
+          poolKey: poolKey,
+          zeroForOne: true, // Swapping USDC (currency0) for WETH (currency1)
+          amountIn: amount,
+          amountOutMinimum: minAmountOut,
+          hookData: '0x' // Empty bytes
+        };
+        params.push(ethers.utils.defaultAbiCoder.encode([
+          'tuple(address,address,uint24,int24,address)',
+          'bool zeroForOne',
+          'uint128 amountIn',
+          'uint128 amountOutMinimum',
+          'bytes hookData'
+        ], [
+            [
+              exactInputSingleParams.poolKey.currency0,
+              exactInputSingleParams.poolKey.currency1,
+              exactInputSingleParams.poolKey.fee,
+              exactInputSingleParams.poolKey.tickSpacing,
+              exactInputSingleParams.poolKey.hooks
+            ],
+            exactInputSingleParams.zeroForOne,
+            exactInputSingleParams.amountIn,
+            exactInputSingleParams.amountOutMinimum,
+            exactInputSingleParams.hookData
+        ]));
+
+        // SETTLE_ALL params: input currency, amountIn
+        params.push(ethers.utils.defaultAbiCoder.encode(['address', 'uint128'], [poolKey.currency0, amount])); // USDC
+        // TAKE_ALL params: output currency, amountOutMinimum
+        params.push(ethers.utils.defaultAbiCoder.encode(['address', 'uint128'], [poolKey.currency1, 0])); // WETH
+
+        // Approve the Universal Router to spend USDC
+        const usdc = new ethers.Contract(TokenAddresses.USDC_ETHEREUM, ERC20_ABI, signer);
+        const allowance = await usdc.allowance(userAddress, routerAddress);
+        if (allowance.lt(amount)) {
+          const approveTx = await usdc.approve(routerAddress, amount);
+          await approveTx.wait(); // Wait for approval
+        }
+      }
+
+      // Combine actions and params into inputs for the execute call
+      const inputs = [ethers.utils.defaultAbiCoder.encode(['bytes', 'bytes[]'], [actions, params])];
+
+      // Execute the swap via Universal Router
+      const tx = await router.execute(
+        commands,
+        inputs,
+        deadline,
+        // Pass ETH value only when swapping *from* ETH
+        fromToken === ethers.constants.AddressZero ? { value: amount } : {}
+      );
+
+      const receipt = await tx.wait();
+      return tx.hash;
+    }
+
+    // ===== Default path: use SimpleSwap for non-mainnet networks =====
+
     // Get the SimpleSwap contract address for this network
     let simpleSwapAddress;
     if (chainId === '31337') {

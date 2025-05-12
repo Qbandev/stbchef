@@ -57,6 +57,11 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
   - Custom swap interface for manual trading
   - Transaction history tracking
   - Swap confirmation dialogs with price estimates
+  - Swaps on Ethereum Mainnet are performed via the Uniswap V4 Universal Router, utilizing a public and well-audited contract.
+  - Swaps on Linea and testnets continue to use the project's `SimpleSwap` contract.
+  - Custom swap interface for manual trading (utilizing the above logic based on network).
+  - Transaction history tracking.
+  - Swap confirmation dialogs with price estimates and basic slippage protection.
 
 - **Robust Wallet Integration**
   - Seamless MetaMask connection with persistent session
@@ -71,7 +76,7 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 - **Frontend**: TailwindCSS, Chart.js, Web3.js, Ethers.js
 - **Architecture**: Modular JavaScript with dedicated service managers for wallet, notifications, swaps, and analytics
 - **APIs**: Etherscan, Alternative.me (Fear & Greed), Google Gemini, Groq, Mistral
-- **Web3**: MetaMask integration with Ethereum and Linea support, EIP-7702 implementation
+- **Web3**: MetaMask integration. Ethereum and Linea network support. EIP-7702 implementation for smart account features. Uniswap V4 Universal Router for mainnet ETH ↔︎ USDC swaps; custom `SimpleSwap` contract for Linea and testnets.
 
 ## Quick Start
 
@@ -150,6 +155,8 @@ This project implements the new Ethereum Pectra upgrade features:
 
 The application uses the `@metamask/sdk` and `ethers` libraries to create temporary smart accounts for users' Externally Owned Accounts (EOAs), providing smart contract capabilities without permanent deployment.
 
+When performing swaps on Ethereum Mainnet, these smart accounts interact with the Uniswap V4 Universal Router.
+
 ```javascript
 // Create a smart account
 const smartAccount = await createSmartAccount(signer);
@@ -218,7 +225,7 @@ The architecture consists of ten core components:
 - **AI Trading Decisions**: Multiple LLMs analyze market data and generate buy/sell/hold signals
 - **Analysis Engine**: Compares model performance and generates accuracy metrics
 - **Recommendation Engine**: Combines AI consensus with portfolio status for actionable insights
-- **Transaction Builder**: Creates and executes swap transactions based on recommendations
+- **Transaction Builder**: Creates and executes swap transactions. Uses Uniswap V4 Universal Router for Ethereum Mainnet and the project's `SimpleSwap` contract for Linea/testnets.
 - **Dashboard**: Interactive user interface presenting all analysis results and swap functionality
 - **Database**: Stores historical model performance and user preferences
 
@@ -265,7 +272,7 @@ npx hardhat run scripts/verify.js --network lineaMainnet
 If verification succeeds you will see *✔︎* in the console and the contracts will be marked **Verified** on Lineascan / Etherscan.
 
 **Disclaimer**  
-This repository is for demonstration purposes. Although it now supports real on-chain swaps, nothing here constitutes financial advice. Use at your own risk and always test with small amounts first.
+This software is for informational and experimental purposes only. While it allows for the execution of real cryptocurrency swaps on Ethereum Mainnet (via Uniswap V4 Universal Router) and Linea (via the project's `SimpleSwap` contract), all trading actions are initiated and approved by the user. **The authors and contributors take no responsibility for any financial losses incurred.** Users are solely responsible for their decisions and should use this tool at their own risk, understanding the inherent volatility and risks of cryptocurrency trading. Always verify transaction details in your wallet before confirming any transaction.
 
 ## Testing
 
@@ -320,18 +327,5 @@ Use this mini-checklist before promoting to mainnet or Render production:
 | Category | Item |
 |----------|------|
 | Environment | `.env` populated with **PRIVATE_KEY**, RPC URLs, explorer API keys |
-| Contracts | `npm run compile` succeeds & contracts verified on Lineascan/Etherscan |
-| Frontend | Addresses in `smartAccount.js` & friends updated for target chain |
-| Tests | `npx hardhat test`, `pytest`, and `npm run test:e2e` all green |
-| Security | Performed manual review for reentrancy & access-control (SmartAccount, SimpleSwap) |
-| Monitoring | Configure Render logs & alerts for `/api/swaps` error spikes |
-| Docs | README & GitHub Pages reflect latest contract addresses |
-
-## License
-
-This project is licensed under the [PolyForm Strict License 1.0.0](LICENSE).
-
----
-<div align="center">
-  <em>Built with ❤️ for AI and Crypto enthusiasts</em>
-</div>
+| Contracts | `npm run compile` succeeds. `SimpleSwap` contract verified on Lineascan for Linea. For Ethereum Mainnet, ensure correct Uniswap V4 Universal Router and token addresses are used (verify from official Uniswap sources). |
+| Frontend | Addresses in `smartAccount.js`
