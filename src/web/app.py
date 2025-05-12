@@ -67,6 +67,8 @@ try:
         'style-src': "'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
         'font-src': "'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
         'style-src-elem': "'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+        # Allow outgoing API calls to KyberSwap Aggregator & others
+        'connect-src': "'self' https://aggregator-api.kyberswap.com",
         # Allow embedding external iframes such as the Uniswap swap widget
         'frame-src': "'self' https://app.uniswap.org https://*.uniswap.org"
     }
