@@ -63,20 +63,12 @@ try:
     csp = {
         'default-src': "'self'",
         'img-src': "'self' data:",
-        'script-src': [
-            "'self'",
-            "'unsafe-inline'",
-            "https://cdn.tailwindcss.com",
-            "https://cdn.jsdelivr.net",
-            "https://cdnjs.cloudflare.com",
-            "https://cdn.ethers.io"
-        ],
-        'style-src': [
-            "'self'",
-            "'unsafe-inline'",
-            "https://cdnjs.cloudflare.com"
-        ],
-        'font-src': ["'self'", "https://cdnjs.cloudflare.com"]
+        'script-src': "'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.ethers.io",
+        'style-src': "'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+        'font-src': "'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+        'style-src-elem': "'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+        # Allow embedding external iframes such as the Uniswap swap widget
+        'frame-src': "'self' https://app.uniswap.org https://*.uniswap.org"
     }
     Talisman(app, content_security_policy=csp)
     logging.info("[security] Flask-Talisman enabled with basic CSP headers")

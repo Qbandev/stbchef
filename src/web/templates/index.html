@@ -609,8 +609,31 @@
         // Initialize the swap interface when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Set up event listeners for the swap modal
-            document.getElementById('execute-trade-btn').addEventListener('click', function() {
-                // Get latest wallet balances first to show accurate amounts
+            document.getElementById('execute-trade-btn').addEventListener('click', async function() {
+                let chainId = null;
+                try {
+                    if (window.ethersProvider) {
+                        const network = await window.ethersProvider.getNetwork();
+                        chainId = network.chainId;
+                    } else if (window.ethereum && window.ethereum.chainId) {
+                        // Fallback parsing when ethersProvider is not yet initialised
+                        chainId = parseInt(window.ethereum.chainId, 16);
+                    }
+                } catch (err) {
+                    console.warn('Unable to determine chain id – defaulting to Linea swap modal', err);
+                }
+
+                // ────────────────────────────────────────────────────────────────
+                // Ethereum main-net → open Uniswap widget modal instead
+                // ────────────────────────────────────────────────────────────────
+                if (chainId === 1) {
+                    // Ensure any previous Linea modal is closed
+                    document.getElementById('swap-modal').classList.add('hidden');
+                    document.getElementById('swap-widget-modal').classList.remove('hidden');
+                    return; // Skip the custom Linea swap flow
+                }
+
+                // Existing behaviour (Linea / others)
                 if (typeof window.getWalletBalances === 'function') {
                     window.getWalletBalances().then(() => {
                         console.log('Refreshed wallet balances for swap form');
@@ -622,7 +645,13 @@
                 document.getElementById('swap-modal').classList.remove('hidden');
             });
             
+            // Close handlers for both modals
             document.getElementById('close-swap-modal').addEventListener('click', function() {
+                document.getElementById('swap-modal').classList.add('hidden');
+            });
+            document.getElementById('close-swap-widget-modal').addEventListener('click', function() {
+                document.getElementById('swap-widget-modal').classList.add('hidden');
+                // Also ensure the Linea modal is not visible when closing the widget
                 document.getElementById('swap-modal').classList.add('hidden');
             });
             
@@ -830,7 +859,7 @@
                         <p class="mb-2 font-bold text-neon-purple">Wallet Connection:</p>
                         <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> <strong>Connect a wallet</strong> to see personalized metrics</p>
                         <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> View your portfolio allocation & suggestions</p>
-                        <p class="text-white"><span class="text-neon-purple mr-1">→</span> <em>No actual trading (Just notifications) - research only</em></p>
+                        <p class="text-white"><span class="text-neon-purple mr-1">→</span> <em>Live swaps enabled (Linea &amp; Ethereum). Use at your own risk — we accept no liability for losses.</em></p>
                     </div>
                 </div>
             </div>
@@ -1195,5 +1224,23 @@
     <script src="/static/js/lib/ethers-5.7.2.umd.min.js" type="text/javascript"></script>
     <!-- Then load our module loader which will handle dynamic imports -->
     <script src="/static/js/moduleLoader.js" type="text/javascript"></script>
+
+    <!-- Add this new swap widget modal for Ethereum mainnet -->
+    <div id="swap-widget-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-cyber-dark p-6 rounded-lg shadow-lg max-w-2xl w-full border border-blue-500">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-blue-400">Uniswap Swap (Ethereum)</h3>
+                <button id="close-swap-widget-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- Embed official Uniswap app swap iframe for main-net swaps -->
+            <iframe id="uniswap-swap-iframe"
+                    src="https://app.uniswap.org/#/swap?theme=dark&chain=1"
+                    height="660" width="100%"
+                    style="border:0;border-radius:10px;min-width:300px;"
+                    title="Uniswap Swap Widget"></iframe>
+        </div>
+    </div>
 </body>
 </html> 

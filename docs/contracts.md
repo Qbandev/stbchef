@@ -5,7 +5,7 @@ This project ships three Solidity contracts compiled with **Hardhat 2.19.x** and
 | Contract | Path | Purpose |
 |----------|------|---------|
 | `SmartAccount` | `contracts/SmartAccount.sol` | EIP-7702-style account abstraction: session keys, batch execution, pay-gas-in-token |
-| `SimpleSwap` | `contracts/SimpleSwap.sol` | Minimal ETH ↔ USDC desk used by the dApp |
+| `SimpleSwap` | `contracts/SimpleSwap.sol` | Minimal ETH ↔ USDC desk used by the dApp **on Linea & local Hardhat only** |
 | `MockUSDC` | `contracts/mocks/MockUSDC.sol` | 6-decimal ERC-20 for local testing |
 
 ---
@@ -23,9 +23,12 @@ Implements a **temporary smart account** that is **delegated from an EOA** only 
 `onlyOwner` and `onlySessionKey` modifiers gate critical functions. Reentrancy not an issue; contract only makes external calls via delegatee functions.
 
 ---
-## 2  SimpleSwap
+## 2  SimpleSwap (Linea / Local Only)
 
 A deliberately simple desk for demonstration; **not production-grade**.
+
+The desk is **only** used when the connected wallet is on the Linea network (test-net or main-net) or on the local Hardhat chain.  
+When the user switches to **Ethereum Mainnet** the application defers all swapping logic to the official **Uniswap Swap Widget** which executes the trade through Uniswap's own contracts. No `SimpleSwap` contract is deployed or called on Ethereum.
 
 ```solidity
 function swapEthToUsdc() external payable nonReentrant returns (uint256)
@@ -59,8 +62,10 @@ Used by unit tests and the Hardhat deploy script on chainId 31337.
 
 | Network | Address `SmartAccount` | Address `SimpleSwap` | Notes |
 |---------|------------------------|----------------------|-------|
+| **Linea Mainnet** | `0x…` see `deployment.log` | `0x067f…` | Used for on-chain swaps from the dashboard |
 | **Linea Testnet** | see `deployment.log` | see `deployment.log` | Deployed via `npm run deploy` |
-| **Hardhat** (31337) | auto-deploy by `scripts/deploy.js` | auto-deploy; also deploys `MockUSDC` |
+| **Ethereum Mainnet** | *not required* | *not deployed* | Swaps executed via Uniswap widget; no local contract |
+| **Hardhat** (31337) | auto-deploy | auto-deploy; also deploys `MockUSDC` |
 
 (After each deploy run `scripts/verify.js` to verify both contracts.)
 
