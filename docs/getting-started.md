@@ -9,7 +9,6 @@ This guide walks you through cloning the repo, installing dependencies, adding A
 |------|---------|---------|
 | **Python** | 3.10+ | `brew install python@3.10` (macOS) or your distro package manager |
 | **Poetry** | latest | `curl -sSL https://install.python-poetry.org | python3 -` |
-| **Node.js** | 18 LTS | `nvm install 18 && nvm use 18` or <https://nodejs.org/> |
 | **Make** | GNU Make 4+ | ships with Xcode-CLI or `build-essential` on Linux |
 
 ---
@@ -19,11 +18,9 @@ This guide walks you through cloning the repo, installing dependencies, adding A
 # 1 Clone the repo
 $ git clone https://github.com/qbandev/stbchef.git && cd stbchef
 
-# 2 Install Python + Node deps
-$ make setup    # poetry install  +  npm install
+# 2 Install Python deps
+$ make setup    # installs Python dependencies via Poetry
 ```
-
-`make setup` creates a Poetry venv and installs JavaScript packages (Playwright, Tailwind CLI, etc.). No Solidity toolchain is downloaded — the project is front-end only.
 
 ---
 ## 3  Environment Variables
@@ -45,9 +42,8 @@ Nothing else is required – RPC URLs & private keys were removed in the Kyber r
 
 | Target | What it does |
 |--------|--------------|
+| `make setup` | Install Python dependencies |
 | `make start` | Launch Flask dev server on <http://localhost:8080>. |
-| `make test` | Run **pytest** (if any) and Playwright e2e UI tests. |
-| `make clean` | Remove caches (`__pycache__`, Playwright results). |
 
 ---
 ## 5  Manual Steps
@@ -65,6 +61,5 @@ Swaps are executed entirely in the browser through KyberSwap's Aggregator API; t
 |---------|-----|
 | **Button stays disabled** | Check the console logs from `moduleLoader.js` – you must be on Mainnet or Linea with MetaMask connected. |
 | **Route not found (Kyber 4008)** | Increase the swap amount – Kyber rejects extremely small trades (< 0.003 ETH / 3 USDC on main-net). |
-| **Playwright errors** | Ensure the dev server is listening on `:8080` before running `make test`. |
 
-Happy hacking!  For deeper details see the [Architecture](architecture.md) document. 
+Happy hacking!  For deeper details see the [Architecture](architecture.md) document.

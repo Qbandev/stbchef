@@ -41,13 +41,12 @@ Front-end only:
 * **Flask** back-end for static serving & small helper APIs.
 * **Tailwind CSS** UI + **Chart.js** charts.
 * **Ethers v5** & **Web3.js** for wallet / RPC access.
-* **KyberSwap Aggregator API** for on-chain execution (no Solidity).  
-* Playwright e2e tests & GitHub Actions CI.
+* **KyberSwap Aggregator API** for on-chain execution (no Solidity).
 
 ## Quick Start
    ```bash
 # 1.  Install deps
-make setup        # poetry + npm install
+make setup        # install Python deps via Poetry
 
 # 2.  Add API keys
 cp .env.example .env
@@ -64,15 +63,6 @@ GROQ_API_KEY=
 MISTRAL_API_KEY=
 ```
 That's all that is required – no RPC URLs or private keys.
-
-## Testing
-```bash
-make test   # pytest (if any) + Playwright e2e
-```
-
----
-### Cleaning Up Historic Docs
-Older documents under `docs/` still reference the retired Solidity layer. They will be rewritten in the next pass to describe the current Kyber-only architecture.
 
 ## License
 
