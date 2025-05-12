@@ -27,8 +27,11 @@ Returns consolidated ETH price, volume, Fear & Greed index and cached AI model d
 ---
 ## Swap Quotes
 
-### `GET /api/swaps/price`
-Returns a slippage-adjusted quote from the on-chain `SimpleSwap` contract.
+### Linea & Local (SimpleSwap)
+
+#### `GET /api/swaps/price`
+Returns a slippage-adjusted quote fetched from the **SimpleSwap** contract that is deployed on **Linea Mainnet/Testnet** or the local Hardhat chain.  
+This endpoint is **not available when the dashboard is connected to Ethereum Mainnet**—see below.
 
 | Query Param | Type | Default | Description |
 |-------------|------|---------|-------------|
@@ -36,7 +39,7 @@ Returns a slippage-adjusted quote from the on-chain `SimpleSwap` contract.
 | `amount` | number (string) | – | Amount of **from** token |
 
 **Example**
-```
+```text
 GET /api/swaps/price?direction=eth-to-usdc&amount=1
 ```
 **Response**
@@ -50,6 +53,11 @@ GET /api/swaps/price?direction=eth-to-usdc&amount=1
 ```
 
 Possible error responses: 400 with `{ "error": "Invalid amount" }`.
+
+#### Ethereum Mainnet (Uniswap Widget)
+
+When the connected network has `chainId === 1` the dashboard opens the **Uniswap Swap Widget** iframe.  
+All quoting, routing and transaction submission is handled inside the widget and **no request is sent to your Flask back-end**. If you see network activity it will be calls from the iframe directly to Uniswap's API / smart-contracts, not to `/api/swaps/price`.
 
 ---
 ## Wallet Utilities

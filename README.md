@@ -3,7 +3,7 @@
 [![CI](https://github.com/qbandev/stbchef/actions/workflows/ci.yml/badge.svg)](https://github.com/qbandev/stbchef/actions/workflows/ci.yml)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/qbandev/stbchef)
 
-> **Now Live Trading-Ready 🥳** — The MVP deployed on Render can execute **real ETH ↔︎ USDC swaps** on Linea and Ethereum networks via the built-in `SimpleSwap` DEX contract.
+> **Now Live Trading-Ready 🥳** — The MVP deployed on Render can execute **real ETH ↔︎ USDC swaps** on Linea (via `SimpleSwap` contract) **and on Ethereum Mainnet through the official Uniswap Swap Widget**.
 
 <div align="center">
   <img src="src/web/static/robot.webp" alt="Trading Bot Chef Logo" width="200"/>
@@ -54,7 +54,9 @@ Check out the live demo at [https://stbchef.onrender.com/](https://stbchef.onren
 
 - **Trading Capabilities (NEW)**
   - Execute trades directly from AI recommendations
-  - Custom swap interface for manual trading
+  - **Linea:** on-chain swaps through the project's `SimpleSwap` contract
+  - **Ethereum Mainnet:** on-chain swaps through the embedded **Uniswap Swap Widget** (v4)
+  - Custom swap interface for manual trading (Linea) and dedicated Uniswap modal (Ethereum)
   - Transaction history tracking
   - Swap confirmation dialogs with price estimates
 
@@ -265,7 +267,7 @@ npx hardhat run scripts/verify.js --network lineaMainnet
 If verification succeeds you will see *✔︎* in the console and the contracts will be marked **Verified** on Lineascan / Etherscan.
 
 **Disclaimer**  
-This repository is for demonstration purposes. Although it now supports real on-chain swaps, nothing here constitutes financial advice. Use at your own risk and always test with small amounts first.
+This software is provided "as-is". Swapping tokens on Ethereum or Linea is done **entirely at your own risk**. Smart contracts and the Uniswap widget are outside of this project's direct control. **The maintainers accept no responsibility for financial loss or unexpected contract behaviour. Always test with small amounts first and do your own research.**
 
 ## Testing
 

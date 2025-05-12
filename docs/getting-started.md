@@ -50,6 +50,16 @@ make clean          # remove build artefacts
 > Tip: open two terminals—one with `make node`, another with `make start`—
 > then visit http://localhost:8080.
 
+After visiting `http://localhost:8080` you can test the swap functionality:
+
+1. **Linea / Local** – Open **New Swap** and execute an **ETH → USDC** trade (gas paid in ETH).
+2. **Linea / Local** – Execute a **USDC → ETH** trade (may require approving `SimpleSwap` for MockUSDC first).
+3. *(Optional)* Enable "Pay Gas in USDC" and repeat the Linea tests.
+4. **Ethereum Mainnet (simulated)** – Switch MetaMask to Mainnet, reload the page, click **New Swap**. The **Uniswap Swap Widget** modal should open. Perform a tiny test swap on a fork or burner wallet.
+5. Observe the browser console & terminal logs for errors.
+
+> ℹ️  The REST endpoint `/api/swaps/price` is used *only* for Linea/local swaps. Quotes for Ethereum Mainnet are calculated by the Uniswap widget itself and never hit your Flask back-end.
+
 ---
 ## 5  Running Individual Layers
 
