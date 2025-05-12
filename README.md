@@ -49,12 +49,22 @@ make start        # http://localhost:8080
    ```
 
 ## Environment Variables (.env)
-```
+```dotenv
+# API Keys (NO QUOTES AROUND VALUES)
+LINEASCAN_API_KEY=
+ETHERSCAN_API_KEY=
 GEMINI_API_KEY=
 GROQ_API_KEY=
 MISTRAL_API_KEY=
 ```
-That's all that is required – no RPC URLs or private keys.
+These are the only secrets required – no RPC URLs or private keys.
+
+## Documentation
+See the detailed project docs in the `docs/` folder:
+* [Getting Started](docs/getting-started.md) – installation steps & usage.
+* [Architecture](docs/architecture.md) – component diagram & data-flow.
+* [API Reference](docs/api.md) – public JSON endpoints.
+* [Documentation Index](docs/index.md) – overall table of contents.
 
 ## License
 
