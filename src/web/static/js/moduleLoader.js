@@ -1,4 +1,5 @@
 // Module Loader for Simple Crypto Trading Bot Chef
+console.log('[moduleLoader] Version 2025-05-12-a');
 // This file helps load ES modules properly and initialize app functionality
 
 // Function to dynamically import modules
@@ -242,10 +243,11 @@ function setupSwapForm() {
     radio.addEventListener('change', updateSwapFormInfo);
   });
   
-  // Setup swap button
+  // Cached DOM refs
   const executeSwapBtn = document.getElementById('execute-swap-btn');
 
-  // Helper: enable / disable swap button depending on readiness
+  // -------------------------- helpers ----------------------------------
+  // Enable / disable swap button depending on readiness
   async function refreshSwapButtonState() {
     if (!executeSwapBtn) return;
 
@@ -281,18 +283,93 @@ function setupSwapForm() {
       const contracts = window.DEPLOYED_CONTRACTS || {};
       const simpleSwapAddress = contracts.simpleSwap ? contracts.simpleSwap[String(chainId)] : null;
 
-      if (!usdcAddress || !simpleSwapAddress) {
+      // Networks that use Kyber aggregator directly don't need SimpleSwap
+      const kyberSupported = chainId === 1 || chainId === 59144;
+
+      console.log('[swap] refreshSwapButtonState', { chainId, usdcAddress, kyberSupported, simpleSwapAddress });
+
+      if (!usdcAddress || (!kyberSupported && !simpleSwapAddress)) {
+        // Disable if missing required contract/address for this network
         executeSwapBtn.disabled = true;
         executeSwapBtn.title = 'Swap not available on this network yet';
       } else {
+        // Enable for Kyber-supported or when SimpleSwap present
         executeSwapBtn.disabled = false;
         executeSwapBtn.title = '';
       }
+      console.log('[swap] executeSwapBtn.disabled =', executeSwapBtn.disabled);
     } catch (err) {
       console.warn('[swap] Unable to compute readiness', err);
       executeSwapBtn.disabled = true;
       executeSwapBtn.title = 'Swap temporarily unavailable';
     }
+  }
+
+  // -------------------------- click logic ------------------------------
+  async function handleExecuteSwapClick() {
+    console.log('[moduleLoader executeSwapBtn] Clicked.');
+    const direction = document.querySelector('input[name="swap-direction"]:checked').value;
+    const amountInput = document.getElementById('swap-amount');
+    const amount = parseFloat(amountInput?.value || '0');
+    const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
+    
+    console.log('[moduleLoader executeSwapBtn] State before checks: userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
+
+    if (isNaN(amount) || amount <= 0) {
+      window.showNotification('Please enter a valid amount', 'error');
+      return;
+    }
+    
+    // Check wallet connection
+    if (!window.userAccount || !window.ethersProvider) {
+      console.error('[moduleLoader executeSwapBtn] Wallet/Provider check FAILED. userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
+      window.showNotification('Please connect your wallet first', 'error');
+      return;
+    }
+    console.log('[moduleLoader executeSwapBtn] Wallet/Provider check PASSED.');
+    
+    // Force reinitialize ethers provider to make sure we have the correct network
+    // Let's re-enable this to ensure the provider is fresh for the current network.
+    console.log('[moduleLoader executeSwapBtn] Calling initializeEthersProvider before swap execution...');
+    await initializeEthersProvider(); 
+    console.log('[moduleLoader executeSwapBtn] initializeEthersProvider completed. New provider state:', window.ethersProvider);
+    
+    console.log(`[moduleLoader executeSwapBtn] Executing ${direction} swap for ${amount} with gas token: ${useGasToken}`);
+    
+    try {
+      if (direction === 'eth-to-usdc') {
+        if (typeof window.swapEthToUsdc === 'function') {
+          const result = await window.swapEthToUsdc(amount, useGasToken);
+          if (result.status === 'success') {
+            window.showNotification(`Swap successful: ${amount} ETH to USDC`, 'success');
+            document.getElementById('swap-modal').classList.add('hidden');
+          } else {
+            window.showNotification(`Swap failed: ${result.message}`, 'error');
+          }
+        } else {
+          throw new Error('Swap functionality not available');
+        }
+      } else {
+        if (typeof window.swapUsdcToEth === 'function') {
+          const result = await window.swapUsdcToEth(amount, useGasToken);
+          if (result.status === 'success') {
+            window.showNotification(`Swap successful: ${amount} USDC to ETH`, 'success');
+            document.getElementById('swap-modal').classList.add('hidden');
+          } else {
+            window.showNotification(`Swap failed: ${result.message}`, 'error');
+          }
+        } else {
+          throw new Error('Swap functionality not available');
+        }
+      }
+    } catch (error) {
+      window.showNotification(`Error executing swap: ${error.message}`, 'error');
+    }
+  }
+
+  // Attach click handler once
+  if (executeSwapBtn) {
+    executeSwapBtn.addEventListener('click', handleExecuteSwapClick);
   }
 
   // Run once and also whenever wallet/network changes
@@ -301,78 +378,19 @@ function setupSwapForm() {
     window.setupMetaMaskEventListeners({ onNetworkChanged: refreshSwapButtonState, onAccountsChanged: refreshSwapButtonState });
   }
 
-  if (executeSwapBtn) {
-    executeSwapBtn.addEventListener('click', async function() {
-      console.log('[moduleLoader executeSwapBtn] Clicked.');
-      const direction = document.querySelector('input[name="swap-direction"]:checked').value;
-      const amountInput = document.getElementById('swap-amount');
-      const amount = parseFloat(amountInput?.value || '0');
-      const useGasToken = document.querySelector('input[name="gas-token"]:checked').value === 'usdc';
-      
-      console.log('[moduleLoader executeSwapBtn] State before checks: userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
-
-      if (isNaN(amount) || amount <= 0) {
-        window.showNotification('Please enter a valid amount', 'error');
-        return;
-      }
-      
-      // Check wallet connection
-      if (!window.userAccount || !window.ethersProvider) {
-        console.error('[moduleLoader executeSwapBtn] Wallet/Provider check FAILED. userAccount:', window.userAccount, 'ethersProvider:', window.ethersProvider);
-        window.showNotification('Please connect your wallet first', 'error');
-        return;
-      }
-      console.log('[moduleLoader executeSwapBtn] Wallet/Provider check PASSED.');
-      
-      // Force reinitialize ethers provider to make sure we have the correct network
-      // Let's re-enable this to ensure the provider is fresh for the current network.
-      console.log('[moduleLoader executeSwapBtn] Calling initializeEthersProvider before swap execution...');
-      await initializeEthersProvider(); 
-      console.log('[moduleLoader executeSwapBtn] initializeEthersProvider completed. New provider state:', window.ethersProvider);
-      
-      console.log(`[moduleLoader executeSwapBtn] Executing ${direction} swap for ${amount} with gas token: ${useGasToken}`);
-      
-      try {
-        if (direction === 'eth-to-usdc') {
-          if (typeof window.swapEthToUsdc === 'function') {
-            const result = await window.swapEthToUsdc(amount, useGasToken);
-            if (result.status === 'success') {
-              window.showNotification(`Swap successful: ${amount} ETH to USDC`, 'success');
-              document.getElementById('swap-modal').classList.add('hidden');
-            } else {
-              window.showNotification(`Swap failed: ${result.message}`, 'error');
-            }
-          } else {
-            throw new Error('Swap functionality not available');
-          }
-        } else {
-          if (typeof window.swapUsdcToEth === 'function') {
-            const result = await window.swapUsdcToEth(amount, useGasToken);
-            if (result.status === 'success') {
-              window.showNotification(`Swap successful: ${amount} USDC to ETH`, 'success');
-              document.getElementById('swap-modal').classList.add('hidden');
-            } else {
-              window.showNotification(`Swap failed: ${result.message}`, 'error');
-            }
-          } else {
-            throw new Error('Swap functionality not available');
-          }
-        }
-      } catch (error) {
-        window.showNotification(`Error executing swap: ${error.message}`, 'error');
-      }
-    });
-  }
-  
   // Add open/close modal event listeners
   const executeTradeBtn = document.getElementById('execute-trade-btn');
   const closeSwapModalBtn = document.getElementById('close-swap-modal');
   const swapModal = document.getElementById('swap-modal');
   
   if (executeTradeBtn && swapModal) {
-    executeTradeBtn.addEventListener('click', function() {
-      // Update balance info before showing modal
+    executeTradeBtn.addEventListener('click', async function() {
+      // Update balance & button state each time modal opens
       updateSwapFormInfo();
+      await refreshSwapButtonState();
+      if (executeSwapBtn) {
+        console.log('[swap-modal] executeSwapBtn disabled state on open:', executeSwapBtn.disabled);
+      }
       swapModal.classList.remove('hidden');
     });
   }

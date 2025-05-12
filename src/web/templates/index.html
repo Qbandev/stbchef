@@ -28,6 +28,8 @@
     <script src="static/js/notificationManager.js"></script>
     <!-- Include model predictions JS -->
     <script src="static/js/modelPredictions.js"></script>
+    <!-- Load module loader (swap form & Kyber integration) -->
+    <script src="static/js/moduleLoader.js"></script>
     <!-- Include stats manager JS -->
     <script src="static/js/statsManager.js"></script>
     <script>
@@ -623,15 +625,7 @@
                     console.warn('Unable to determine chain id – defaulting to Linea swap modal', err);
                 }
 
-                // ────────────────────────────────────────────────────────────────
-                // Ethereum main-net → open Uniswap widget modal instead
-                // ────────────────────────────────────────────────────────────────
-                if (chainId === 1) {
-                    // Ensure any previous Linea modal is closed
-                    document.getElementById('swap-modal').classList.add('hidden');
-                    document.getElementById('swap-widget-modal').classList.remove('hidden');
-                    return; // Skip the custom Linea swap flow
-                }
+                // No special widget for Ethereum mainnet now; use same custom modal across networks
 
                 // Existing behaviour (Linea / others)
                 if (typeof window.getWalletBalances === 'function') {
@@ -647,11 +641,6 @@
             
             // Close handlers for both modals
             document.getElementById('close-swap-modal').addEventListener('click', function() {
-                document.getElementById('swap-modal').classList.add('hidden');
-            });
-            document.getElementById('close-swap-widget-modal').addEventListener('click', function() {
-                document.getElementById('swap-widget-modal').classList.add('hidden');
-                // Also ensure the Linea modal is not visible when closing the widget
                 document.getElementById('swap-modal').classList.add('hidden');
             });
             
@@ -1219,28 +1208,6 @@
         </div>
     </div>
 
-    <!-- Add this before the closing body tag -->
-    <!-- Load ethers.js first from local file -->
-    <script src="/static/js/lib/ethers-5.7.2.umd.min.js" type="text/javascript"></script>
-    <!-- Then load our module loader which will handle dynamic imports -->
-    <script src="/static/js/moduleLoader.js" type="text/javascript"></script>
-
-    <!-- Add this new swap widget modal for Ethereum mainnet -->
-    <div id="swap-widget-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-cyber-dark p-6 rounded-lg shadow-lg max-w-2xl w-full border border-blue-500">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-blue-400">Uniswap Swap (Ethereum)</h3>
-                <button id="close-swap-widget-modal" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <!-- Embed official Uniswap app swap iframe for main-net swaps -->
-            <iframe id="uniswap-swap-iframe"
-                    src="https://app.uniswap.org/#/swap?theme=dark&chain=1"
-                    height="660" width="100%"
-                    style="border:0;border-radius:10px;min-width:300px;"
-                    title="Uniswap Swap Widget"></iframe>
-        </div>
-    </div>
+    <!-- Removed Uniswap widget modal (replaced by Kyber aggregator flow) -->
 </body>
 </html> 

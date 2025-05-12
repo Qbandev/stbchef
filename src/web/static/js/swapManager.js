@@ -19,7 +19,6 @@ const recentSwaps = [];
 
 // KyberSwap Aggregator constants & helpers (Linea only)
 const KYBER_CHAIN = 'linea';
-const KYBER_BASE_URL = `https://aggregator-api.kyberswap.com/${KYBER_CHAIN}`;
 const KYBER_ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 // Minimal ERC20 ABI (allowance & approve)
@@ -33,6 +32,12 @@ const MIN_ERC20_ABI = [
 // Empirically, require at least ~0.001 ETH or ~1 USDC when using the aggregator.
 const KYBER_MIN_ETH_WEI = ethers.utils.parseEther('0.001'); // 1e15 wei
 const KYBER_MIN_USDC = ethers.BigNumber.from('1000000'); // 1 USDC (6 decimals)
+
+// Helper to build Kyber API base URL per chain
+function getKyberBaseUrl(chainId) {
+  const chainSlug = chainId === 1 ? 'ethereum' : (chainId === 59144 ? 'linea' : KYBER_CHAIN);
+  return `https://aggregator-api.kyberswap.com/${chainSlug}`;
+}
 
 /**
  * Initialize the swap manager
@@ -149,8 +154,8 @@ export async function swapEthToUsdc(ethAmount, useGasToken = false) {
     window.showLoadingWalletState(`Processing ${ethAmount} ETH to USDC swap...`);
     
     let txHash;
-    if (chainId === 59144) {
-      // Use KyberSwap Aggregator on Linea
+    if (chainId === 59144 || chainId === 1) {
+      // Use KyberSwap Aggregator on Linea or Ethereum mainnet
       txHash = await executeKyberSwap(signer, KYBER_ETH_ADDRESS, usdcAddress, ethWei);
     } else {
       // Fallback to legacy SimpleSwap path (local, testnet, etc.)
@@ -281,8 +286,8 @@ export async function swapUsdcToEth(usdcAmount, useGasToken = false) {
     window.showLoadingWalletState(`Processing ${usdcAmount} USDC to ETH swap...`);
     
     let txHash;
-    if (chainId === 59144) {
-      // Kyber path on Linea
+    if (chainId === 59144 || chainId === 1) {
+      // Kyber path on Linea or Ethereum mainnet
       txHash = await executeKyberSwap(signer, usdcAddress, KYBER_ETH_ADDRESS, usdcAmountSmallestUnit);
     } else {
       txHash = await executeSwap(
@@ -546,7 +551,7 @@ async function showSwapConfirmation(params) {
  * @param {number} slippageBps - Slippage tolerance in basis points (default 50 = 0.5%)
  * @returns {Promise<Object>} - Response data containing encodedSwapData, routerAddress, transactionValue
  */
-async function kyberGetEncodedSwap(tokenIn, tokenOut, amountInWei, recipient, slippageBps = 50) {
+async function kyberGetEncodedSwap(chainId, tokenIn, tokenOut, amountInWei, recipient, slippageBps = 50) {
   const params = new URLSearchParams({
     tokenIn,
     tokenOut,
@@ -555,7 +560,7 @@ async function kyberGetEncodedSwap(tokenIn, tokenOut, amountInWei, recipient, sl
     slippageTolerance: slippageBps.toString()
   });
 
-  const url = `${KYBER_BASE_URL}/route/encode?${params.toString()}`;
+  const url = `${getKyberBaseUrl(chainId)}/route/encode?${params.toString()}`;
   const res = await fetch(url, {
     headers: { 'X-Client-Id': 'stbchef' }
   });
@@ -593,6 +598,7 @@ async function kyberGetEncodedSwap(tokenIn, tokenOut, amountInWei, recipient, sl
  */
 async function executeKyberSwap(signer, tokenIn, tokenOut, amountInWei, slippageBps = 50) {
   const sender = await signer.getAddress();
+  const { chainId } = await signer.provider.getNetwork();
   // Step 1: Query Kyber encode API
   // Guard against tiny amounts that Kyber can't quote
   if (tokenIn.toLowerCase() === KYBER_ETH_ADDRESS.toLowerCase() && amountInWei.lt(KYBER_MIN_ETH_WEI)) {
@@ -602,7 +608,7 @@ async function executeKyberSwap(signer, tokenIn, tokenOut, amountInWei, slippage
     throw new Error('KyberSwap requires at least 1 USDC for swaps on Linea');
   }
 
-  const swapInfo = await kyberGetEncodedSwap(tokenIn, tokenOut, amountInWei.toString(), sender, slippageBps);
+  const swapInfo = await kyberGetEncodedSwap(chainId, tokenIn, tokenOut, amountInWei.toString(), sender, slippageBps);
   const { encodedSwapData, routerAddress, transactionValue } = swapInfo;
 
   // Step 2: Approve router if input token is ERC-20 and allowance insufficient
