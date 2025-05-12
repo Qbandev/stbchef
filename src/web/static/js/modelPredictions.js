@@ -81,31 +81,11 @@ function updateModelDecisions(data, walletAddress) {
         switch (action) {
             case 'BUY':
                 actionClass = 'text-white';
-                // Add execute button for BUY actions
-                actionHTML = `
-                    <span>${action}</span>
-                    <button 
-                        class="execute-trade ml-2 px-2 py-0.5 text-xs rounded bg-blue-700 hover:bg-blue-600 transition-colors" 
-                        data-model="${model}" 
-                        data-action="${action}"
-                        title="Execute trade based on this recommendation">
-                        Trade
-                    </button>
-                `;
+                actionHTML = `<span>${action}</span>`;
                 break;
             case 'SELL':
                 actionClass = 'text-gray-300';
-                // Add execute button for SELL actions
-                actionHTML = `
-                    <span>${action}</span>
-                    <button 
-                        class="execute-trade ml-2 px-2 py-0.5 text-xs rounded bg-red-700 hover:bg-red-600 transition-colors" 
-                        data-model="${model}" 
-                        data-action="${action}"
-                        title="Execute trade based on this recommendation">
-                        Trade
-                    </button>
-                `;
+                actionHTML = `<span>${action}</span>`;
                 break;
             case 'HOLD':
                 actionClass = 'text-white';
@@ -126,8 +106,7 @@ function updateModelDecisions(data, walletAddress) {
         }
     });
 
-    // Set up event listeners for trade buttons
-    setupTradeButtonListeners();
+    // No Trade buttons now, so no need to attach listeners
 
     // Check for consensus and notify if wallet is connected
     if (walletAddress && hasValidPrice) {
@@ -578,58 +557,7 @@ function updateAccuracy(currentPrice) {
 }
 
 /**
- * Set up event listeners for individual model trade buttons
- */
-function setupTradeButtonListeners() {
-    // Remove any existing listeners first to prevent duplicates
-    const existingButtons = document.querySelectorAll('.execute-trade');
-    existingButtons.forEach(button => {
-        const newButton = button.cloneNode(true);
-        button.parentNode.replaceChild(newButton, button);
-    });
-    
-    // Add new listeners
-    document.querySelectorAll('.execute-trade').forEach(button => {
-        button.addEventListener('click', (event) => {
-            event.preventDefault();
-            
-            // Get model and action from data attributes
-            const model = button.getAttribute('data-model');
-            const action = button.getAttribute('data-action');
-            
-            // Default confidence level based on model
-            let confidence = 0.5; // Default confidence
-            
-            // If we have accuracy data, adjust confidence
-            if (window.aiAccuracy && window.aiAccuracy[model]) {
-                confidence = window.aiAccuracy[model] / 100; // Convert percentage to 0-1 range
-            }
-            
-            console.log(`Executing ${action} trade from ${model} model with confidence ${confidence}`);
-            
-            // Determine if gas should be paid in USDC
-            const useGasToken = window.enableSwapRecommendations === true;
-            
-            // Execute the trade
-            if (typeof window.executeAIRecommendedSwap === 'function') {
-                window.executeAIRecommendedSwap(model, action, confidence, useGasToken)
-                    .then(result => {
-                        console.log('Trade execution result:', result);
-                    })
-                    .catch(error => {
-                        console.error('Error executing trade:', error);
-                        showNotification(`Error executing trade: ${error.message}`, 'error');
-                    });
-            } else {
-                console.error('Swap functionality not available');
-                showNotification('Swap functionality not available. Try refreshing the page.', 'error');
-            }
-        });
-    });
-}
-
-/**
- * Set up event listener for consensus swap button in notifications
+ * Set up event listeners for consensus swap button in notifications
  * @param {string} action - BUY or SELL
  * @param {number} swapAmount - Amount to swap in USD
  * @param {number} ethPrice - Current ETH price

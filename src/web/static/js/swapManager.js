@@ -135,6 +135,7 @@ export async function swapEthToUsdc(ethAmount, useGasToken = false) {
     // Add to recent swaps
     const swapRecord = {
       timestamp: Date.now(),
+      chainId,
       txHash,
       fromToken: 'ETH',
       toToken: 'USDC',
@@ -260,6 +261,7 @@ export async function swapUsdcToEth(usdcAmount, useGasToken = false) {
     // Add to recent swaps
     const swapRecord = {
       timestamp: Date.now(),
+      chainId,
       txHash,
       fromToken: 'USDC',
       toToken: 'ETH',
