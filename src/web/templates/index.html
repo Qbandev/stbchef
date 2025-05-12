@@ -681,6 +681,18 @@
                     const formattedDate = dateTime.toLocaleDateString();
                     const formattedTime = dateTime.toLocaleTimeString();
                     
+                    // Determine the correct explorer base URL
+                    let explorerBaseUrl = 'https://etherscan.io/tx/'; // Default to Etherscan
+                    // Linea Mainnet chainId is 59144 (decimal) or '0xe708' (hex)
+                    if (swap.chainId === 59144 || String(swap.chainId).toLowerCase() === '0xe708') {
+                        explorerBaseUrl = 'https://lineascan.build/tx/';
+                    }
+                    // TODO: Add other network chain IDs and explorer URLs if needed
+                    // else if (swap.chainId === 1 || String(swap.chainId).toLowerCase() === '0x1') {
+                    //     // Ethereum Mainnet, already default but explicit for clarity
+                    //     explorerBaseUrl = 'https://etherscan.io/tx/';
+                    // }
+
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-cyber-darker transition';
                     
@@ -704,7 +716,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <a href="https://etherscan.io/tx/${swap.txHash}" target="_blank" class="text-blue-400 hover:text-blue-300">
+                            <a href="${explorerBaseUrl}${swap.txHash}" target="_blank" class="text-blue-400 hover:text-blue-300">
                                 <i class="fas fa-external-link-alt mr-1"></i> View
                             </a>
                         </td>
