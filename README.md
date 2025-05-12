@@ -1,13 +1,5 @@
 # Simple Crypto Trading Bot Chef
 
-> **Status: Front-end dashboard + KyberSwap execution only**
->
-> • Linea **and** Ethereum main-net swaps are now routed through **KyberSwap Aggregator API** – no on-chain contracts to deploy.  
-> • All Solidity contracts, Hardhat tasks and related Make/ npm scripts have been removed.  
-> • Environment requirements are reduced to browser-side API keys (Gemini, Groq, Mistral).
-
----
-
 ## Overview
 A web dashboard that compares multiple AI models (Gemini 2 Flash, Groq DeepSeek-R1, Mistral Medium) for crypto-trading accuracy and lets you execute ETH ↔ USDC swaps directly from the browser via KyberSwap.
 
