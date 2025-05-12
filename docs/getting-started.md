@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through cloning the repo, installing dependencies, adding AI API keys and running the dashboard locally.
+This guide walks you through cloning the repo, installing dependencies, adding API keys and running the dashboard locally.
 
 ---
 ## 1  Prerequisites
@@ -31,11 +31,12 @@ cp .env.example .env   # then edit
 Fill the three AI model keys:
 
 ```dotenv
+LINEASCAN_API_KEY=
+ETHERSCAN_API_KEY=
 GEMINI_API_KEY=
 GROQ_API_KEY=
 MISTRAL_API_KEY=
 ```
-Nothing else is required – RPC URLs & private keys were removed in the Kyber refactor.
 
 ---
 ## 4  Common Make Targets

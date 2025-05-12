@@ -52,6 +52,3 @@ _No Solidity contracts are deployed or required._
 ## Environments
 * **Local Dev** – `make start` (Flask) + MetaMask on any supported chain.
 * **Render Preview & Production** – same container; only API keys differ.
-
----
-Legacy Hardhat diagrams & contract docs were removed in May 2025 when the project switched fully to KyberSwap. 
