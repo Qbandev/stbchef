@@ -3,8 +3,6 @@
 ## Overview
 A web dashboard that compares multiple AI models (Gemini 2 Flash, Groq DeepSeek-R1, Mistral Medium) for crypto-trading accuracy and lets you execute ETH ↔ USDC swaps directly from the browser via KyberSwap.
 
-**Live demo** <https://stbchef.onrender.com/>
-
 <div align="center"><img src="src/web/static/website.jpg" width="800"></div>
 
 ## Key Features
