@@ -28,6 +28,8 @@
     <script src="static/js/notificationManager.js"></script>
     <!-- Include model predictions JS -->
     <script src="static/js/modelPredictions.js"></script>
+    <!-- Load module loader (swap form & Kyber integration) -->
+    <script src="static/js/moduleLoader.js"></script>
     <!-- Include stats manager JS -->
     <script src="static/js/statsManager.js"></script>
     <script>
@@ -609,8 +611,23 @@
         // Initialize the swap interface when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Set up event listeners for the swap modal
-            document.getElementById('execute-trade-btn').addEventListener('click', function() {
-                // Get latest wallet balances first to show accurate amounts
+            document.getElementById('execute-trade-btn').addEventListener('click', async function() {
+                let chainId = null;
+                try {
+                    if (window.ethersProvider) {
+                        const network = await window.ethersProvider.getNetwork();
+                        chainId = network.chainId;
+                    } else if (window.ethereum && window.ethereum.chainId) {
+                        // Fallback parsing when ethersProvider is not yet initialised
+                        chainId = parseInt(window.ethereum.chainId, 16);
+                    }
+                } catch (err) {
+                    console.warn('Unable to determine chain id – defaulting to Linea swap modal', err);
+                }
+
+                // No special widget for Ethereum mainnet now; use same custom modal across networks
+
+                // Existing behaviour (Linea / others)
                 if (typeof window.getWalletBalances === 'function') {
                     window.getWalletBalances().then(() => {
                         console.log('Refreshed wallet balances for swap form');
@@ -622,6 +639,7 @@
                 document.getElementById('swap-modal').classList.remove('hidden');
             });
             
+            // Close handlers for both modals
             document.getElementById('close-swap-modal').addEventListener('click', function() {
                 document.getElementById('swap-modal').classList.add('hidden');
             });
@@ -681,6 +699,15 @@
                     const formattedDate = dateTime.toLocaleDateString();
                     const formattedTime = dateTime.toLocaleTimeString();
                     
+                    // Determine the correct explorer base URL
+                    let explorerBaseUrl = 'https://etherscan.io/tx/'; // Default to Etherscan
+                    // Linea Mainnet chainId is 59144 (decimal) or '0xe708' (hex)
+                    if (swap.chainId === 59144 || String(swap.chainId).toLowerCase() === '0xe708') {
+                        explorerBaseUrl = 'https://lineascan.build/tx/';
+                    }
+                    // TODO: Add other network chain IDs and explorer URLs if needed
+                    // }
+
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-cyber-darker transition';
                     
@@ -704,7 +731,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <a href="https://etherscan.io/tx/${swap.txHash}" target="_blank" class="text-blue-400 hover:text-blue-300">
+                            <a href="${explorerBaseUrl}${swap.txHash}" target="_blank" class="text-blue-400 hover:text-blue-300">
                                 <i class="fas fa-external-link-alt mr-1"></i> View
                             </a>
                         </td>
@@ -821,7 +848,7 @@
                         <p class="mb-2 font-bold text-neon-purple">Wallet Connection:</p>
                         <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> <strong>Connect a wallet</strong> to see personalized metrics</p>
                         <p class="mb-1 text-white"><span class="text-neon-purple mr-1">→</span> View your portfolio allocation & suggestions</p>
-                        <p class="text-white"><span class="text-neon-purple mr-1">→</span> <em>No actual trading (Just notifications) - research only</em></p>
+                        <p class="text-white"><span class="text-neon-purple mr-1">→</span> <em>Live swaps enabled (Linea &amp; Ethereum). Use at your own risk — we accept no liability for losses.</em></p>
                     </div>
                 </div>
             </div>
@@ -1080,18 +1107,13 @@
                 </div>
             </div>
         </div>
-    </main>
 
-    <!-- Add this new swap history section just before the closing main tag -->
-    <div class="card bg-cyber-dark p-4 pb-6 rounded-xl shadow-lg border border-blue-900 mt-6">
-        <div class="flex items-center justify-between mb-4">
+
+    <!-- Swap history section -->
+    <div class="cyber-card p-6 rounded-lg shadow mt-8 mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
             <h2 class="text-xl font-bold cyber-title">Recent Transactions</h2>
             <div class="flex items-center">
-                <label class="inline-flex items-center cursor-pointer mr-4">
-                    <input type="checkbox" id="enable-swap-recommendations" class="sr-only peer">
-                    <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    <span class="ms-3 text-sm font-medium text-gray-300">Pay Gas in USDC</span>
-                </label>
                 <button id="execute-trade-btn" class="cyber-btn px-4 py-1.5">
                     <i class="fas fa-exchange-alt mr-2"></i>
                     New Swap
@@ -1157,20 +1179,6 @@
                     <div id="swap-balance" class="text-xs text-gray-500 mt-1">Balance: 0.00 ETH</div>
                 </div>
                 
-                <div>
-                    <p class="block text-gray-300 mb-2">Gas Payment</p>
-                    <div class="flex space-x-4">
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="gas-token" value="eth" class="form-radio text-blue-600" checked>
-                            <span class="ml-2 text-white">Pay in ETH</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="radio" name="gas-token" value="usdc" class="form-radio text-blue-600">
-                            <span class="ml-2 text-white">Pay in USDC</span>
-                        </label>
-                    </div>
-                </div>
-                
                 <div class="pt-4">
                     <button id="execute-swap-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
                         <i class="fas fa-exchange-alt mr-2"></i>
@@ -1180,11 +1188,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Add this before the closing body tag -->
-    <!-- Load ethers.js first from local file -->
-    <script src="/static/js/lib/ethers-5.7.2.umd.min.js" type="text/javascript"></script>
-    <!-- Then load our module loader which will handle dynamic imports -->
-    <script src="/static/js/moduleLoader.js" type="text/javascript"></script>
+    </main>
 </body>
 </html> 
