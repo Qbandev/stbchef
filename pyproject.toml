@@ -8,8 +8,8 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 flask = "^2.0.1"
-werkzeug = "^3.0.6"
-requests = "^2.28.2"
+werkzeug = "^3.1.6"
+requests = "^2.32.4"
 python-dotenv = "^1.0.0"
 google-generativeai = "^0.3.1"
 mistralai = "^0.0.7"
@@ -18,12 +18,12 @@ web3 = "^6.10.0"
 flask-limiter = "^3.5.0"
 flask-talisman = "^1.0.0"
 httpx = "0.25.2"
-flask-cors = "^5.0.1"
+flask-cors = "^6.0.0"
 numpy = "^2.2.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
-black = "^24.3.0"
+black = "^26.3.1"
 flake8 = "^6.0.0"
 
 [build-system]
